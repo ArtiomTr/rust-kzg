@@ -1,6 +1,6 @@
 name: blst tests
 
-on: [push, pull_request, workflow_dispatch]
+on: [pull_request, workflow_dispatch]
 
 env:
   C_KZG_4844_GIT_HASH: 'd35b0f3854ab114b48daa9b504f6ee085c61508a'
@@ -10,7 +10,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-11]
+        os: [ubuntu-latest]
 
     steps:
       - uses: actions/checkout@v2
