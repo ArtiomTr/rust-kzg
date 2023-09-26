@@ -69,13 +69,16 @@ unsafe fn cks_to_ks(t: *const CKZGSettings) -> mKZGSettings {
     ks
 }
 
-unsafe fn deserialize_blob(blob: *const Blob) -> Result<Vec<Fr>, C_KZG_RET> {
-    (*blob)
+fn deserialize_blob(blob: *const Blob) -> Result<Vec<Fr>, C_KZG_RET> {
+    let blob = unsafe { &*blob };
+
+    blob
         .bytes
         .chunks(BYTES_PER_FIELD_ELEMENT)
         .map(|chunk| {
             let mut bytes = [0u8; BYTES_PER_FIELD_ELEMENT];
             bytes.copy_from_slice(chunk);
+            bytes.reverse(); // conversion from be to le, as mcl works with le by default
             let mut tmp = Fr::default();
             let ret = tmp.deserialize(&bytes);
             if !ret {

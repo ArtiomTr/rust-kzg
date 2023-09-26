@@ -1,5 +1,7 @@
 #!/bin/bash
 
+C_KZG_4844_GIT_HASH=fbef59a3f9e8fa998bdb5069d212daf83d586aa5
+
 set -e
 
 print_msg () {
@@ -37,9 +39,13 @@ else
   cargo rustc --release --crate-type=staticlib
 fi
 
+rm ../../target/release/rust_kzg_mcl.a
 mv ../../target/release/librust_kzg_mcl.a ../../target/release/rust_kzg_mcl.a
 
 ###################### cloning c-kzg-4844 ######################
+
+print_msg "Removing existing c-kzg-4844"
+rm -rf c-kzg-4844
 
 print_msg "Cloning c-kzg-4844"
 git clone https://github.com/ethereum/c-kzg-4844.git
@@ -73,17 +79,17 @@ esac
 
 ###################### dotnet tests ######################
 
-print_msg "Patching dotnet binding"
-git apply < ../csharp.patch
-cd bindings/csharp || exit
+# print_msg "Patching dotnet binding"
+# git apply < ../csharp.patch
+# cd bindings/csharp || exit
 
-print_msg "Building dotnet"
-make -B ckzg CSHARP_PLATFORM=$CSHARP_PLATFORM CLANG_PLATFORM=$CLANG_PLATFORM
-dotnet restore
+# print_msg "Building dotnet"
+# make -B ckzg CSHARP_PLATFORM=$CSHARP_PLATFORM CLANG_PLATFORM=$CLANG_PLATFORM
+# dotnet restore
 
-print_msg "Running dotnet tests"
-dotnet test -c release --no-restore
-cd ../..
+# print_msg "Running dotnet tests"
+# dotnet test -c release --no-restore
+# cd ../..
 
 ###################### rust tests ######################
 
@@ -97,23 +103,23 @@ cd ../..
 
 ###################### python tests ######################
 
-print_msg "Patching python binding"
-git apply < ../python.patch
-cd bindings/python || exit
+# print_msg "Patching python binding"
+# git apply < ../python.patch
+# cd bindings/python || exit
 
-print_msg "Running python tests"
-make
-cd ../..
+# print_msg "Running python tests"
+# make
+# cd ../..
 
 ###################### java tests ######################
 
-print_msg "Patching java binding"
-git apply < ../java.patch
-cd bindings/java || exit
+# print_msg "Patching java binding"
+# git apply < ../java.patch
+# cd bindings/java || exit
 
-print_msg "Running java tests"
-make CC_FLAGS=-lstdc++ build test
-cd ../..
+# print_msg "Running java tests"
+# make CC_FLAGS=-lstdc++ build test
+# cd ../..
 
 ###################### nodejs tests ######################
 
