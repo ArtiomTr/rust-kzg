@@ -2,9 +2,15 @@ use criterion::Criterion;
 use kzg::{Fr, G1};
 
 #[allow(clippy::type_complexity)]
-pub fn bench_g1_lincomb<TFr: Fr + Copy, TG1: G1 + Copy>(
+pub fn bench_g1_lincomb<TFr: Fr + Copy, TG1: G1 + Copy, BGMWPreComputationList>(
     c: &mut Criterion,
-    g1_linear_combination: &dyn Fn(&mut TG1, &[TG1], &[TFr], usize),
+    g1_linear_combination: &dyn Fn(
+        &mut TG1,
+        &[TG1],
+        &[TFr],
+        usize,
+        Option<&BGMWPreComputationList>,
+    ),
 ) {
     const NUM_POINTS: usize = 4096;
 
@@ -15,7 +21,13 @@ pub fn bench_g1_lincomb<TFr: Fr + Copy, TG1: G1 + Copy>(
     c.bench_function(&id, |b| {
         b.iter(|| {
             let mut out = TG1::default();
-            g1_linear_combination(&mut out, points.as_slice(), scalars.as_slice(), NUM_POINTS)
+            g1_linear_combination(
+                &mut out,
+                points.as_slice(),
+                scalars.as_slice(),
+                NUM_POINTS,
+                None,
+            )
         })
     });
 }

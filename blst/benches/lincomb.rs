@@ -3,9 +3,10 @@ use kzg_bench::benches::lincomb::bench_g1_lincomb;
 use rust_kzg_blst::kzg_proofs::g1_linear_combination;
 use rust_kzg_blst::types::fr::FsFr;
 use rust_kzg_blst::types::g1::FsG1;
+use rust_kzg_blst::types::kzg_settings::BGMWPreComputationList;
 
 fn bench_g1_lincomb_(c: &mut Criterion) {
-    bench_g1_lincomb::<FsFr, FsG1>(c, &g1_linear_combination);
+    bench_g1_lincomb::<FsFr, FsG1, BGMWPreComputationList>(c, &g1_linear_combination);
 }
 
 criterion_group! {

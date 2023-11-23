@@ -4,22 +4,32 @@ use rust_kzg_blst::types::fft_settings::FsFFTSettings;
 use rust_kzg_blst::types::fr::FsFr;
 use rust_kzg_blst::types::g1::FsG1;
 use rust_kzg_blst::types::g2::FsG2;
-use rust_kzg_blst::types::kzg_settings::FsKZGSettings;
+use rust_kzg_blst::types::kzg_settings::{BGMWPreComputationList, FsKZGSettings};
 use rust_kzg_blst::types::poly::FsPoly;
 use rust_kzg_blst::utils::generate_trusted_setup;
 
 fn bench_commit_to_poly_(c: &mut Criterion) {
-    bench_commit_to_poly::<FsFr, FsG1, FsG2, FsPoly, FsFFTSettings, FsKZGSettings>(
-        c,
-        &generate_trusted_setup,
-    )
+    bench_commit_to_poly::<
+        FsFr,
+        FsG1,
+        FsG2,
+        FsPoly,
+        FsFFTSettings,
+        BGMWPreComputationList,
+        FsKZGSettings,
+    >(c, &generate_trusted_setup)
 }
 
 fn bench_compute_proof_single_(c: &mut Criterion) {
-    bench_compute_proof_single::<FsFr, FsG1, FsG2, FsPoly, FsFFTSettings, FsKZGSettings>(
-        c,
-        &generate_trusted_setup,
-    )
+    bench_compute_proof_single::<
+        FsFr,
+        FsG1,
+        FsG2,
+        FsPoly,
+        FsFFTSettings,
+        BGMWPreComputationList,
+        FsKZGSettings,
+    >(c, &generate_trusted_setup)
 }
 
 criterion_group! {

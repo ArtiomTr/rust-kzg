@@ -123,7 +123,7 @@ mod tests {
             },
         };
 
-        test = bgmw::single_scalar_multiplication(scalar, test);
+        bgmw::single_scalar_multiplication(scalar, &mut test);
 
         let truth: blst_p1_affine = blst_p1_affine {
             x: blst_fp {

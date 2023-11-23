@@ -78,11 +78,11 @@ impl<T> Cell<T> {
 }
 
 //MULT IMPL
-pub struct p1_affines {
+pub struct P1Affines {
     points: Vec<blst_p1_affine>,
 }
 
-impl<I: SliceIndex<[blst_p1_affine]>> Index<I> for p1_affines {
+impl<I: SliceIndex<[blst_p1_affine]>> Index<I> for P1Affines {
     type Output = I::Output;
 
     #[inline]
@@ -90,14 +90,14 @@ impl<I: SliceIndex<[blst_p1_affine]>> Index<I> for p1_affines {
         &self.points[i]
     }
 }
-impl<I: SliceIndex<[blst_p1_affine]>> IndexMut<I> for p1_affines {
+impl<I: SliceIndex<[blst_p1_affine]>> IndexMut<I> for P1Affines {
     #[inline]
     fn index_mut(&mut self, i: I) -> &mut Self::Output {
         &mut self.points[i]
     }
 }
 
-impl p1_affines {
+impl P1Affines {
     #[inline]
     pub fn as_slice(&self) -> &[blst_p1_affine] {
         self.points.as_slice()
@@ -334,11 +334,11 @@ impl p1_affines {
     }
 }
 
-pub struct p2_affines {
+pub struct P2Affines {
     points: Vec<blst_p2_affine>,
 }
 
-impl<I: SliceIndex<[blst_p2_affine]>> Index<I> for p2_affines {
+impl<I: SliceIndex<[blst_p2_affine]>> Index<I> for P2Affines {
     type Output = I::Output;
 
     #[inline]
@@ -346,14 +346,14 @@ impl<I: SliceIndex<[blst_p2_affine]>> Index<I> for p2_affines {
         &self.points[i]
     }
 }
-impl<I: SliceIndex<[blst_p2_affine]>> IndexMut<I> for p2_affines {
+impl<I: SliceIndex<[blst_p2_affine]>> IndexMut<I> for P2Affines {
     #[inline]
     fn index_mut(&mut self, i: I) -> &mut Self::Output {
         &mut self.points[i]
     }
 }
 
-impl p2_affines {
+impl P2Affines {
     #[inline]
     pub fn as_slice(&self) -> &[blst_p2_affine] {
         self.points.as_slice()

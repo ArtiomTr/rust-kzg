@@ -7,22 +7,34 @@ use rust_kzg_blst::types::fk20_single_settings::FsFK20SingleSettings;
 use rust_kzg_blst::types::fr::FsFr;
 use rust_kzg_blst::types::g1::FsG1;
 use rust_kzg_blst::types::g2::FsG2;
-use rust_kzg_blst::types::kzg_settings::FsKZGSettings;
+use rust_kzg_blst::types::kzg_settings::{BGMWPreComputationList, FsKZGSettings};
 use rust_kzg_blst::types::poly::FsPoly;
 use rust_kzg_blst::utils::generate_trusted_setup;
 
 fn bench_fk_single_da_(c: &mut Criterion) {
-    bench_fk_single_da::<FsFr, FsG1, FsG2, FsPoly, FsFFTSettings, FsKZGSettings, FsFK20SingleSettings>(
-        c,
-        &generate_trusted_setup,
-    )
+    bench_fk_single_da::<
+        FsFr,
+        FsG1,
+        FsG2,
+        FsPoly,
+        FsFFTSettings,
+        BGMWPreComputationList,
+        FsKZGSettings,
+        FsFK20SingleSettings,
+    >(c, &generate_trusted_setup)
 }
 
 fn bench_fk_multi_da_(c: &mut Criterion) {
-    bench_fk_multi_da::<FsFr, FsG1, FsG2, FsPoly, FsFFTSettings, FsKZGSettings, FsFK20MultiSettings>(
-        c,
-        &generate_trusted_setup,
-    )
+    bench_fk_multi_da::<
+        FsFr,
+        FsG1,
+        FsG2,
+        FsPoly,
+        FsFFTSettings,
+        BGMWPreComputationList,
+        FsKZGSettings,
+        FsFK20MultiSettings,
+    >(c, &generate_trusted_setup)
 }
 
 criterion_group! {

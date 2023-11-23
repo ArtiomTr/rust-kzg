@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 use core::ptr;
 
 #[cfg(feature = "parallel")]
-use crate::mult_pippenger::p1_affines;
+use crate::mult_pippenger::P1Affines;
 use crate::types::kzg_settings::BGMWPreComputationList;
 #[cfg(not(feature = "parallel"))]
 use blst::{blst_p1s_mult_pippenger_scratch_sizeof, blst_p1s_to_affine, limb_t};
@@ -31,6 +31,7 @@ impl PairingVerify<FsG1, FsG2> for FsG1 {
     }
 }
 
+#[allow(unused)]
 pub fn g1_linear_combination(
     out: &mut FsG1,
     points: &[FsG1],
@@ -50,7 +51,7 @@ pub fn g1_linear_combination(
     #[cfg(feature = "parallel")]
     {
         let points = unsafe { core::slice::from_raw_parts(points.as_ptr() as *const blst_p1, len) };
-        let points = p1_affines::from(points);
+        let points = P1Affines::from(points);
         let mut scalar_bytes: Vec<u8> = Vec::with_capacity(len * 32);
         for bytes in scalars.iter().map(|b| {
             let mut scalar = blst_scalar::default();

@@ -638,7 +638,7 @@ unsafe fn pippenger(
 
 // static void POINTonE1_bucket_CHES(POINTonE1xyzz buckets[], limb_t booth_idx, const POINTonE1_affine *p, unsigned char booth_sign) { POINTonE1xyzz_dadd_affine(&buckets[booth_idx], &buckets[booth_idx], p, booth_sign); }
 
-unsafe fn p1s_bucket_CHES(
+unsafe fn p1s_bucket_ches(
     buckets: *mut P1XYZZ,
     booth_idx: limb_t,
     point: *const blst_p1_affine,
@@ -691,7 +691,7 @@ unsafe fn bgmw_pippenger_tile(
     // if (booth_idx)
     if booth_idx != 0 {
         // POINTonE1_bucket_CHES(buckets, booth_idx, point, booth_sign);
-        p1s_bucket_CHES(buckets, booth_idx as limb_t, point, booth_sign);
+        p1s_bucket_ches(buckets, booth_idx as limb_t, point, booth_sign);
     }
     // --npoints;
     npoints -= 1;
@@ -715,7 +715,7 @@ unsafe fn bgmw_pippenger_tile(
         // if (booth_idx)
         if booth_idx != 0 {
             // POINTonE1_bucket_CHES(buckets, booth_idx, point, booth_sign);
-            p1s_bucket_CHES(buckets, booth_idx as limb_t, point, booth_sign);
+            p1s_bucket_ches(buckets, booth_idx as limb_t, point, booth_sign);
         }
     }
     // point = *points;
@@ -723,7 +723,7 @@ unsafe fn bgmw_pippenger_tile(
     // booth_sign = *booth_signs;
     booth_sign = *booth_signs;
     // POINTonE1_bucket_CHES(buckets, booth_idx_nxt, point, booth_sign);
-    p1s_bucket_CHES(buckets, booth_idx_nxt as limb_t, point, booth_sign);
+    p1s_bucket_ches(buckets, booth_idx_nxt as limb_t, point, booth_sign);
 
     // ++buckets;
     let buckets = buckets.wrapping_add(1);
@@ -796,9 +796,9 @@ fn trans_uint256_to_qhalf_expr(ret_qhalf_expr: &mut [i32], mut a: [u64; 4]) {
     let mask = Q_RADIX_PIPPENGER_VARIANT - 1;
 
     // for (int i=0; i< h_BGMW95; ++i){
-    for i in 0..H_BGMW95 {
+    for piece in ret_qhalf_expr.iter_mut() {
         // ret_qhalf_expr[i] = tmp.data[0] & mask;// we only need the bit-wise xor with the last 32-bit of tmp.
-        ret_qhalf_expr[i] = (a[0] & (mask as u64)) as i32;
+        *piece = (a[0] & (mask as u64)) as i32;
         // tmp = tmp >> EXPONENT_OF_q_BGMW95;
         a = uint256_bithsift(&a, EXPONENT_OF_Q_BGMW95 as u64);
     }
@@ -850,9 +850,8 @@ unsafe fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p
         let tt: u64 = 1u64 << 62;
 
         // for(int i = 0; i< N_POINTS; ++i){
-        for i in 0..npoints {
+        for (i, &aa) in scalars.iter().enumerate().take(npoints) {
             // uint256_t aa = scalars_array[i];
-            let aa = scalars[i];
 
             let mut aa_scalar = {
                 let mut scalar = blst_scalar::default();
@@ -878,11 +877,11 @@ unsafe fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p
             // if (condition == true) {
             if condition {
                 // for(int j = 0; j< h_BGMW95; ++j){
-                for j in 0..H_BGMW95 {
+                for (j, piece) in ret_qhalf_expr.iter().enumerate() {
                     // size_t idx = i*h_BGMW95 + j;
                     let idx = i * H_BGMW95 + j;
                     // scalars[idx]  = ret_qhalf_expr[j];
-                    scalars_out[idx] = ret_qhalf_expr[j];
+                    scalars_out[idx] = *piece;
                     // points_ptr[idx] =  PRECOMPUTATION_POINTS_LIST_BGMW95 + idx;
                     points_ptr[idx] = table.as_ptr().wrapping_add(idx);
 
@@ -899,11 +898,11 @@ unsafe fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p
                 }
             } else {
                 // for(int j = 0; j< h_BGMW95; ++j){
-                for j in 0..H_BGMW95 {
+                for (j, piece) in ret_qhalf_expr.iter().enumerate() {
                     // size_t idx = i*h_BGMW95 + j;
                     let idx = i * H_BGMW95 + j;
                     // scalars[idx]  = ret_qhalf_expr[j];
-                    scalars_out[idx] = ret_qhalf_expr[j];
+                    scalars_out[idx] = *piece;
                     // points_ptr[idx] =  PRECOMPUTATION_POINTS_LIST_BGMW95 + idx;
                     points_ptr[idx] = table.as_ptr().wrapping_add(idx);
 
@@ -922,12 +921,12 @@ unsafe fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p
         }
     } else {
         // for(int i = 0; i< N_POINTS; ++i){
-        for i in 0..npoints {
+        for (i, fr) in scalars.iter().enumerate().take(npoints) {
             let scalar = {
                 let mut scalar = blst_scalar::default();
                 let mut arr = [0u64; 4];
                 unsafe {
-                    blst_scalar_from_fr(&mut scalar, &scalars[i].0);
+                    blst_scalar_from_fr(&mut scalar, &fr.0);
                     blst_uint64_from_scalar(arr.as_mut_ptr(), &scalar);
                 };
 
@@ -938,11 +937,11 @@ unsafe fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p
             trans_uint256_to_qhalf_expr(&mut ret_qhalf_expr, scalar);
 
             // for(int j = 0; j< h_BGMW95; ++j){
-            for j in 0..H_BGMW95 {
+            for (j, piece) in ret_qhalf_expr.iter().enumerate() {
                 // size_t idx = i*h_BGMW95 + j;
                 let idx = i * H_BGMW95 + j;
                 // scalars[idx]  = ret_qhalf_expr[j];
-                scalars_out[idx] = ret_qhalf_expr[j];
+                scalars_out[idx] = *piece;
                 // points_ptr[idx] =  PRECOMPUTATION_POINTS_LIST_BGMW95 + idx;
                 points_ptr[idx] = table.as_ptr().wrapping_add(idx);
                 // if ( scalars[idx] > 0) {
