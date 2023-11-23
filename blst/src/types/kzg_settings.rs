@@ -3,7 +3,7 @@ extern crate alloc;
 use core::ptr;
 
 use alloc::string::String;
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 
 use blst::{blst_p1_affine, blst_p1s_to_affine};
 use kzg::{FFTFr, FFTSettings, Fr, G1Mul, G2Mul, KZGSettings, Poly, G1, G2};

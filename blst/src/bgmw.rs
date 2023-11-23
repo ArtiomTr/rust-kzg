@@ -2,6 +2,9 @@ use blst::{
     blst_fp, blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_from_affine, blst_p1_to_affine,
 };
 
+extern crate alloc;
+use alloc::vec;
+
 pub const H_BGMW95: usize = 22;
 pub const H_LEN_SCALAR: usize = 20;
 pub const EXPONENT_OF_Q: usize = 13;

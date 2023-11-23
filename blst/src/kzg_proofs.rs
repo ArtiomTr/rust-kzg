@@ -3,18 +3,16 @@ extern crate alloc;
 #[cfg(not(feature = "parallel"))]
 use alloc::vec;
 use alloc::vec::Vec;
-#[cfg(not(feature = "parallel"))]
-use core::ptr;
 
 #[cfg(feature = "parallel")]
-use crate::mult_pippenger::P1Affines;
-use crate::types::kzg_settings::BGMWPreComputationList;
+use blst::{blst_p1, blst_scalar, blst_scalar_from_fr, p1_affines};
 #[cfg(not(feature = "parallel"))]
-use blst::{blst_p1s_mult_pippenger_scratch_sizeof, blst_p1s_to_affine, limb_t};
+use blst::{blst_p1s_mult_pippenger_scratch_sizeof, limb_t};
 
+use crate::types::kzg_settings::BGMWPreComputationList;
 use blst::{
-    blst_fp12_is_one, blst_p1, blst_p1_affine, blst_p1_cneg, blst_p1_to_affine, blst_p2_affine,
-    blst_p2_to_affine, blst_scalar, blst_scalar_from_fr, Pairing,
+    blst_fp12_is_one, blst_p1_affine, blst_p1_cneg, blst_p1_to_affine, blst_p2_affine,
+    blst_p2_to_affine, Pairing,
 };
 
 use kzg::{G1Mul, PairingVerify, G1};
@@ -51,7 +49,7 @@ pub fn g1_linear_combination(
     #[cfg(feature = "parallel")]
     {
         let points = unsafe { core::slice::from_raw_parts(points.as_ptr() as *const blst_p1, len) };
-        let points = P1Affines::from(points);
+        let points = p1_affines::from(points);
         let mut scalar_bytes: Vec<u8> = Vec::with_capacity(len * 32);
         for bytes in scalars.iter().map(|b| {
             let mut scalar = blst_scalar::default();

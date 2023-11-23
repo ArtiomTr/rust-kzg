@@ -1,9 +1,11 @@
 // Copyright Supranational LLC
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
+extern crate alloc;
 extern crate blst;
 extern crate core;
 extern crate threadpool;
+use alloc::{boxed::Box, vec, vec::Vec};
 use blst::{
     blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_double, blst_p1s_add,
     blst_p1s_mult_pippenger, blst_p1s_mult_pippenger_scratch_sizeof, blst_p1s_tile_pippenger,
