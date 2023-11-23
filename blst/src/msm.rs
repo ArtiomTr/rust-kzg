@@ -7,14 +7,14 @@ extern crate alloc;
 use alloc::vec;
 
 use blst::{
-    blst_fp, blst_fr, blst_p1, blst_p1_add, blst_p1_affine, blst_p1_double, blst_p1_from_affine,
-    blst_p1_mult, blst_p1s_mult_wbits, blst_p1s_mult_wbits_precompute, blst_p1s_to_affine,
-    blst_scalar, blst_scalar_from_fr, blst_uint64_from_scalar, byte, limb_t,
+    blst_fp, blst_p1, blst_p1_add, blst_p1_affine, blst_p1_double, blst_p1s_mult_wbits,
+    blst_p1s_mult_wbits_precompute, blst_p1s_to_affine, blst_scalar, blst_scalar_from_fr,
+    blst_uint64_from_scalar, byte, limb_t,
 };
 use kzg::G1Mul;
 
 use crate::{
-    bgmw::{EXPONENT_OF_Q, EXPONENT_OF_Q_BGMW95, H_BGMW95, Q_RADIX_PIPPENGER_VARIANT},
+    bgmw::{EXPONENT_OF_Q_BGMW95, H_BGMW95, Q_RADIX_PIPPENGER_VARIANT},
     types::{fr::FsFr, g1::FsG1, kzg_settings::BGMWPreComputationList},
 };
 
@@ -658,7 +658,7 @@ unsafe fn bgmw_pippenger_tile(
     mut npoints: usize,
     mut scalars: *const i32,
     mut booth_signs: *const u8,
-    mut buckets: *mut P1XYZZ,
+    buckets: *mut P1XYZZ,
     q_exponent: usize,
 ) {
     // POINTonE1 *ret, const POINTonE1_affine *const points[], size_t npoints, const int scalars[], const unsigned char booth_signs[], POINTonE1xyzz buckets[], size_t q_exponent
@@ -726,7 +726,7 @@ unsafe fn bgmw_pippenger_tile(
     p1s_bucket_CHES(buckets, booth_idx_nxt as limb_t, point, booth_sign);
 
     // ++buckets;
-    buckets = buckets.wrapping_add(1);
+    let buckets = buckets.wrapping_add(1);
 
     // POINTonE1_integrate_buckets(ret, buckets, q_exponent - 1);
     p1_integrate_buckets(ret, buckets, q_exponent - 1);
@@ -831,7 +831,7 @@ unsafe fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p
 
     // blst_p1_affine** points_ptr;
     // points_ptr = new blst_p1_affine* [npoints];
-    let mut points_ptr = vec![ptr::null() as *const blst_p1_affine; npoints * H_BGMW95];
+    let mut points_ptr = vec![ptr::null(); npoints * H_BGMW95];
 
     // FIXME: this formula only works when npoints is power of two
     let n_exp = npoints.leading_zeros();
@@ -976,7 +976,7 @@ unsafe fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p
     bgmw_pippenger_tile(
         &mut ret.0,
         points_ptr.as_ptr(),
-        npoints,
+        npoints * H_BGMW95,
         scalars_out.as_ptr(),
         booth_signs.as_ptr(),
         buckets.as_mut_ptr() as *mut P1XYZZ,

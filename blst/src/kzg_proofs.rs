@@ -75,9 +75,9 @@ pub fn g1_linear_combination(
 
         msm(
             out,
-            &points,
+            points,
             len,
-            &scalars,
+            scalars,
             255,
             scratch.as_mut_ptr() as *mut limb_t,
             table,
@@ -115,13 +115,16 @@ pub fn pairings_verify(a1: &FsG1, a2: &FsG2, b1: &FsG1, b2: &FsG2) -> bool {
 
 #[cfg(test)]
 mod test {
+    use core::ptr;
     use std::{fs::File, io::Read};
 
+    use blst::{blst_p1_affine, blst_p1s_to_affine};
     use kzg::{Fr, G1};
 
     use crate::{
+        bgmw,
         kzg_proofs::g1_linear_combination,
-        types::{fr::FsFr, g1::FsG1},
+        types::{fr::FsFr, g1::FsG1, kzg_settings::BGMWPreComputationList},
     };
 
     #[test]
@@ -188,7 +191,24 @@ mod test {
 
         let mut res = FsG1::default();
 
-        g1_linear_combination(&mut res, &p, &coeffs, len, None);
+        let mut p_affine = vec![blst_p1_affine::default(); len];
+        let points = [&p[0].0, ptr::null()];
+
+        unsafe {
+            blst_p1s_to_affine(p_affine.as_mut_ptr(), points.as_ptr(), len);
+        };
+
+        let mut table = vec![blst::blst_p1_affine::default(); bgmw::get_bgmw_table_size(len)];
+
+        bgmw::init_pippenger_bgmw(&mut table, &p_affine);
+
+        g1_linear_combination(
+            &mut res,
+            &p,
+            &coeffs,
+            len,
+            Some(&BGMWPreComputationList(table)),
+        );
 
         assert!(exp.equals(&res));
     }

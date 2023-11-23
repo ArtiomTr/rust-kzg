@@ -31,11 +31,15 @@ pub fn single_scalar_multiplication(mut scalar: usize, q: blst_p1_affine) -> bls
             }
 
             blst_p1_add_or_double(&mut xyz_q, &xyz_q, &xyz_q);
-            scalar = scalar >> 1
+            scalar >>= 1
         }
         blst_p1_to_affine(&mut ret, &inf);
-        return ret;
-    };
+        ret
+    }
+}
+
+pub fn get_bgmw_table_size(npoints: usize) -> usize {
+    npoints * H_BGMW95
 }
 
 pub fn init_pippenger_bgmw(table: &mut [blst_p1_affine], points: &[blst_p1_affine]) {
