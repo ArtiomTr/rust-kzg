@@ -31,10 +31,9 @@ fn bench_eip_4844_(c: &mut Criterion) {
     );
 }
 
-
-criterion_group!{
+criterion_group! {
     name = benches;
-    config = Criterion::default().sample_size(500); 
+    config = Criterion::default().sample_size(500);
     targets = bench_eip_4844_
 }
 criterion_main!(benches);
