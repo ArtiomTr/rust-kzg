@@ -670,7 +670,7 @@ unsafe fn bgmw_pippenger_tile(
     // POINTonE1 *ret, const POINTonE1_affine *const points[], size_t npoints, const int scalars[], const unsigned char booth_signs[], POINTonE1xyzz buckets[], size_t q_exponent
 
     // size_t bucket_set_size = (size_t)(1 << (q_exponent - 1)) + 1;
-    let bucket_set_size = (1usize << (q_exponent - 1)) + 1;
+    //// let bucket_set_size = (1usize << (q_exponent - 1)) + 1;
     // vec_zero(buckets, sizeof(buckets[0]) * bucket_set_size);
     //// we don't need to set all buckets to zero, as they are already all zeros
     //// buckets.iter().for_each(|bucket| *bucket = P1XYZZ);
@@ -977,7 +977,7 @@ fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p1_affin
             zz: blst_fp { l: [0u64; 6] },
             zzz: blst_fp { l: [0u64; 6] },
         };
-        (qhalf + 1) * size_of::<P1XYZZ>()
+        qhalf + 1
     ];
 
     // blst_p1_tile_pippenger_BGMW95(&ret, \
