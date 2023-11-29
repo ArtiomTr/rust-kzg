@@ -815,7 +815,7 @@ fn trans_uint256_to_qhalf_expr(ret_qhalf_expr: &mut [i32], mut a: [u64; 4]) {
     }
 }
 
-unsafe fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p1_affine]) {
+fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p1_affine]) {
     // std::array< int, h_BGMW95> ret_qhalf_expr;
     let mut ret_qhalf_expr = [0i32; H_BGMW95];
 
@@ -972,15 +972,18 @@ unsafe fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p
     //                                 scalars, booth_signs,\
     //                                 buckets,\
     //                                 EXPONENT_OF_q_BGMW95);
-    bgmw_pippenger_tile(
-        &mut ret.0,
-        points_ptr.as_ptr(),
-        npoints * H_BGMW95,
-        scalars_out.as_ptr(),
-        booth_signs.as_ptr(),
-        buckets.as_mut_ptr() as *mut P1XYZZ,
-        EXPONENT_OF_Q_BGMW95,
-    );
+    unsafe {
+        bgmw_pippenger_tile(
+            &mut ret.0,
+            points_ptr.as_ptr(),
+            npoints * H_BGMW95,
+            scalars_out.as_ptr(),
+            booth_signs.as_ptr(),
+            buckets.as_mut_ptr() as *mut P1XYZZ,
+            EXPONENT_OF_Q_BGMW95,
+        );
+    }
+
     // delete[] buckets;
     // delete[] points_ptr;
     // delete[] booth_signs;
