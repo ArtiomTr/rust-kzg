@@ -638,27 +638,33 @@ unsafe fn pippenger(
 
 // static void POINTonE1_bucket_CHES(POINTonE1xyzz buckets[], limb_t booth_idx, const POINTonE1_affine *p, unsigned char booth_sign) { POINTonE1xyzz_dadd_affine(&buckets[booth_idx], &buckets[booth_idx], p, booth_sign); }
 
-unsafe fn p1s_bucket_ches(
-    buckets: *mut P1XYZZ,
+fn p1s_bucket_ches(
+    buckets: &mut [P1XYZZ],
     booth_idx: limb_t,
-    point: *const blst_p1_affine,
+    point: &blst_p1_affine,
     booth_sign: u8,
 ) {
-    p1_dadd_affine(
-        buckets.wrapping_add(booth_idx.try_into().unwrap()),
-        buckets.wrapping_add(booth_idx.try_into().unwrap()),
-        point,
-        booth_sign.into(),
-    );
+    unsafe {
+        p1_dadd_affine(
+            buckets
+                .as_mut_ptr()
+                .wrapping_add(booth_idx.try_into().unwrap()),
+            buckets
+                .as_mut_ptr()
+                .wrapping_add(booth_idx.try_into().unwrap()),
+            point,
+            booth_sign.into(),
+        );
+    }
 }
 
 unsafe fn bgmw_pippenger_tile(
-    ret: *mut blst_p1,
-    mut points: *const *const blst_p1_affine,
-    mut npoints: usize,
-    mut scalars: *const i32,
-    mut booth_signs: *const u8,
-    buckets: *mut P1XYZZ,
+    ret: &mut FsG1,
+    points: &[blst_p1_affine],
+    npoints: usize,
+    scalars: &[i32],
+    booth_signs: &[u8],
+    buckets: &mut [P1XYZZ],
     q_exponent: usize,
 ) {
     // POINTonE1 *ret, const POINTonE1_affine *const points[], size_t npoints, const int scalars[], const unsigned char booth_signs[], POINTonE1xyzz buckets[], size_t q_exponent
@@ -666,27 +672,26 @@ unsafe fn bgmw_pippenger_tile(
     // size_t bucket_set_size = (size_t)(1 << (q_exponent - 1)) + 1;
     let bucket_set_size = (1usize << (q_exponent - 1)) + 1;
     // vec_zero(buckets, sizeof(buckets[0]) * bucket_set_size);
-    vec_zero(
-        buckets as *mut limb_t,
-        size_of::<P1XYZZ>() * bucket_set_size,
-    );
+    //// we don't need to set all buckets to zero, as they are already all zeros
+    //// buckets.iter().for_each(|bucket| *bucket = P1XYZZ);
     // vec_zero(ret, sizeof(*ret));
-    vec_zero(ret as *mut limb_t, size_of::<blst_p1>());
+    *ret = FsG1(blst_p1 {
+        x: blst_fp { l: [0u64; 6] },
+        y: blst_fp { l: [0u64; 6] },
+        z: blst_fp { l: [0u64; 6] },
+    });
     // int booth_idx, booth_idx_nxt;
     // size_t i;
     // unsigned char booth_sign;
+
     // const POINTonE1_affine *point = *points++;
-    let mut point = *points;
-    points = points.wrapping_add(1);
+    let point = &points[0];
     // booth_idx = *scalars++;
-    let mut booth_idx = *scalars;
-    scalars = scalars.wrapping_add(1);
+    let booth_idx = scalars[0];
     // booth_sign = *booth_signs++;
-    let mut booth_sign = *booth_signs;
-    booth_signs = booth_signs.wrapping_add(1);
+    let booth_sign = booth_signs[0];
     // booth_idx_nxt = *scalars++;
-    let mut booth_idx_nxt = *scalars;
-    scalars = scalars.wrapping_add(1);
+    let mut booth_idx_nxt = scalars[1];
 
     // if (booth_idx)
     if booth_idx != 0 {
@@ -694,24 +699,21 @@ unsafe fn bgmw_pippenger_tile(
         p1s_bucket_ches(buckets, booth_idx as limb_t, point, booth_sign);
     }
     // --npoints;
-    npoints -= 1;
+    let npoints = npoints - 1;
     // for (i = 1; i < npoints; ++i)
-    for _i in 1..npoints {
+    for i in 1..npoints {
         // booth_idx = booth_idx_nxt;
-        booth_idx = booth_idx_nxt;
+        let booth_idx = booth_idx_nxt;
         // booth_idx_nxt = *scalars++;
-        booth_idx_nxt = *scalars;
-        scalars = scalars.wrapping_add(1);
+        booth_idx_nxt = scalars[i + 1];
 
         // TODO:
         // POINTonE1_prefetch_CHES(buckets, booth_idx_nxt);
 
         // point = *points++;
-        point = *points;
-        points = points.wrapping_add(1);
+        let point = &points[i];
         // booth_sign = *booth_signs++;
-        booth_sign = *booth_signs;
-        booth_signs = booth_signs.wrapping_add(1);
+        let booth_sign = booth_signs[i];
         // if (booth_idx)
         if booth_idx != 0 {
             // POINTonE1_bucket_CHES(buckets, booth_idx, point, booth_sign);
@@ -719,17 +721,21 @@ unsafe fn bgmw_pippenger_tile(
         }
     }
     // point = *points;
-    point = *points;
+    let point = &points[npoints];
     // booth_sign = *booth_signs;
-    booth_sign = *booth_signs;
+    let booth_sign = booth_signs[npoints];
     // POINTonE1_bucket_CHES(buckets, booth_idx_nxt, point, booth_sign);
     p1s_bucket_ches(buckets, booth_idx_nxt as limb_t, point, booth_sign);
 
     // ++buckets;
-    let buckets = buckets.wrapping_add(1);
+    // let buckets = buckets.wrapping_add(1);
 
     // POINTonE1_integrate_buckets(ret, buckets, q_exponent - 1);
-    p1_integrate_buckets(ret, buckets, q_exponent - 1);
+    p1_integrate_buckets(
+        &mut ret.0,
+        buckets.as_mut_ptr().wrapping_add(1),
+        q_exponent - 1,
+    );
 }
 
 fn uint256_sbb(a: u64, b: u64, borrow_in: u64) -> (u64, u64) {
@@ -831,7 +837,7 @@ fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p1_affin
 
     // blst_p1_affine** points_ptr;
     // points_ptr = new blst_p1_affine* [npoints];
-    let mut points_ptr = vec![ptr::null(); npoints * H_BGMW95];
+    // let mut points_ptr = vec![ptr::null(); npoints * H_BGMW95];
 
     // FIXME: this formula only works when npoints is power of two
     let n_exp = npoints.leading_zeros();
@@ -883,7 +889,7 @@ fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p1_affin
                     // scalars[idx]  = ret_qhalf_expr[j];
                     scalars_out[idx] = *piece;
                     // points_ptr[idx] =  PRECOMPUTATION_POINTS_LIST_BGMW95 + idx;
-                    points_ptr[idx] = table.as_ptr().wrapping_add(idx);
+                    // points_ptr[idx] = table.as_ptr().wrapping_add(idx);
 
                     // if ( scalars[idx] > 0) {
                     if scalars_out[idx] > 0 {
@@ -904,7 +910,7 @@ fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p1_affin
                     // scalars[idx]  = ret_qhalf_expr[j];
                     scalars_out[idx] = *piece;
                     // points_ptr[idx] =  PRECOMPUTATION_POINTS_LIST_BGMW95 + idx;
-                    points_ptr[idx] = table.as_ptr().wrapping_add(idx);
+                    // points_ptr[idx] = table.as_ptr().wrapping_add(idx);
 
                     // if ( scalars[idx] > 0) {
                     if scalars_out[idx] > 0 {
@@ -943,7 +949,7 @@ fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p1_affin
                 // scalars[idx]  = ret_qhalf_expr[j];
                 scalars_out[idx] = *piece;
                 // points_ptr[idx] =  PRECOMPUTATION_POINTS_LIST_BGMW95 + idx;
-                points_ptr[idx] = table.as_ptr().wrapping_add(idx);
+                // points_ptr[idx] = table.as_ptr().wrapping_add(idx);
                 // if ( scalars[idx] > 0) {
                 if scalars_out[idx] > 0 {
                     // booth_signs[idx] = 0;
@@ -964,7 +970,15 @@ fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p1_affin
     // int qhalf = int(q_RADIX_PIPPENGER_VARIANT>>1);
     let qhalf = Q_RADIX_PIPPENGER_VARIANT >> 1;
     // buckets = new blst_p1xyzz [qhalf + 1];
-    let mut buckets = vec![0u8; (qhalf + 1) * size_of::<P1XYZZ>()];
+    let mut buckets = vec![
+        P1XYZZ {
+            x: blst_fp { l: [0u64; 6] },
+            y: blst_fp { l: [0u64; 6] },
+            zz: blst_fp { l: [0u64; 6] },
+            zzz: blst_fp { l: [0u64; 6] },
+        };
+        (qhalf + 1) * size_of::<P1XYZZ>()
+    ];
 
     // blst_p1_tile_pippenger_BGMW95(&ret, \
     //                                 points_ptr, \
@@ -972,14 +986,15 @@ fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p1_affin
     //                                 scalars, booth_signs,\
     //                                 buckets,\
     //                                 EXPONENT_OF_q_BGMW95);
+    // (1usize << (q_exponent - 1)) + 1
     unsafe {
         bgmw_pippenger_tile(
-            &mut ret.0,
-            points_ptr.as_ptr(),
+            ret,
+            table,
             npoints * H_BGMW95,
-            scalars_out.as_ptr(),
-            booth_signs.as_ptr(),
-            buckets.as_mut_ptr() as *mut P1XYZZ,
+            &scalars_out,
+            &booth_signs,
+            &mut buckets,
             EXPONENT_OF_Q_BGMW95,
         );
     }
