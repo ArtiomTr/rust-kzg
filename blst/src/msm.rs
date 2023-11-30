@@ -1,7 +1,10 @@
 use core::{
     mem::size_of,
     ptr::{self, null_mut},
+    sync::atomic::{AtomicUsize, Ordering},
 };
+
+use std::sync::{mpsc, Arc};
 
 extern crate alloc;
 use alloc::vec;
@@ -11,7 +14,7 @@ use blst::{
     blst_p1s_mult_wbits_precompute, blst_p1s_to_affine, blst_scalar, blst_scalar_from_fr,
     blst_uint64_from_scalar, byte, limb_t,
 };
-use kzg::G1Mul;
+use kzg::{G1Mul, G1};
 
 use crate::{
     bgmw::{EXPONENT_OF_Q_BGMW95, H_BGMW95, Q_RADIX_PIPPENGER_VARIANT},
@@ -658,7 +661,7 @@ fn p1s_bucket_ches(
     }
 }
 
-unsafe fn bgmw_pippenger_tile(
+fn bgmw_pippenger_tile(
     ret: &mut FsG1,
     points: &[blst_p1_affine],
     npoints: usize,
@@ -731,11 +734,13 @@ unsafe fn bgmw_pippenger_tile(
     // let buckets = buckets.wrapping_add(1);
 
     // POINTonE1_integrate_buckets(ret, buckets, q_exponent - 1);
-    p1_integrate_buckets(
-        &mut ret.0,
-        buckets.as_mut_ptr().wrapping_add(1),
-        q_exponent - 1,
-    );
+    unsafe {
+        p1_integrate_buckets(
+            &mut ret.0,
+            buckets.as_mut_ptr().wrapping_add(1),
+            q_exponent - 1,
+        );
+    }
 }
 
 fn uint256_sbb(a: u64, b: u64, borrow_in: u64) -> (u64, u64) {
@@ -818,6 +823,40 @@ fn trans_uint256_to_qhalf_expr(ret_qhalf_expr: &mut [i32], mut a: [u64; 4]) {
             ret_qhalf_expr[i + 1] += 1;
             // // system parameter makes sure ret_qhalf_expr[h-1]<= q/2.
         }
+    }
+}
+
+trait ThreadPoolExt {
+    fn joined_execute<'any, F>(&self, job: F)
+    where
+        F: FnOnce() + Send + 'any;
+}
+
+use core::mem::transmute;
+use std::sync::{Mutex, Once};
+use threadpool::ThreadPool;
+
+pub fn da_pool() -> ThreadPool {
+    static INIT: Once = Once::new();
+    static mut POOL: *const Mutex<ThreadPool> = 0 as *const Mutex<ThreadPool>;
+
+    INIT.call_once(|| {
+        let pool = Mutex::new(ThreadPool::default());
+        unsafe { POOL = transmute(Box::new(pool)) };
+    });
+    unsafe { (*POOL).lock().unwrap().clone() }
+}
+
+type Thunk<'any> = Box<dyn FnOnce() + Send + 'any>;
+
+impl ThreadPoolExt for ThreadPool {
+    fn joined_execute<'scope, F>(&self, job: F)
+    where
+        F: FnOnce() + Send + 'scope,
+    {
+        // Bypass 'lifetime limitations by brute force. It works,
+        // because we explicitly join the threads...
+        self.execute(unsafe { transmute::<Thunk<'scope>, Thunk<'static>>(Box::new(job)) })
     }
 }
 
@@ -970,16 +1009,6 @@ fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p1_affin
     // int qhalf = int(q_RADIX_PIPPENGER_VARIANT>>1);
     let qhalf = Q_RADIX_PIPPENGER_VARIANT >> 1;
     // buckets = new blst_p1xyzz [qhalf + 1];
-    let mut buckets = vec![
-        P1XYZZ {
-            x: blst_fp { l: [0u64; 6] },
-            y: blst_fp { l: [0u64; 6] },
-            zz: blst_fp { l: [0u64; 6] },
-            zzz: blst_fp { l: [0u64; 6] },
-        };
-        qhalf + 1
-    ];
-
     // blst_p1_tile_pippenger_BGMW95(&ret, \
     //                                 points_ptr, \
     //                                 npoints, \
@@ -987,7 +1016,101 @@ fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p1_affin
     //                                 buckets,\
     //                                 EXPONENT_OF_q_BGMW95);
     // (1usize << (q_exponent - 1)) + 1
-    unsafe {
+
+    // blst_p1s_tile_pippenger(
+    //     grid[work].1.as_ptr(),
+    //     &p[0],
+    //     grid[work].0.dx,
+    //     &s[0],
+    //     nbits,
+    //     &mut scratch[0],
+    //     y,
+    //     window,
+    // );
+
+    #[cfg(feature = "parallel")]
+    {
+        let pool = da_pool();
+        let ncpus = pool.max_count();
+        let n_workers = core::cmp::min(ncpus, H_BGMW95);
+
+        let (tx, rx) = mpsc::channel();
+        let counter = Arc::new(AtomicUsize::new(0));
+
+        for _ in 0..n_workers {
+            let tx = tx.clone();
+            let counter = counter.clone();
+
+            let scalars = &scalars_out;
+            let booth_signs = &booth_signs;
+
+            pool.joined_execute(move || {
+                let mut buckets = vec![
+                    P1XYZZ {
+                        x: blst_fp { l: [0u64; 6] },
+                        y: blst_fp { l: [0u64; 6] },
+                        zz: blst_fp { l: [0u64; 6] },
+                        zzz: blst_fp { l: [0u64; 6] },
+                    };
+                    qhalf + 1
+                ];
+
+                loop {
+                    let work = counter.fetch_add(1, Ordering::Relaxed);
+
+                    buckets.iter_mut().for_each(|b| {
+                        *b = P1XYZZ {
+                            x: blst_fp { l: [0u64; 6] },
+                            y: blst_fp { l: [0u64; 6] },
+                            zz: blst_fp { l: [0u64; 6] },
+                            zzz: blst_fp { l: [0u64; 6] },
+                        }
+                    });
+
+                    if work >= H_BGMW95 {
+                        break;
+                    }
+
+                    let begin = work * npoints;
+                    let end = (work + 1) * npoints;
+                    let mut point = FsG1::default();
+
+                    bgmw_pippenger_tile(
+                        &mut point,
+                        &table[begin..end],
+                        npoints,
+                        &scalars[begin..end],
+                        &booth_signs[begin..end],
+                        &mut buckets,
+                        EXPONENT_OF_Q_BGMW95,
+                    );
+
+                    // TODO: error handling here
+                    tx.send(point).unwrap();
+                }
+            });
+        }
+
+        *ret = FsG1::default();
+        for _ in 0..H_BGMW95 {
+            let value = rx.recv().unwrap();
+
+            *ret = ret.add(&value);
+        }
+    }
+
+    #[cfg(not(feature = "parallel"))]
+    {
+        let mut buckets = vec![
+            P1XYZZ {
+                x: blst_fp { l: [0u64; 6] },
+                y: blst_fp { l: [0u64; 6] },
+                zz: blst_fp { l: [0u64; 6] },
+                zzz: blst_fp { l: [0u64; 6] },
+            };
+            qhalf + 1
+        ];
+
         bgmw_pippenger_tile(
             ret,
             table,

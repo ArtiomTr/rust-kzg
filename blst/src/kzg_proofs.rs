@@ -6,7 +6,6 @@ use alloc::vec::Vec;
 
 #[cfg(feature = "parallel")]
 use blst::{blst_p1, blst_scalar, blst_scalar_from_fr, p1_affines};
-#[cfg(not(feature = "parallel"))]
 use blst::{blst_p1s_mult_pippenger_scratch_sizeof, limb_t};
 
 use crate::types::kzg_settings::BGMWPreComputationList;
@@ -17,7 +16,6 @@ use blst::{
 
 use kzg::{G1Mul, PairingVerify, G1};
 
-#[cfg(not(feature = "parallel"))]
 use crate::msm::msm;
 use crate::types::fr::FsFr;
 use crate::types::g1::FsG1;
@@ -46,42 +44,42 @@ pub fn g1_linear_combination(
         return;
     }
 
-    #[cfg(feature = "parallel")]
-    {
-        let points = unsafe { core::slice::from_raw_parts(points.as_ptr() as *const blst_p1, len) };
-        let points = p1_affines::from(points);
-        let mut scalar_bytes: Vec<u8> = Vec::with_capacity(len * 32);
-        for bytes in scalars.iter().map(|b| {
-            let mut scalar = blst_scalar::default();
+    // #[cfg(feature = "parallel")]
+    // {
+    //     let points = unsafe { core::slice::from_raw_parts(points.as_ptr() as *const blst_p1, len) };
+    //     let points = p1_affines::from(points);
+    //     let mut scalar_bytes: Vec<u8> = Vec::with_capacity(len * 32);
+    //     for bytes in scalars.iter().map(|b| {
+    //         let mut scalar = blst_scalar::default();
 
-            unsafe { blst_scalar_from_fr(&mut scalar, &b.0) }
+    //         unsafe { blst_scalar_from_fr(&mut scalar, &b.0) }
 
-            scalar.b
-        }) {
-            scalar_bytes.extend_from_slice(&bytes);
-        }
+    //         scalar.b
+    //     }) {
+    //         scalar_bytes.extend_from_slice(&bytes);
+    //     }
 
-        let res = points.mult(scalar_bytes.as_slice(), 255);
-        *out = FsG1(res)
+    //     let res = points.mult(scalar_bytes.as_slice(), 255);
+    //     *out = FsG1(res)
+    // }
+
+    // #[cfg(not(feature = "parallel"))]
+    // {
+    let mut scratch: Vec<u8>;
+    unsafe {
+        scratch = vec![0u8; blst_p1s_mult_pippenger_scratch_sizeof(len)];
     }
 
-    #[cfg(not(feature = "parallel"))]
-    {
-        let mut scratch: Vec<u8>;
-        unsafe {
-            scratch = vec![0u8; blst_p1s_mult_pippenger_scratch_sizeof(len)];
-        }
-
-        msm(
-            out,
-            points,
-            len,
-            scalars,
-            255,
-            scratch.as_mut_ptr() as *mut limb_t,
-            table,
-        );
-    }
+    msm(
+        out,
+        points,
+        len,
+        scalars,
+        255,
+        scratch.as_mut_ptr() as *mut limb_t,
+        table,
+    );
+    // }
 }
 
 pub fn pairings_verify(a1: &FsG1, a2: &FsG2, b1: &FsG1, b2: &FsG2) -> bool {
