@@ -18,6 +18,7 @@ use kzg::{G1Mul, G1};
 
 use crate::{
     bgmw::{EXPONENT_OF_Q_BGMW95, H_BGMW95, Q_RADIX_PIPPENGER_VARIANT},
+    mult_pippenger::P1Affines,
     types::{fr::FsFr, g1::FsG1, kzg_settings::BGMWPreComputationList},
 };
 
@@ -468,6 +469,29 @@ unsafe fn p1_integrate_buckets(out: *mut blst_p1, buckets: *mut P1XYZZ, wbits: u
 // }
 
 #[allow(clippy::too_many_arguments)]
+pub unsafe fn p1s_tile_pippenger_pub(
+    ret: *mut blst_p1,
+    points: *const *const blst_p1_affine,
+    npoints: usize,
+    scalars: *const *const byte,
+    nbits: usize,
+    buckets: *mut limb_t,
+    bit0: usize,
+    window: usize,
+) {
+    let (wbits, cbits) = if bit0 + window > nbits {
+        let wbits = nbits - bit0;
+        (wbits, wbits + 1)
+    } else {
+        (window, window)
+    };
+
+    p1s_tile_pippenger(
+        ret, points, npoints, scalars, nbits, buckets, bit0, wbits, cbits,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
 unsafe fn p1s_tile_pippenger(
     ret: *mut blst_p1,
     mut points: *const *const blst_p1_affine,
@@ -561,7 +585,7 @@ unsafe fn p1s_tile_pippenger(
     p1_integrate_buckets(ret, buckets as *mut P1XYZZ, cbits - 1);
 }
 
-unsafe fn pippenger(
+pub unsafe fn pippenger(
     ret: *mut blst_p1,
     points: *const *const blst_p1_affine,
     npoints: usize,
@@ -1197,22 +1221,41 @@ pub fn msm(
     if let Some(table) = table {
         unsafe { bgmw(ret, npoints, scalars, table.0.as_slice()) }
     } else {
-        let mut p_affine = vec![blst_p1_affine::default(); npoints];
-        let mut p_scalars = vec![blst_scalar::default(); npoints];
+        #[cfg(feature = "parallel")]
+        {
+            let affines = P1Affines::from(&points[0..npoints]);
 
-        let p_arg: [*const blst_p1; 2] = [&points[0].0, ptr::null()];
-        unsafe {
-            blst_p1s_to_affine(p_affine.as_mut_ptr(), p_arg.as_ptr(), npoints);
+            let mut scalar_bytes: Vec<u8> = Vec::with_capacity(npoints * 32);
+            for bytes in scalars.iter().map(|b| {
+                let mut scalar = blst_scalar::default();
+
+                unsafe { blst_scalar_from_fr(&mut scalar, &b.0) }
+
+                scalar.b
+            }) {
+                scalar_bytes.extend_from_slice(&bytes);
+            }
+
+            *ret = FsG1(affines.mult(&scalar_bytes, nbits));
         }
 
-        for i in 0..npoints {
-            unsafe { blst_scalar_from_fr(&mut p_scalars[i], &scalars[i].0) };
-        }
-
-        let scalars_arg: [*const blst_scalar; 2] = [p_scalars.as_ptr(), ptr::null()];
-        let points_arg: [*const blst_p1_affine; 2] = [p_affine.as_ptr(), ptr::null()];
-
+        #[cfg(not(feature = "parallel"))]
         unsafe {
+            let mut p_affine = vec![blst_p1_affine::default(); npoints];
+            let p_arg: [*const blst_p1; 2] = [&points[0].0, ptr::null()];
+            unsafe {
+                blst_p1s_to_affine(p_affine.as_mut_ptr(), p_arg.as_ptr(), npoints);
+            }
+            let points_arg: [*const blst_p1_affine; 2] = [p_affine.as_ptr(), ptr::null()];
+
+            let mut p_scalars = vec![blst_scalar::default(); npoints];
+
+            for i in 0..npoints {
+                unsafe { blst_scalar_from_fr(&mut p_scalars[i], &scalars[i].0) };
+            }
+
+            let scalars_arg: [*const blst_scalar; 2] = [p_scalars.as_ptr(), ptr::null()];
+
             pippenger(
                 &mut ret.0,
                 points_arg.as_ptr(),

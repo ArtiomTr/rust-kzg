@@ -8,8 +8,7 @@ extern crate threadpool;
 use alloc::{boxed::Box, vec, vec::Vec};
 use blst::{
     blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_double, blst_p1s_add,
-    blst_p1s_mult_pippenger, blst_p1s_mult_pippenger_scratch_sizeof, blst_p1s_tile_pippenger,
-    blst_p1s_to_affine,
+    blst_p1s_mult_pippenger_scratch_sizeof, blst_p1s_to_affine,
 };
 use core::mem::MaybeUninit;
 use core::num::Wrapping;
@@ -35,6 +34,9 @@ trait ThreadPoolExt {
 use core::mem::transmute;
 use std::sync::{Mutex, Once};
 use threadpool::ThreadPool;
+
+use crate::msm::{p1s_tile_pippenger_pub, pippenger};
+use crate::types::g1::FsG1;
 
 pub fn da_pool() -> ThreadPool {
     static INIT: Once = Once::new();
@@ -100,7 +102,7 @@ impl P1Affines {
         self.points.as_slice()
     }
 
-    pub fn from(points: &[blst_p1]) -> Self {
+    pub fn from(points: &[FsG1]) -> Self {
         let npoints = points.len();
         let mut ret = Self {
             points: Vec::with_capacity(npoints),
@@ -110,7 +112,7 @@ impl P1Affines {
         let pool = da_pool();
         let ncpus = pool.max_count();
         if ncpus < 2 || npoints < 768 {
-            let p: [*const blst_p1; 2] = [&points[0], ptr::null()];
+            let p: [*const blst_p1; 2] = [&points[0].0, ptr::null()];
             unsafe { blst_p1s_to_affine(&mut ret.points[0], &p[0], npoints) };
             return ret;
         }
@@ -123,7 +125,7 @@ impl P1Affines {
         let mut x = 0usize;
         while x < npoints {
             let out = &mut ret.points[x];
-            let inp = &points[x];
+            let inp = &points[x].0;
 
             delta -= (rem == Wrapping(0)) as usize;
             rem -= Wrapping(1);
@@ -163,7 +165,7 @@ impl P1Affines {
                 #[allow(clippy::uninit_vec)]
                 scratch.set_len(scratch.capacity());
                 let mut ret = <blst_p1>::default();
-                blst_p1s_mult_pippenger(&mut ret, &p[0], npoints, &s[0], nbits, &mut scratch[0]);
+                pippenger(&mut ret, &p[0], npoints, &s[0], nbits, &mut scratch[0], 0);
                 return ret;
             }
         }
@@ -230,7 +232,7 @@ impl P1Affines {
                     p[0] = &points[x];
                     s[0] = &scalars[x * nbytes];
                     unsafe {
-                        blst_p1s_tile_pippenger(
+                        p1s_tile_pippenger_pub(
                             grid[work].1.as_ptr(),
                             &p[0],
                             grid[work].0.dx,
