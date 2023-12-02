@@ -70,15 +70,17 @@ pub fn g1_linear_combination(
         scratch = vec![0u8; blst_p1s_mult_pippenger_scratch_sizeof(len)];
     }
 
-    msm(
-        out,
-        points,
-        len,
-        scalars,
-        255,
-        scratch.as_mut_ptr() as *mut limb_t,
-        table,
-    );
+    unsafe {
+        msm(
+            out,
+            points,
+            len,
+            scalars,
+            255,
+            scratch.as_mut_ptr() as *mut limb_t,
+            table,
+        );
+    }
     // }
 }
 

@@ -156,16 +156,21 @@ impl P1Affines {
         let pool = da_pool();
         let ncpus = pool.max_count();
         if ncpus < 2 || npoints < 32 {
-            let p: [*const blst_p1_affine; 2] = [&self.points[0], ptr::null()];
-            let s: [*const u8; 2] = [&scalars[0], ptr::null()];
-
             unsafe {
                 let mut scratch: Vec<u64> =
                     Vec::with_capacity(blst_p1s_mult_pippenger_scratch_sizeof(npoints) / 8);
                 #[allow(clippy::uninit_vec)]
                 scratch.set_len(scratch.capacity());
                 let mut ret = <blst_p1>::default();
-                pippenger(&mut ret, &p[0], npoints, &s[0], nbits, &mut scratch[0], 0);
+                pippenger(
+                    &mut ret,
+                    &self.points,
+                    npoints,
+                    scalars,
+                    nbits,
+                    &mut scratch[0],
+                    0,
+                );
                 return ret;
             }
         }
@@ -218,8 +223,6 @@ impl P1Affines {
 
             pool.joined_execute(move || {
                 let mut scratch = vec![0u64; sz << (window - 1)];
-                let mut p: [*const blst_p1_affine; 2] = [ptr::null(), ptr::null()];
-                let mut s: [*const u8; 2] = [ptr::null(), ptr::null()];
 
                 loop {
                     let work = counter.fetch_add(1, Ordering::Relaxed);
@@ -228,15 +231,14 @@ impl P1Affines {
                     }
                     let x = grid[work].0.x;
                     let y = grid[work].0.y;
+                    let dx = grid[work].0.dx;
 
-                    p[0] = &points[x];
-                    s[0] = &scalars[x * nbytes];
                     unsafe {
                         p1s_tile_pippenger_pub(
                             grid[work].1.as_ptr(),
-                            &p[0],
-                            grid[work].0.dx,
-                            &s[0],
+                            &points[x..(x + dx)],
+                            dx,
+                            &scalars[x * nbytes..],
                             nbits,
                             &mut scratch[0],
                             y,

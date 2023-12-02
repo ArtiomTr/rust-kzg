@@ -1,10 +1,7 @@
 use core::{
     mem::size_of,
     ptr::{self, null_mut},
-    sync::atomic::{AtomicUsize, Ordering},
 };
-
-use std::sync::{mpsc, Arc};
 
 extern crate alloc;
 use alloc::vec;
@@ -14,12 +11,19 @@ use blst::{
     blst_p1s_mult_wbits_precompute, blst_p1s_to_affine, blst_scalar, blst_scalar_from_fr,
     blst_uint64_from_scalar, byte, limb_t,
 };
-use kzg::{G1Mul, G1};
+use kzg::G1Mul;
 
 use crate::{
     bgmw::{EXPONENT_OF_Q_BGMW95, H_BGMW95, Q_RADIX_PIPPENGER_VARIANT},
-    mult_pippenger::P1Affines,
     types::{fr::FsFr, g1::FsG1, kzg_settings::BGMWPreComputationList},
+};
+
+#[cfg(feature = "parallel")]
+use {
+    crate::mult_pippenger::P1Affines,
+    core::sync::atomic::{AtomicUsize, Ordering},
+    kzg::G1,
+    std::sync::{mpsc, Arc},
 };
 
 fn pippenger_window_size(mut npoints: usize) -> usize {
@@ -48,6 +52,11 @@ fn is_zero(val: limb_t) -> limb_t {
     (!val & (val.wrapping_sub(1))) >> (limb_t::BITS - 1)
 }
 
+/// Window value encoding that utilizes the fact that -P is trivially
+/// calculated, which allows to halve the size of pre-computed table,
+/// is attributed to A. D. Booth, hence the name of the subroutines...
+///
+/// TODO: figure out how this function works exactly
 fn booth_encode(wval: limb_t, sz: usize) -> limb_t {
     let mask = (0 as limb_t).wrapping_sub(wval >> sz);
 
@@ -64,26 +73,100 @@ unsafe fn vec_zero(ret: *mut limb_t, mut num: usize) {
     }
 }
 
-unsafe fn get_wval_limb(mut d: *const byte, off: usize, bits: usize) -> limb_t {
-    let mut top = (off + bits - 1) / 8;
-    let mut mask = (0 as limb_t).wrapping_sub(1);
+/// Extract `bits` from the beginning of `d` array, with offset `off`.
+///
+/// This function is used to extract N bits from the scalar, decomposing it into q-ary representation.
+/// This works because `q` is `2^bits`, so extracting `bits` from scalar will break it to correct representation.
+///
+/// Caution! This function guarantees only that `bits` bits from the right will contain extracted. All unused bits
+/// will contain "trash". For example, if we try to extract first 4 bits from the array `[0b01010111u8]`, this
+/// function will return `0111`, but other bits will contain trash:
+///
+/// ```rust
+/// let val = rust_kzg_blst::msm::get_wval_limb(&[0b01010111u8], 0, 4);
+/// assert_eq!(val, 0b01010111);
+/// // if you want to get value containing only extracted bits and zeros, do bitwise and on return value with mask:
+/// assert_eq!(val & 0b00001111, 0b00000111);
+/// ```
+///
+/// # Arguments
+///
+/// * `d`    - byte array, from which bits will be extracted
+/// * `off`  - index of first bit, that will be extracted
+/// * `bits` - number of bits to extract (up to 25)
+///
+/// # Example
+///
+/// Scalars are represented with 32 bytes. To simplify example, let's say our scalars are only 4 bytes long.
+/// Then, we can take `q` as `2^6`. Then consider scalar value `4244836224`, bytes: `[128u8, 15u8, 3u8, 253u8]`
+/// (little-endian order). So if we repeatedly take 6 bits from this scalar, we will get q-ary representation
+/// of this scalar:
+///
+/// ```rust
+/// let scalar = [0b10000000, 0b00001111u8, 0b00000011u8, 0b11111101u8]; // this is [128u8, 15u8, 3u8, 253u8] written in binary
+/// let limb_1 = rust_kzg_blst::msm::get_wval_limb(&scalar, 0, 6);
+/// // function leaves trash on all other bytes, so real answer only in 6 bits from right
+/// assert_eq!(limb_1 & 0b00111111, 0b00000000 /*  0 */); // 11111101000000110000111110|000000|
+/// let limb_2 = rust_kzg_blst::msm::get_wval_limb(&scalar, 6, 6);
+/// assert_eq!(limb_2 & 0b00111111, 0b00111110 /* 62 */); // 11111101000000110000|111110|000000
+/// let limb_3 = rust_kzg_blst::msm::get_wval_limb(&scalar, 12, 6);
+/// assert_eq!(limb_3 & 0b00111111, 0b00110000 /* 48 */); // 11111101000000|110000|111110000000
+/// let limb_4 = rust_kzg_blst::msm::get_wval_limb(&scalar, 18, 6);
+/// assert_eq!(limb_4 & 0b00111111, 0b00000000 /*  0 */); // 11111101|000000|110000111110000000
+/// let limb_5 = rust_kzg_blst::msm::get_wval_limb(&scalar, 24, 6);
+/// assert_eq!(limb_5 & 0b00111111, 0b00111101 /* 61 */); // 11|111101|000000110000111110000000
+/// let limb_r = rust_kzg_blst::msm::get_wval_limb(&scalar, 28, 8 % 6); // get remaining part
+/// assert_eq!(limb_r & 0b00000011, 0b00000011 /*  3 */); // |11|111101000000110000111110000000
+/// ```
+///
+/// And that gives q-ary representation of scalar `4244836224`, where `q` = `2^6` = `64`:
+///
+/// 4244836224 = 0 * 64^0 + 62 * 64^1 + 48 * 64^2 + 0 * 64^3 + 61 * 64^4 + 3 * 64^5
+///
+pub fn get_wval_limb(mut d: &[u8], off: usize, bits: usize) -> limb_t {
+    // Calculate topmost byte that needs to be considered.
+    let top = ((off + bits - 1) / 8).wrapping_sub((off / 8).wrapping_sub(1));
 
-    d = d.wrapping_add(off / 8);
+    // Skipping first `off/8` of bytes, because offset specified how many bits must be ignored
+    d = &d[off / 8..];
 
-    top = top.wrapping_sub((off / 8).wrapping_sub(1));
+    // For first iteration, none bits will be ignored - all bits added to result
+    let mut mask = limb_t::MAX;
 
     let mut ret: limb_t = 0;
-    let mut i: usize = 0;
-    loop {
-        ret |= (*d as limb_t & mask) << (8 * i);
+    for i in 0..4usize {
+        /*
+         * Add bits from current byte to the result.
+         *
+         * Applying bitwise and (&) on current byte and mask will keep or ignore all bits from current byte, because
+         * mask can only be 0 or limb_t::MAX. Doing right bit shift will move those bits to correct position, e.g. when
+         * `i=0` (we are processing first byte), bits won't move, when `i=1` bits will be moved by 8 (1 byte) and so on.
+         * After that, we will get value, that is zero-padded from the right and left, so doing bitwise or (|) operation
+         * with the result, will just append bytes to it.
+         */
+        ret |= (d[0] as limb_t & mask) << (8 * i);
+
+        /*
+         * Create new mask - either 0 or limb_t::MAX.
+         *
+         * If `i+1` is greater than or equal to `top`, then byte must be ignored, so the mask is set to `0`. Otherwise,
+         * mask is set to `limb_t::MAX` (include all bits). This is done for branch optimization (avoid if).
+         */
         mask =
             (0 as limb_t).wrapping_sub(((i + 1).wrapping_sub(top) >> (usize::BITS - 1)) as limb_t);
-        i += 1;
-        d = d.wrapping_add((1 & mask).try_into().unwrap());
-        if i >= 4 {
-            break ret >> (off % 8);
-        }
+
+        /*
+         * Conditionally move current array by `1`, if not all needed bytes already read.
+         *
+         * This is done by applying bitwise and (&) on `1` and `mask`. Because mask is `0` when `i + 1` is >= `top`,
+         * doing bitwise and will result in `0`, so slice will not be moved. Otherwise, mask will be `limb_t::MAX`, and
+         * slice will be moved by `1`.
+         */
+        d = &d[(1 & mask).try_into().unwrap()..];
     }
+
+    // Because offset won't always be divisible by `8`, we need to ignore remaining bits.
+    ret >> (off % 8)
 }
 
 #[inline(always)]
@@ -384,20 +467,62 @@ struct P1XYZZ {
     zz: blst_fp,
 }
 
+/// Move point to corresponding bucket
+///
+/// This method will decode `booth_idx`, and add or subtract point to bucket.
+/// booth_idx contains bucket index and sign. Sign shows, if point needs to be added to or subtracted from bucket.
+///
+/// ## Arguments:
+///
+/// * buckets   - pointer to the bucket array beginning
+/// * booth_idx - bucket index, encoded with [booth_encode] function
+/// * wbits     - window size, aka exponent of q (q^window)
+/// * point     - point to move
+///
 unsafe fn p1s_bucket(
     buckets: *mut P1XYZZ,
     mut booth_idx: limb_t,
     wbits: usize,
-    p: *const blst_p1_affine,
+    point: *const blst_p1_affine,
 ) {
+    /*
+     * Get the `wbits + 1` bit in booth index.
+     * This is a sign bit: `0` means scalar is positive, `1` - negative
+     */
     let booth_sign = (booth_idx >> wbits) & 1;
+
+    /*
+     * Normalize bucket index.
+     *
+     * `(1 << wbits) - 1` generates number, which has `wbits` ones at the end.
+     * For example:
+     *     `wbits = 3` -> 0b00000111 (7)
+     *     `wbits = 4` -> 0b00001111 (15)
+     *     `wbits = 5` -> 0b00011111 (31)
+     * And so on.
+     *
+     * Applying bitwise and (&) on `booth_idx` with such mask, means "leave only `wbits` bits from the end, and set all others to zero"
+     * For example:
+     *     `booth_idx = 14`,  `wbits = 3` -> 0b00001110 & 0b00000111 = 0b00000110
+     *     `booth_idx = 255`, `wbits = 4` -> 0b11111111 & 0b00001111 = 0b00001111
+     *     `booth_idx = 253`, `wbits = 5` -> 0b11111101 & 0b00011111 = 0b00011101
+     */
     booth_idx &= (1 << wbits) - 1;
+
+    // Bucket with index zero is ignored, as all values that fall in it are multiplied by zero (P * 0 = 0, no need to compute that).
     if booth_idx != 0 {
+        // This command moves all buckets to the right, as bucket 0 doesn't exist (P * 0 = 0, no need to save it).
         booth_idx -= 1;
+
+        /*
+         * When:
+         *     `booth_sign = 0` -> add point to bucket[booth_idx]
+         *     `booth_sign = 1` -> subtract point from bucket[booth_idx]
+         */
         p1_dadd_affine(
             buckets.wrapping_add(booth_idx.try_into().unwrap()),
             buckets.wrapping_add(booth_idx.try_into().unwrap()),
-            p,
+            point,
             booth_sign,
         );
     }
@@ -420,45 +545,84 @@ unsafe fn p1_to_jacobian(out: *mut blst_p1, input: *const P1XYZZ) {
     );
 }
 
+/// Calculate bucket sum
+///
+/// This function multiplies point in each bucket by it's index. Then, it will sum all multiplication results and write
+/// resulting point to the `out`.
+///
+/// This function also clears all buckets (sets all values in buckets to zero.)
+///
+/// ## Arguments
+///
+/// * out     - output where bucket sum must be written
+/// * buckets - pointer to the beginning of the array of buckets
+/// * wbits   - window size, aka exponent of q (q^window)
+///  
 unsafe fn p1_integrate_buckets(out: *mut blst_p1, buckets: *mut P1XYZZ, wbits: usize) {
-    // POINTonE1xyzz ret[1], acc[1];
+    // Resulting point
     let mut ret = [P1XYZZ::default()];
+    // Accumulator
     let mut acc = [P1XYZZ::default()];
 
-    // size_t n = (size_t)1 << wbits;
+    // Calculate total amount of buckets
     let mut n = (1usize << wbits) - 1;
-    // vec_copy(acc, &buckets[--n], sizeof(acc));
+
+    // Copy last point to the accumulator
     vec_copy(
         &mut acc as *mut P1XYZZ as *mut u8,
         buckets.wrapping_add(n) as *const u8,
         size_of::<P1XYZZ>(),
     );
-    // vec_copy(ret, &buckets[n], sizeof(ret));
+
+    // Copy last point to the return value
     vec_copy(
         &mut ret as *mut P1XYZZ as *mut u8,
         buckets.wrapping_add(n) as *const u8,
         size_of::<P1XYZZ>(),
     );
-    // vec_zero(&buckets[n], sizeof(buckets[n]));
+
+    // Clear last bucket
     vec_zero(buckets.wrapping_add(n) as *mut limb_t, size_of::<P1XYZZ>());
 
-    // while (n--)
+    /*
+     * Sum all buckets.
+     *
+     * Starting from the end, this loop adds point to accumulator, and then adds point to the result.
+     * If the point is in the bucket `i`, then adding this point to the accumulator and adding accumulator `i` times
+     * helps to avoid multiplication of point by `i`.
+     *
+     * Example:
+     *
+     * If we have 3 buckets with points [`p1`, `p2`, `p3`], and we need to calculate bucket sum, naive approach would be:
+     * `S` = `p1` + 2 * `p2` + 3 * `p3` (which is `p1` + `p2` + `p2` + `p3` + `p3` + `p3` - 5 additions)
+     * But using accumulator, it would be:
+     *
+     * ```rust
+     * acc = p3;
+     * ret = p3;
+     * acc += p2;   // now acc contains `p2` + `p3`
+     * ret += acc;  // now res contains `p2` + 2*`p3`
+     * acc += p1;   // now acc contains `p1` + `p2` + `p3`
+     * ret += acc;  // now res contains `p1` + 2*`p2` + 3*`p3`
+     * ```
+     *
+     * 4 additions. So using accumulator, we saved 1 addition.
+     */
     loop {
         if n == 0 {
             break;
         }
         n -= 1;
 
-        // POINTonE1xyzz_dadd(acc, acc, &buckets[n]);
+        // Add point to accumulator
         p1_dadd(acc.as_mut_ptr(), acc.as_ptr(), buckets.wrapping_add(n));
-        // POINTonE1xyzz_dadd(ret, ret, acc);
+        // Add accumulator to result
         p1_dadd(ret.as_mut_ptr(), ret.as_ptr(), acc.as_ptr());
-        // vec_zero(&buckets[n], sizeof(buckets[n]));
+        // Clear bucket
         vec_zero(buckets.wrapping_add(n) as *mut limb_t, size_of::<P1XYZZ>());
     }
 
-    // POINTonE1xyzz_to_Jacobian(out, ret);
-    // blst::blst_p1_from_jacobian(out, ret.as_ptr() as *const blst_p1);
+    // Convert point from magical 4-coordinate system to Jacobian (normal)
     p1_to_jacobian(out, ret.as_ptr());
 }
 
@@ -471,9 +635,9 @@ unsafe fn p1_integrate_buckets(out: *mut blst_p1, buckets: *mut P1XYZZ, wbits: u
 #[allow(clippy::too_many_arguments)]
 pub unsafe fn p1s_tile_pippenger_pub(
     ret: *mut blst_p1,
-    points: *const *const blst_p1_affine,
+    points: &[blst_p1_affine],
     npoints: usize,
-    scalars: *const *const byte,
+    scalars: &[u8],
     nbits: usize,
     buckets: *mut limb_t,
     bit0: usize,
@@ -494,115 +658,106 @@ pub unsafe fn p1s_tile_pippenger_pub(
 #[allow(clippy::too_many_arguments)]
 unsafe fn p1s_tile_pippenger(
     ret: *mut blst_p1,
-    mut points: *const *const blst_p1_affine,
+    points: &[blst_p1_affine],
     mut npoints: usize,
-    mut scalars: *const *const byte,
+    scalars: &[u8],
     nbits: usize,
     buckets: *mut limb_t,
-    mut bit0: usize,
+    bit0: usize,
     wbits: usize,
     cbits: usize,
 ) {
-    // limb_t wmask, wval, wnxt;
-    // size_t i, z, nbytes;
-    // const byte *scalar = *scalars++;
-    let scalar = *scalars;
-    scalars = scalars.wrapping_add(1);
-    // const POINTonE1_affine *point = *points++;
-    let mut point = *points;
-    points = points.wrapping_add(1);
-    // nbytes = (nbits + 7) / 8;
+    // Calculate number of bytes, to fit `nbits`. Basically, this is division by 8 with rounding up to nearest integer.
     let nbytes = (nbits + 7) / 8;
-    // wmask = ((limb_t)1 << (wbits + 1)) - 1;
+
+    // Get first scalar
+    let scalar = &scalars[0..nbytes];
+
+    // Get first point
+    let point = &points[0];
+
+    // Create mask, that contains `wbits` ones at the end.
     let wmask = ((1 as limb_t) << (wbits + 1)) - 1;
-    // z = is_zero(bit0);
-    let z = is_zero((bit0).try_into().unwrap());
-    // bit0 -= z ^ 1;
-    bit0 -= (z ^ 1) as usize;
-    // wbits += z ^ 1;
+
+    /*
+     * Check if `bit0` is zero. `z` is set to `1` when `bit0 = 0`, and `0` otherwise.
+     *
+     * The `z` flag is used to do a small trick -
+     */
+    let z = is_zero(bit0.try_into().unwrap());
+
+    // Offset `bit0` by 1, if it is not equal to zero.
+    let bit0 = bit0 - (z ^ 1) as usize;
+
+    // Increase `wbits` by one, if `bit0` is not equal to zero.
     let wbits = wbits + (z ^ 1) as usize;
-    // wval = (get_wval_limb(scalar, bit0, wbits) << z) & wmask;
+
+    // Calculate first window value (encoded bucket index)
     let wval = (get_wval_limb(scalar, bit0, wbits) << z) & wmask;
-    // wval = booth_encode(wval, cbits);
     let mut wval = booth_encode(wval, cbits);
-    // scalar = *scalars ? *scalars++ : scalar + nbytes;
-    let mut scalar = if (*scalars).is_null() {
-        scalar.wrapping_add(nbytes)
-    } else {
-        let v = *scalars;
-        scalars = scalars.wrapping_add(1);
-        v
-    };
-    // wnxt = (get_wval_limb(scalar, bit0, wbits) << z) & wmask;
+
+    // Get second scalar
+    let scalar = &scalars[nbytes..2 * nbytes];
+
+    // Calculate second window value (encoded bucket index)
     let wnxt = (get_wval_limb(scalar, bit0, wbits) << z) & wmask;
-    // wnxt = booth_encode(wnxt, cbits);
     let mut wnxt = booth_encode(wnxt, cbits);
-    // npoints--;
+
+    // Move first point to corresponding bucket
+    p1s_bucket(buckets as *mut P1XYZZ, wval, cbits, point);
+
+    // Last point will be calculated separately, so decrementing point count
     npoints -= 1;
 
-    // POINTonE1_bucket(buckets, wval, cbits, point);
-    p1s_bucket(buckets as *mut P1XYZZ, wval, cbits, point);
-    // for (i = 1; i < npoints; i++)
-    for _i in 1..npoints {
-        // wval = wnxt;
+    // Move points to buckets
+    for i in 1..npoints {
+        // Get current window value (encoded bucket index)
         wval = wnxt;
-        // scalar = *scalars ? *scalars++ : scalar + nbytes;
-        scalar = if (*scalars).is_null() {
-            scalar.wrapping_add(nbytes)
-        } else {
-            let v = *scalars;
-            scalars = scalars.wrapping_add(1);
-            v
-        };
-        // wnxt = (get_wval_limb(scalar, bit0, wbits) << z) & wmask;
+
+        // Get next scalar
+        let scalar = &scalars[(i + 1) * nbytes..(i + 2) * nbytes];
+        // Get next window value (encoded bucket index)
         wnxt = (get_wval_limb(scalar, bit0, wbits) << z) & wmask;
-        // wnxt = booth_encode(wnxt, cbits);
         wnxt = booth_encode(wnxt, cbits);
+
+        // TODO: add prefetching
         // POINTonE1_prefetch(buckets, wnxt, cbits);
         // p1_prefetch(buckets, wnxt, cbits);
-        // TODO:
 
-        // point = *points ? *points++ : point + 1;
-        point = if (*points).is_null() {
-            point.wrapping_add(1)
-        } else {
-            let v = *points;
-            points = points.wrapping_add(1);
-            v
-        };
-        // POINTonE1_bucket(buckets, wval, cbits, point);
+        // Get current point
+        let point = &points[i];
+
+        // Move point to corresponding bucket (add or subtract from bucket)
+        // `wval` contains encoded bucket index, as well as sign, which shows if point should be subtracted or added to bucket
         p1s_bucket(buckets as *mut P1XYZZ, wval, cbits, point);
     }
-    // point = *points ? *points++ : point + 1;
-    point = if (*points).is_null() {
-        point.wrapping_add(1)
-    } else {
-        *points
-    };
-    // POINTonE1_bucket(buckets, wnxt, cbits, point);
+    // Get last point
+    let point = &points[npoints];
+    // Move point to bucket
     p1s_bucket(buckets as *mut P1XYZZ, wnxt, cbits, point);
-    // POINTonE1_integrate_buckets(ret, buckets, cbits - 1);
+    // Integrate buckets - multiply point in each bucket by scalar and sum all results
     p1_integrate_buckets(ret, buckets as *mut P1XYZZ, cbits - 1);
 }
 
 pub unsafe fn pippenger(
     ret: *mut blst_p1,
-    points: *const *const blst_p1_affine,
+    points: &[blst_p1_affine],
     npoints: usize,
-    scalars: *const *const byte,
+    scalars: &[u8],
     nbits: usize,
     buckets: *mut limb_t,
     window: usize,
 ) {
-    // size_t i, wbits, cbits, bit0 = nbits;
-    // POINTonE1 tile[1];
+    // Calculate exponent of q, if not specified
     let window = if window != 0 {
         window
     } else {
         pippenger_window_size(npoints)
     };
 
+    // Clear buckets (set all to zeros)
     vec_zero(buckets, size_of::<limb_t>() << (window - 1));
+    // Clear return value
     vec_zero(ret as *mut limb_t, size_of::<blst_p1>());
 
     let mut wbits: usize = nbits % window;
@@ -627,7 +782,10 @@ pub unsafe fn pippenger(
             wbits,
             cbits,
         );
+
+        // add bucket sum (aka tile) to the return value
         blst_p1_add(ret, ret, tile.as_mut_ptr());
+        // multiply return value by Q (2^`window`) - double point `window` times.
         for _ in 0..window {
             blst_p1_double(ret, ret);
         }
@@ -1145,19 +1303,10 @@ fn bgmw(ret: &mut FsG1, npoints: usize, scalars: &[FsFr], table: &[blst_p1_affin
             EXPONENT_OF_Q_BGMW95,
         );
     }
-
-    // delete[] buckets;
-    // delete[] points_ptr;
-    // delete[] booth_signs;
-    // delete[] scalars;
-
-    // blst_p1_affine res_affine;
-    // blst_p1_to_affine( &res_affine, &ret);
-    // return res_affine;
 }
 
 #[allow(unused)]
-pub fn msm(
+pub unsafe fn msm(
     ret: &mut FsG1,
     points: &[FsG1],
     npoints: usize,
@@ -1246,21 +1395,23 @@ pub fn msm(
             unsafe {
                 blst_p1s_to_affine(p_affine.as_mut_ptr(), p_arg.as_ptr(), npoints);
             }
-            let points_arg: [*const blst_p1_affine; 2] = [p_affine.as_ptr(), ptr::null()];
 
-            let mut p_scalars = vec![blst_scalar::default(); npoints];
+            let mut scalar_bytes: Vec<u8> = Vec::with_capacity(npoints * 32);
+            for bytes in scalars.iter().map(|b| {
+                let mut scalar = blst_scalar::default();
 
-            for i in 0..npoints {
-                unsafe { blst_scalar_from_fr(&mut p_scalars[i], &scalars[i].0) };
+                unsafe { blst_scalar_from_fr(&mut scalar, &b.0) }
+
+                scalar.b
+            }) {
+                scalar_bytes.extend_from_slice(&bytes);
             }
-
-            let scalars_arg: [*const blst_scalar; 2] = [p_scalars.as_ptr(), ptr::null()];
 
             pippenger(
                 &mut ret.0,
-                points_arg.as_ptr(),
+                &p_affine,
                 npoints,
-                scalars_arg.as_ptr() as *const *const u8,
+                &scalar_bytes,
                 nbits,
                 scratch,
                 0,
