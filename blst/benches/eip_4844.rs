@@ -11,10 +11,11 @@ use rust_kzg_blst::{
         fft_settings::FsFFTSettings, fr::FsFr, g1::FsG1, g2::FsG2, kzg_settings::FsKZGSettings,
         poly::FsPoly,
     },
+    msm::BGMWTable
 };
 
 fn bench_eip_4844_(c: &mut Criterion) {
-    bench_eip_4844::<FsFr, FsG1, FsG2, FsPoly, FsFFTSettings, FsKZGSettings>(
+    bench_eip_4844::<FsFr, FsG1, FsG2, FsPoly, FsFFTSettings, BGMWTable, FsKZGSettings>(
         c,
         &load_trusted_setup_filename_rust,
         &blob_to_kzg_commitment_rust,
