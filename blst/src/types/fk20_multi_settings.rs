@@ -7,6 +7,7 @@ use alloc::vec::Vec;
 use kzg::common_utils::reverse_bit_order;
 use kzg::{FK20MultiSettings, Poly, FFTG1, G1};
 
+use crate::msm::BGMWTable;
 use crate::types::fft_settings::FsFFTSettings;
 use crate::types::fr::FsFr;
 use crate::types::g1::FsG1;
@@ -40,7 +41,7 @@ impl Default for FsFK20MultiSettings {
     }
 }
 
-impl FK20MultiSettings<FsFr, FsG1, FsG2, FsFFTSettings, FsPoly, FsKZGSettings>
+impl FK20MultiSettings<FsFr, FsG1, FsG2, FsFFTSettings, FsPoly, BGMWTable, FsKZGSettings>
     for FsFK20MultiSettings
 {
     #[allow(clippy::many_single_char_names)]

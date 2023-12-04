@@ -15,6 +15,7 @@ use kzg::{G1Mul, G1};
 
 use crate::consts::{G1_GENERATOR, G1_IDENTITY, G1_NEGATIVE_GENERATOR};
 use crate::kzg_proofs::g1_linear_combination;
+use crate::msm::BGMWTable;
 use crate::types::fr::FsFr;
 
 #[repr(C)]
@@ -133,7 +134,7 @@ impl G1 for FsG1 {
     }
 }
 
-impl G1Mul<FsFr> for FsG1 {
+impl G1Mul<FsFr, BGMWTable> for FsG1 {
     fn mul(&self, b: &FsFr) -> Self {
         let mut scalar: blst_scalar = blst_scalar::default();
         unsafe {
@@ -165,9 +166,14 @@ impl G1Mul<FsFr> for FsG1 {
         result
     }
 
-    fn g1_lincomb(points: &[Self], scalars: &[FsFr], len: usize) -> Self {
+    fn g1_lincomb(
+        points: &[Self],
+        scalars: &[FsFr],
+        len: usize,
+        table: Option<&BGMWTable>,
+    ) -> Self {
         let mut out = FsG1::default();
-        g1_linear_combination(&mut out, points, scalars, len);
+        g1_linear_combination(&mut out, points, scalars, len, table);
         out
     }
 }

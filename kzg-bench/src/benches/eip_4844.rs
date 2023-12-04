@@ -13,7 +13,8 @@ pub fn bench_eip_4844<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     c: &mut Criterion,
     load_trusted_setup: &dyn Fn(&str) -> Result<TKZGSettings, String>,

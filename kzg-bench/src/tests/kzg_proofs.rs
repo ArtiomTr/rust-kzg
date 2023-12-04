@@ -12,7 +12,8 @@ pub fn proof_single<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     generate_trusted_setup: &dyn Fn(usize, [u8; 32usize]) -> (Vec<TG1>, Vec<TG2>),
 ) {
@@ -56,7 +57,8 @@ pub fn commit_to_nil_poly<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     generate_trusted_setup: &dyn Fn(usize, [u8; 32usize]) -> (Vec<TG1>, Vec<TG2>),
 ) {
@@ -82,7 +84,8 @@ pub fn commit_to_too_long_poly<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     generate_trusted_setup: &dyn Fn(usize, [u8; 32usize]) -> (Vec<TG1>, Vec<TG2>),
 ) {
@@ -107,7 +110,8 @@ pub fn commit_to_too_long_poly_returns_err<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     generate_trusted_setup: &dyn Fn(usize, [u8; 32usize]) -> (Vec<TG1>, Vec<TG2>),
 ) {
@@ -131,7 +135,8 @@ pub fn proof_multi<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     generate_trusted_setup: &dyn Fn(usize, [u8; 32usize]) -> (Vec<TG1>, Vec<TG2>),
 ) {

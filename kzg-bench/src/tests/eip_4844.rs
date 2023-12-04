@@ -86,7 +86,8 @@ pub fn blob_to_kzg_commitment_test<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     load_trusted_setup: &dyn Fn(&str) -> Result<TKZGSettings, String>,
     blob_to_kzg_commitment: &dyn Fn(&[TFr], &TKZGSettings) -> Result<TG1, String>,
@@ -122,7 +123,8 @@ pub fn compute_kzg_proof_test<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     load_trusted_setup: &dyn Fn(&str) -> Result<TKZGSettings, String>,
     compute_kzg_proof: &dyn Fn(&[TFr], &TFr, &TKZGSettings) -> Result<(TG1, TFr), String>,
@@ -173,7 +175,8 @@ pub fn compute_and_verify_kzg_proof_round_trip_test<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     load_trusted_setup: &dyn Fn(&str) -> Result<TKZGSettings, String>,
     blob_to_kzg_commitment: &dyn Fn(&[TFr], &TKZGSettings) -> Result<TG1, String>,
@@ -228,7 +231,8 @@ pub fn compute_and_verify_kzg_proof_within_domain_test<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     load_trusted_setup: &dyn Fn(&str) -> Result<TKZGSettings, String>,
     blob_to_kzg_commitment: &dyn Fn(&[TFr], &TKZGSettings) -> Result<TG1, String>,
@@ -280,7 +284,8 @@ pub fn compute_and_verify_kzg_proof_fails_with_incorrect_proof_test<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     load_trusted_setup: &dyn Fn(&str) -> Result<TKZGSettings, String>,
     blob_to_kzg_commitment: &dyn Fn(&[TFr], &TKZGSettings) -> Result<TG1, String>,
@@ -335,7 +340,8 @@ pub fn compute_and_verify_blob_kzg_proof_test<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     load_trusted_setup: &dyn Fn(&str) -> Result<TKZGSettings, String>,
     blob_to_kzg_commitment: &dyn Fn(&[TFr], &TKZGSettings) -> Result<TG1, String>,
@@ -368,7 +374,8 @@ pub fn compute_and_verify_blob_kzg_proof_fails_with_incorrect_proof_test<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     load_trusted_setup: &dyn Fn(&str) -> Result<TKZGSettings, String>,
     blob_to_kzg_commitment: &dyn Fn(&[TFr], &TKZGSettings) -> Result<TG1, String>,
@@ -404,7 +411,8 @@ pub fn verify_kzg_proof_batch_test<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     load_trusted_setup: &dyn Fn(&str) -> Result<TKZGSettings, String>,
     blob_to_kzg_commitment: &dyn Fn(&[TFr], &TKZGSettings) -> Result<TG1, String>,
@@ -462,7 +470,8 @@ pub fn verify_kzg_proof_batch_fails_with_incorrect_proof_test<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     load_trusted_setup: &dyn Fn(&str) -> Result<TKZGSettings, String>,
     blob_to_kzg_commitment: &dyn Fn(&[TFr], &TKZGSettings) -> Result<TG1, String>,
@@ -521,7 +530,8 @@ pub fn test_vectors_blob_to_kzg_commitment<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     load_trusted_setup: &dyn Fn(&str) -> Result<TKZGSettings, String>,
     blob_to_kzg_commitment: &dyn Fn(&[TFr], &TKZGSettings) -> Result<TG1, String>,
@@ -571,7 +581,8 @@ pub fn test_vectors_compute_kzg_proof<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     load_trusted_setup: &dyn Fn(&str) -> Result<TKZGSettings, String>,
     compute_kzg_proof: &dyn Fn(&[TFr], &TFr, &TKZGSettings) -> Result<(TG1, TFr), String>,
@@ -634,7 +645,8 @@ pub fn test_vectors_compute_blob_kzg_proof<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     load_trusted_setup: &dyn Fn(&str) -> Result<TKZGSettings, String>,
     bytes_to_blob: &dyn Fn(&[u8]) -> Result<Vec<TFr>, String>,
@@ -695,7 +707,8 @@ pub fn test_vectors_verify_kzg_proof<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     load_trusted_setup: &dyn Fn(&str) -> Result<TKZGSettings, String>,
     verify_kzg_proof: &dyn Fn(&TG1, &TFr, &TFr, &TG1, &TKZGSettings) -> Result<bool, String>,
@@ -763,7 +776,8 @@ pub fn test_vectors_verify_blob_kzg_proof<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     load_trusted_setup: &dyn Fn(&str) -> Result<TKZGSettings, String>,
     bytes_to_blob: &dyn Fn(&[u8]) -> Result<Vec<TFr>, String>,
@@ -825,7 +839,8 @@ pub fn test_vectors_verify_blob_kzg_proof_batch<
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     load_trusted_setup: &dyn Fn(&str) -> Result<TKZGSettings, String>,
     bytes_to_blob: &dyn Fn(&[u8]) -> Result<Vec<TFr>, String>,
@@ -918,7 +933,8 @@ pub fn compute_kzg_proof_incorrect_poly_length_test<
     TG1: G1,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     evaluate_polynomial_in_evaluation_form: &dyn Fn(
         &TPoly,
@@ -942,7 +958,8 @@ pub fn compute_kzg_proof_empty_blob_vector_test<
     TG1: G1,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     verify_blob_kzg_proof_batch: &dyn Fn(
         &[Vec<TFr>],
@@ -968,7 +985,8 @@ pub fn compute_kzg_proof_incorrect_commitments_len_test<
     TG1: G1,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     verify_blob_kzg_proof_batch: &dyn Fn(
         &[Vec<TFr>],
@@ -997,7 +1015,8 @@ pub fn compute_kzg_proof_incorrect_proofs_len_test<
     TG1: G1,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     verify_blob_kzg_proof_batch: &dyn Fn(
         &[Vec<TFr>],
@@ -1026,7 +1045,8 @@ pub fn validate_batched_input_test<
     TG1: G1,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     verify_blob_kzg_proof_batch: &dyn Fn(
         &[Vec<TFr>],

@@ -6,6 +6,7 @@ use alloc::vec::Vec;
 use kzg::common_utils::reverse_bit_order;
 use kzg::{FK20SingleSettings, Poly, FFTG1, G1};
 
+use crate::msm::BGMWTable;
 use crate::types::fft_settings::FsFFTSettings;
 use crate::types::fr::FsFr;
 use crate::types::g1::FsG1;
@@ -19,7 +20,7 @@ pub struct FsFK20SingleSettings {
     pub x_ext_fft: Vec<FsG1>,
 }
 
-impl FK20SingleSettings<FsFr, FsG1, FsG2, FsFFTSettings, FsPoly, FsKZGSettings>
+impl FK20SingleSettings<FsFr, FsG1, FsG2, FsFFTSettings, FsPoly, BGMWTable, FsKZGSettings>
     for FsFK20SingleSettings
 {
     fn new(kzg_settings: &FsKZGSettings, n2: usize) -> Result<Self, String> {
