@@ -1,5 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use kzg_bench::benches::kzg::{bench_commit_to_poly, bench_compute_proof_single};
+use rust_kzg_blst::msm::BGMWTable;
 use rust_kzg_blst::types::fft_settings::FsFFTSettings;
 use rust_kzg_blst::types::fr::FsFr;
 use rust_kzg_blst::types::g1::FsG1;
@@ -9,14 +10,14 @@ use rust_kzg_blst::types::poly::FsPoly;
 use rust_kzg_blst::utils::generate_trusted_setup;
 
 fn bench_commit_to_poly_(c: &mut Criterion) {
-    bench_commit_to_poly::<FsFr, FsG1, FsG2, FsPoly, FsFFTSettings, FsKZGSettings>(
+    bench_commit_to_poly::<FsFr, FsG1, FsG2, FsPoly, FsFFTSettings, BGMWTable, FsKZGSettings>(
         c,
         &generate_trusted_setup,
     )
 }
 
 fn bench_compute_proof_single_(c: &mut Criterion) {
-    bench_compute_proof_single::<FsFr, FsG1, FsG2, FsPoly, FsFFTSettings, FsKZGSettings>(
+    bench_compute_proof_single::<FsFr, FsG1, FsG2, FsPoly, FsFFTSettings, BGMWTable, FsKZGSettings>(
         c,
         &generate_trusted_setup,
     )
