@@ -7,7 +7,7 @@ use blst::{
 
 use kzg::{G1Mul, PairingVerify, G1};
 
-use crate::msm::multi_scalar_multiplication;
+use crate::msm::{multi_scalar_multiplication, BGMWTable};
 use crate::types::fr::FsFr;
 use crate::types::g1::FsG1;
 use crate::types::g2::FsG2;
@@ -18,7 +18,13 @@ impl PairingVerify<FsG1, FsG2> for FsG1 {
     }
 }
 
-pub fn g1_linear_combination(out: &mut FsG1, points: &[FsG1], scalars: &[FsFr], len: usize) {
+pub fn g1_linear_combination(
+    out: &mut FsG1,
+    points: &[FsG1],
+    scalars: &[FsFr],
+    len: usize,
+    table: Option<&BGMWTable>,
+) {
     if len < 8 {
         *out = FsG1::default();
         for i in 0..len {
@@ -28,7 +34,7 @@ pub fn g1_linear_combination(out: &mut FsG1, points: &[FsG1], scalars: &[FsFr], 
         return;
     }
 
-    *out = multi_scalar_multiplication(&points[0..len], &scalars[0..len]).unwrap()
+    *out = multi_scalar_multiplication(&points[0..len], &scalars[0..len], table).unwrap()
 }
 
 pub fn pairings_verify(a1: &FsG1, a2: &FsG2, b1: &FsG1, b2: &FsG2) -> bool {

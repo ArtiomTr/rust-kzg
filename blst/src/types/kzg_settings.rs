@@ -7,6 +7,7 @@ use kzg::{FFTFr, FFTSettings, Fr, G1Mul, G2Mul, KZGSettings, Poly, G1, G2};
 
 use crate::consts::{G1_GENERATOR, G2_GENERATOR};
 use crate::kzg_proofs::{g1_linear_combination, pairings_verify};
+use crate::msm::BGMWTable;
 use crate::types::fft_settings::FsFFTSettings;
 use crate::types::fr::FsFr;
 use crate::types::g1::FsG1;
@@ -18,9 +19,10 @@ pub struct FsKZGSettings {
     pub fs: FsFFTSettings,
     pub secret_g1: Vec<FsG1>,
     pub secret_g2: Vec<FsG2>,
+    pub bgmw_table: Option<BGMWTable>,
 }
 
-impl KZGSettings<FsFr, FsG1, FsG2, FsFFTSettings, FsPoly> for FsKZGSettings {
+impl KZGSettings<FsFr, FsG1, FsG2, FsFFTSettings, FsPoly, BGMWTable> for FsKZGSettings {
     fn new(
         secret_g1: &[FsG1],
         secret_g2: &[FsG2],
@@ -31,6 +33,7 @@ impl KZGSettings<FsFr, FsG1, FsG2, FsFFTSettings, FsPoly> for FsKZGSettings {
             secret_g1: secret_g1.to_vec(),
             secret_g2: secret_g2.to_vec(),
             fs: fft_settings.clone(),
+            bgmw_table: BGMWTable::compute(secret_g1).ok(),
         })
     }
 
@@ -40,7 +43,13 @@ impl KZGSettings<FsFr, FsG1, FsG2, FsFFTSettings, FsPoly> for FsKZGSettings {
         }
 
         let mut out = FsG1::default();
-        g1_linear_combination(&mut out, &self.secret_g1, &poly.coeffs, poly.coeffs.len());
+        g1_linear_combination(
+            &mut out,
+            &self.secret_g1,
+            &poly.coeffs,
+            poly.coeffs.len(),
+            self.get_bgmw_table(),
+        );
 
         Ok(out)
     }
@@ -187,5 +196,9 @@ impl KZGSettings<FsFr, FsG1, FsG2, FsFFTSettings, FsPoly> for FsKZGSettings {
 
     fn get_g2_secret(&self) -> &[FsG2] {
         &self.secret_g2
+    }
+
+    fn get_bgmw_table(&self) -> Option<&BGMWTable> {
+        self.bgmw_table.as_ref()
     }
 }

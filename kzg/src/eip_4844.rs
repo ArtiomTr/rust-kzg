@@ -197,26 +197,33 @@ macro_rules! cfg_into_iter {
 ////////////////////////////// Trait based implementations of functions for EIP-4844 //////////////////////////////
 
 fn poly_to_kzg_commitment<
+    BGMWTable,
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr>,
+    TG1: G1 + G1Mul<TFr, BGMWTable>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     p: &TPoly,
     s: &TKZGSettings,
 ) -> TG1 {
-    TG1::g1_lincomb(s.get_g1_secret(), p.get_coeffs(), FIELD_ELEMENTS_PER_BLOB)
+    TG1::g1_lincomb(
+        s.get_g1_secret(),
+        p.get_coeffs(),
+        FIELD_ELEMENTS_PER_BLOB,
+        s.get_bgmw_table(),
+    )
 }
 
 pub fn blob_to_kzg_commitment_rust<
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr>,
+    BGMWTable,
+    TG1: G1 + G1Mul<TFr, BGMWTable>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     blob: &[TFr],
     settings: &TKZGSettings,
@@ -292,11 +299,12 @@ fn compute_r_powers<TG1: G1, TFr: Fr>(
 
 fn verify_kzg_proof_batch<
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + PairingVerify<TG1, TG2>,
+    BGMWTable,
+    TG1: G1 + G1Mul<TFr, BGMWTable> + PairingVerify<TG1, TG2>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     commitments_g1: &[TG1],
     zs_fr: &[TFr],
@@ -312,7 +320,7 @@ fn verify_kzg_proof_batch<
     let r_powers = compute_r_powers(commitments_g1, zs_fr, ys_fr, proofs_g1)?;
 
     // Compute \sum r^i * Proof_i
-    let proof_lincomb = TG1::g1_lincomb(proofs_g1, &r_powers, n);
+    let proof_lincomb = TG1::g1_lincomb(proofs_g1, &r_powers, n, None);
 
     for i in 0..n {
         // Get [y_i]
@@ -324,9 +332,9 @@ fn verify_kzg_proof_batch<
     }
 
     // Get \sum r^i z_i Proof_i
-    let proof_z_lincomb = TG1::g1_lincomb(proofs_g1, &r_times_z, n);
+    let proof_z_lincomb = TG1::g1_lincomb(proofs_g1, &r_times_z, n, None);
     // Get \sum r^i (C_i - [y_i])
-    let mut c_minus_y_lincomb = TG1::g1_lincomb(&c_minus_y, &r_powers, n);
+    let mut c_minus_y_lincomb = TG1::g1_lincomb(&c_minus_y, &r_powers, n, None);
 
     // Get C_minus_y_lincomb + proof_z_lincomb
     let rhs_g1 = c_minus_y_lincomb.add_or_dbl(&proof_z_lincomb);
@@ -342,11 +350,12 @@ fn verify_kzg_proof_batch<
 
 pub fn compute_kzg_proof_rust<
     TFr: Fr + Copy,
-    TG1: G1 + G1Mul<TFr>,
+    BGMWTable,
+    TG1: G1 + G1Mul<TFr, BGMWTable>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     blob: &[TFr],
     z: &TFr,
@@ -412,17 +421,23 @@ pub fn compute_kzg_proof_rust<
         }
     }
 
-    let proof = TG1::g1_lincomb(s.get_g1_secret(), q.get_coeffs(), FIELD_ELEMENTS_PER_BLOB);
+    let proof = TG1::g1_lincomb(
+        s.get_g1_secret(),
+        q.get_coeffs(),
+        FIELD_ELEMENTS_PER_BLOB,
+        s.get_bgmw_table(),
+    );
     Ok((proof, y))
 }
 
 pub fn compute_blob_kzg_proof_rust<
     TFr: Fr + Copy,
-    TG1: G1 + G1Mul<TFr>,
+    BGMWTable,
+    TG1: G1 + G1Mul<TFr, BGMWTable>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     blob: &[TFr],
     commitment: &TG1,
@@ -433,8 +448,7 @@ pub fn compute_blob_kzg_proof_rust<
     }
 
     let evaluation_challenge_fr = compute_challenge(blob, commitment);
-    let (proof, _) =
-        compute_kzg_proof_rust::<_, _, _, _, _, _>(blob, &evaluation_challenge_fr, ts)?;
+    let (proof, _) = compute_kzg_proof_rust(blob, &evaluation_challenge_fr, ts)?;
     Ok(proof)
 }
 
@@ -444,7 +458,8 @@ pub fn verify_kzg_proof_rust<
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     commitment: &TG1,
     z: &TFr,
@@ -468,7 +483,8 @@ pub fn verify_blob_kzg_proof_rust<
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     blob: &[TFr],
     commitment_g1: &TG1,
@@ -494,7 +510,8 @@ fn compute_challenges_and_evaluate_polynomial<
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     blobs: &[Vec<TFr>],
     commitments_g1: &[TG1],
@@ -533,11 +550,12 @@ fn validate_batched_input<TG1: G1>(commitments: &[TG1], proofs: &[TG1]) -> Resul
 
 pub fn verify_blob_kzg_proof_batch_rust<
     TFr: Fr + Copy,
-    TG1: G1 + G1Mul<TFr> + PairingVerify<TG1, TG2>,
+    BGMWTable,
+    TG1: G1 + G1Mul<TFr, BGMWTable> + PairingVerify<TG1, TG2>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly> + Sync,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable> + Sync,
 >(
     blobs: &[Vec<TFr>],
     commitments_g1: &[TG1],
@@ -716,7 +734,8 @@ pub fn evaluate_polynomial_in_evaluation_form<
     TFr: Fr + Copy,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     p: &TPoly,
     x: &TFr,
@@ -781,7 +800,8 @@ pub fn load_trusted_setup_rust<
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
-    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly>,
+    BGMWTable,
+    TKZGSettings: KZGSettings<TFr, TG1, TG2, TFFTSettings, TPoly, BGMWTable>,
 >(
     g1_bytes: &[u8],
     g2_bytes: &[u8],

@@ -111,7 +111,7 @@ pub fn fr_uint64s_roundtrip<TFr: Fr>() {
     assert_eq!(expected[3], actual[3]);
 }
 
-pub fn p1_mul_works<TFr: Fr, TG1: G1 + G1Mul<TFr>>() {
+pub fn p1_mul_works<TFr: Fr, BGMWTable, TG1: G1 + G1Mul<TFr, BGMWTable>>() {
     let m1: [u64; 4] = [
         0xffffffff00000000,
         0x53bda402fffe5bfe,
@@ -164,8 +164,8 @@ pub fn g1_identity_is_identity<TG1: G1>() {
 }
 
 #[allow(clippy::type_complexity)]
-pub fn g1_make_linear_combination<TFr: Fr, TG1: G1 + G1Mul<TFr> + Copy>(
-    g1_linear_combination: &dyn Fn(&mut TG1, &[TG1], &[TFr], usize),
+pub fn g1_make_linear_combination<TFr: Fr, BGMWTable, TG1: G1 + G1Mul<TFr, BGMWTable> + Copy>(
+    g1_linear_combination: &dyn Fn(&mut TG1, &[TG1], &[TFr], usize, Option<&BGMWTable>),
 ) {
     let len: usize = 255;
     let mut coeffs = vec![TFr::default(); len];
@@ -181,14 +181,14 @@ pub fn g1_make_linear_combination<TFr: Fr, TG1: G1 + G1Mul<TFr> + Copy>(
 
     let mut res = TG1::default();
 
-    g1_linear_combination(&mut res, &p, &coeffs, len);
+    g1_linear_combination(&mut res, &p, &coeffs, len, None);
 
     assert!(exp.equals(&res));
 }
 
 #[allow(clippy::type_complexity)]
-pub fn g1_random_linear_combination<TFr: Fr, TG1: G1 + G1Mul<TFr> + Copy>(
-    g1_linear_combination: &dyn Fn(&mut TG1, &[TG1], &[TFr], usize),
+pub fn g1_random_linear_combination<TFr: Fr, BGMWTable, TG1: G1 + G1Mul<TFr, BGMWTable> + Copy>(
+    g1_linear_combination: &dyn Fn(&mut TG1, &[TG1], &[TFr], usize, Option<&BGMWTable>),
 ) {
     let len: usize = 8192;
     let mut coeffs = vec![TFr::default(); len];
@@ -208,12 +208,12 @@ pub fn g1_random_linear_combination<TFr: Fr, TG1: G1 + G1Mul<TFr> + Copy>(
     }
 
     let mut res = TG1::default();
-    g1_linear_combination(&mut res, &p, &coeffs, len);
+    g1_linear_combination(&mut res, &p, &coeffs, len, None);
 
     assert!(exp.equals(&res));
 }
 
-pub fn pairings_work<TFr: Fr, TG1: G1 + G1Mul<TFr>, TG2: G2 + G2Mul<TFr>>(
+pub fn pairings_work<TFr: Fr, BGMWTable, TG1: G1 + G1Mul<TFr, BGMWTable>, TG2: G2 + G2Mul<TFr>>(
     pairings_verify: &dyn Fn(&TG1, &TG2, &TG1, &TG2) -> bool,
 ) {
     // // Verify that e([3]g1, [5]g2) = e([5]g1, [3]g2)

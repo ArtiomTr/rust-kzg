@@ -14,7 +14,7 @@ use blst::{
 
 use crate::types::{fr::FsFr, g1::FsG1};
 
-fn pippenger_window_size(mut npoints: usize) -> usize {
+pub fn pippenger_window_size(mut npoints: usize) -> usize {
     let mut wbits = 0usize;
 
     loop {
@@ -36,7 +36,7 @@ fn pippenger_window_size(mut npoints: usize) -> usize {
     }
 }
 
-fn is_zero(val: limb_t) -> limb_t {
+pub fn is_zero(val: limb_t) -> limb_t {
     (!val & (val.wrapping_sub(1))) >> (limb_t::BITS - 1)
 }
 
@@ -45,7 +45,7 @@ fn is_zero(val: limb_t) -> limb_t {
 /// is attributed to A. D. Booth, hence the name of the subroutines...
 ///
 /// TODO: figure out how this function works exactly
-fn booth_encode(wval: limb_t, sz: usize) -> limb_t {
+pub fn booth_encode(wval: limb_t, sz: usize) -> limb_t {
     let mask = (0 as limb_t).wrapping_sub(wval >> sz);
 
     let wval = (wval + 1) >> 1;
@@ -342,7 +342,7 @@ pub struct P1XYZZ {
 /// * wbits     - window size, aka exponent of q (q^window)
 /// * point     - point to move
 ///
-fn p1s_bucket(
+pub fn p1s_bucket(
     buckets: &mut [P1XYZZ],
     mut booth_idx: limb_t,
     wbits: usize,
@@ -425,7 +425,7 @@ unsafe fn p1_to_jacobian(out: *mut blst_p1, input: *const P1XYZZ) {
 /// * buckets - pointer to the beginning of the array of buckets
 /// * wbits   - window size, aka exponent of q (q^window)
 ///  
-fn p1_integrate_buckets(out: &mut blst_p1, buckets: &mut [P1XYZZ], wbits: usize) {
+pub fn p1_integrate_buckets(out: &mut blst_p1, buckets: &mut [P1XYZZ], wbits: usize) {
     // Calculate total amount of buckets
     let mut n = (1usize << wbits) - 1;
 
@@ -504,7 +504,7 @@ pub fn pippenger_tile_pub(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn pippenger_tile(
+pub fn pippenger_tile(
     ret: &mut blst_p1,
     points: &[blst_p1_affine],
     mut npoints: usize,
@@ -596,9 +596,9 @@ fn pippenger_impl(
 ) -> blst_p1 {
     let mut ret = blst_p1::default();
 
-    let mut wbits: usize = nbits % window;
-    let mut cbits: usize = wbits + 1;
-    let mut bit0: usize = nbits;
+    let mut wbits = nbits % window;
+    let mut cbits = wbits + 1;
+    let mut bit0 = nbits;
     let mut tile = blst_p1::default();
 
     loop {
@@ -755,7 +755,7 @@ fn points_to_affine(points: &[FsG1]) -> Vec<blst_p1_affine> {
 
 /// Function that converts scalars
 /// TODO: add parallelism, if available
-fn scalars_to_bytes(scalars: &[FsFr]) -> Vec<u8> {
+pub fn scalars_to_bytes(scalars: &[FsFr]) -> Vec<u8> {
     let mut blst_scalars = Vec::with_capacity(scalars.len() * 32);
 
     for el in scalars.iter() {
@@ -779,7 +779,14 @@ pub fn pippenger(points: &[FsG1], scalars: &[FsFr]) -> FsG1 {
 
 #[cfg(test)]
 mod tests {
-    use crate::msm::pippenger::{booth_encode, get_wval_limb};
+    use kzg::{Fr, G1Mul, G1};
+
+    use crate::{
+        msm::pippenger::{booth_encode, get_wval_limb},
+        types::{fr::FsFr, g1::FsG1},
+    };
+
+    use super::pippenger;
 
     #[test]
     fn booth_encode_must_produce_correct_results() {
@@ -822,5 +829,25 @@ mod tests {
 
         // This gives q-ary representation of scalar `4244836224`, where `q` = `2^6` = `64`:
         // 4244836224 = 0 * 64^0 + 62 * 64^1 + 48 * 64^2 + 0 * 64^3 + 61 * 64^4 + 3 * 64^5
+    }
+
+    #[test]
+    fn pippenger_scalar_length_divisible_by_window() {
+        let npoints = 1usize << 7;
+
+        let points = Vec::from_iter((0..npoints).map(|_| FsG1::rand()));
+        let scalars = Vec::from_iter((0..npoints).map(|_| FsFr::rand()));
+
+        let expected = {
+            let mut res = FsG1::default();
+            for i in 0..npoints {
+                res = res.add_or_dbl(&points[i].mul(&scalars[i]))
+            }
+            res
+        };
+
+        let received = pippenger(&points, &scalars);
+
+        assert_eq!(expected, received);
     }
 }

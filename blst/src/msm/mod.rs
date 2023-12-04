@@ -1,3 +1,4 @@
+mod bgmw;
 mod pippenger;
 #[cfg(all(feature = "parallel", feature = "std"))]
 mod pippenger_parallel;
@@ -8,7 +9,13 @@ use crate::types::{fr::FsFr, g1::FsG1};
 use alloc::string::{String, ToString};
 use kzg::G1Mul;
 
-pub fn multi_scalar_multiplication(points: &[FsG1], scalars: &[FsFr]) -> Result<FsG1, String> {
+pub use bgmw::BGMWTable;
+
+pub fn multi_scalar_multiplication(
+    points: &[FsG1],
+    scalars: &[FsFr],
+    table: Option<&BGMWTable>,
+) -> Result<FsG1, String> {
     if points.len() != scalars.len() {
         return Err("Point and scalars length not match".to_string());
     }
@@ -17,5 +24,9 @@ pub fn multi_scalar_multiplication(points: &[FsG1], scalars: &[FsFr]) -> Result<
         return Ok(points[0].mul(&scalars[0]));
     }
 
-    Ok(pippenger::pippenger(points, scalars))
+    if let Some(table) = table {
+        Ok(bgmw::bgmw(table, scalars))
+    } else {
+        Ok(pippenger::pippenger(points, scalars))
+    }
 }

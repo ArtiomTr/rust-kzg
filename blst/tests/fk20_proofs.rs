@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use kzg_bench::tests::fk20_proofs::*;
+    use rust_kzg_blst::msm::BGMWTable;
     use rust_kzg_blst::types::fft_settings::FsFFTSettings;
     use rust_kzg_blst::types::fk20_multi_settings::FsFK20MultiSettings;
     use rust_kzg_blst::types::fk20_single_settings::FsFK20SingleSettings;
@@ -13,9 +14,16 @@ mod tests {
 
     #[test]
     fn test_fk_single() {
-        fk_single::<FsFr, FsG1, FsG2, FsPoly, FsFFTSettings, FsKZGSettings, FsFK20SingleSettings>(
-            &generate_trusted_setup,
-        );
+        fk_single::<
+            FsFr,
+            FsG1,
+            FsG2,
+            FsPoly,
+            FsFFTSettings,
+            BGMWTable,
+            FsKZGSettings,
+            FsFK20SingleSettings,
+        >(&generate_trusted_setup);
     }
 
     #[test]
@@ -26,6 +34,7 @@ mod tests {
             FsG2,
             FsPoly,
             FsFFTSettings,
+            BGMWTable,
             FsKZGSettings,
             FsFK20SingleSettings,
         >(&generate_trusted_setup);
@@ -39,6 +48,7 @@ mod tests {
             FsG2,
             FsPoly,
             FsFFTSettings,
+            BGMWTable,
             FsKZGSettings,
             FsFK20MultiSettings,
         >(&generate_trusted_setup);
@@ -52,6 +62,7 @@ mod tests {
             FsG2,
             FsPoly,
             FsFFTSettings,
+            BGMWTable,
             FsKZGSettings,
             FsFK20MultiSettings,
         >(&generate_trusted_setup);
@@ -65,6 +76,7 @@ mod tests {
             FsG2,
             FsPoly,
             FsFFTSettings,
+            BGMWTable,
             FsKZGSettings,
             FsFK20MultiSettings,
         >(&generate_trusted_setup);
@@ -78,6 +90,7 @@ mod tests {
             FsG2,
             FsPoly,
             FsFFTSettings,
+            BGMWTable,
             FsKZGSettings,
             FsFK20MultiSettings,
         >(&generate_trusted_setup);
