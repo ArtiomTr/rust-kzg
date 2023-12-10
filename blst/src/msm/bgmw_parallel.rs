@@ -6,13 +6,11 @@ extern crate blst;
 extern crate core;
 extern crate threadpool;
 use alloc::{boxed::Box, vec, vec::Vec};
-use blst::{blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_double, blst_p1s_to_affine};
-use core::num::Wrapping;
+use blst::{blst_p1, blst_p1_add_or_double, blst_p1_affine};
 use core::ops::{Index, IndexMut};
-use core::ptr;
 use core::slice::SliceIndex;
 use core::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{mpsc::channel, Arc, Barrier};
+use std::sync::{mpsc::channel, Arc};
 
 struct Tile {
     x: usize,
@@ -31,9 +29,9 @@ use core::mem::transmute;
 use std::sync::{Mutex, Once};
 use threadpool::ThreadPool;
 
-use crate::types::g1::FsG1;
-
-use super::pippenger::{pippenger_tile_pub, P1XYZZ};
+use super::bgmw::{bgmw_tile_pub, p1_integrate_buckets};
+use super::pippenger::P1XYZZ;
+use super::BGMWTable;
 
 pub fn da_pool() -> ThreadPool {
     static INIT: Once = Once::new();
@@ -93,64 +91,20 @@ impl<I: SliceIndex<[blst_p1_affine]>> IndexMut<I> for P1Affines {
     }
 }
 
-pub fn points_to_affine(points: &[FsG1]) -> Vec<blst_p1_affine> {
-    let npoints = points.len();
-    let mut ret = Vec::with_capacity(npoints);
-    #[allow(clippy::uninit_vec)]
-    unsafe {
-        ret.set_len(npoints)
-    };
-
-    let pool = da_pool();
-    let ncpus = pool.max_count();
-    if ncpus < 2 || npoints < 768 {
-        let p: [*const blst_p1; 2] = [&points[0].0, ptr::null()];
-        unsafe { blst_p1s_to_affine(&mut ret[0], &p[0], npoints) };
-        return ret;
-    }
-
-    let mut nslices = (npoints + 511) / 512;
-    nslices = core::cmp::min(nslices, ncpus);
-    let wg = Arc::new((Barrier::new(2), AtomicUsize::new(nslices)));
-
-    let (mut delta, mut rem) = (npoints / nslices + 1, Wrapping(npoints % nslices));
-    let mut x = 0usize;
-    while x < npoints {
-        let out = &mut ret[x];
-        let inp = &points[x].0;
-
-        delta -= (rem == Wrapping(0)) as usize;
-        rem -= Wrapping(1);
-        x += delta;
-
-        let wg = wg.clone();
-        pool.joined_execute(move || {
-            let p: [*const blst_p1; 2] = [inp, ptr::null()];
-            unsafe { blst_p1s_to_affine(out, &p[0], delta) };
-            if wg.1.fetch_sub(1, Ordering::AcqRel) == 1 {
-                wg.0.wait();
-            }
-        });
-    }
-    wg.0.wait();
-
-    ret
-}
-
 pub fn multiply(
-    points: &[blst_p1_affine],
+    table: &BGMWTable,
+    br: (usize, usize, usize),
+    npoints: usize,
     scalars: &[u8],
     nbits: usize,
-    window: usize,
     pool: ThreadPool,
 ) -> blst_p1 {
     let ncpus = pool.max_count();
-    let npoints = points.len();
     let nbytes = (nbits + 7) / 8;
-    let (nx, ny, window) = breakdown(nbits, window, ncpus);
+    let (nx, ny, window) = br;
 
     // |grid[]| holds "coordinates" and place for result
-    let mut grid: Vec<(Tile, Cell<blst_p1>)> = Vec::with_capacity(nx * ny);
+    let mut grid: Vec<Tile> = Vec::with_capacity(nx * ny);
     #[allow(clippy::uninit_vec)]
     unsafe {
         grid.set_len(grid.capacity())
@@ -160,20 +114,20 @@ pub fn multiply(
     let mut total = 0usize;
 
     while total < nx {
-        grid[total].0.x = total * dx;
-        grid[total].0.dx = dx;
-        grid[total].0.y = y;
-        grid[total].0.dy = nbits - y;
+        grid[total].x = total * dx;
+        grid[total].dx = dx;
+        grid[total].y = y;
+        grid[total].dy = nbits - y;
         total += 1;
     }
-    grid[total - 1].0.dx = npoints - grid[total - 1].0.x;
+    grid[total - 1].dx = npoints - grid[total - 1].x;
     while y != 0 {
         y -= window;
         for i in 0..nx {
-            grid[total].0.x = grid[i].0.x;
-            grid[total].0.dx = grid[i].0.dx;
-            grid[total].0.y = y;
-            grid[total].0.dy = window;
+            grid[total].x = grid[i].x;
+            grid[total].dx = grid[i].dx;
+            grid[total].y = y;
+            grid[total].dy = window;
             total += 1;
         }
     }
@@ -181,14 +135,22 @@ pub fn multiply(
 
     let mut row_sync: Vec<AtomicUsize> = Vec::with_capacity(ny);
     row_sync.resize_with(ny, Default::default);
-    let row_sync = Arc::new(row_sync);
     let counter = Arc::new(AtomicUsize::new(0));
     let (tx, rx) = channel();
     let n_workers = core::cmp::min(ncpus, total);
-    for _ in 0..n_workers {
+
+    let mut results: Vec<Cell<blst_p1>> = Vec::with_capacity(n_workers);
+    #[allow(clippy::uninit_vec)]
+    unsafe {
+        results.set_len(results.capacity())
+    }
+
+    let results = &results[..];
+
+    #[allow(clippy::needless_range_loop)]
+    for worker_index in 0..n_workers {
         let tx = tx.clone();
         let counter = counter.clone();
-        let row_sync = row_sync.clone();
 
         pool.joined_execute(move || {
             let mut scratch = vec![P1XYZZ::default(); 1usize << (window - 1)];
@@ -196,52 +158,40 @@ pub fn multiply(
             loop {
                 let work = counter.fetch_add(1, Ordering::Relaxed);
                 if work >= total {
+                    p1_integrate_buckets(
+                        unsafe { results[worker_index].as_ptr().as_mut() }.unwrap(),
+                        &scratch,
+                        window - 1,
+                    );
+                    tx.send(worker_index).expect("disaster");
+
                     break;
                 }
-                let x = grid[work].0.x;
-                let y = grid[work].0.y;
-                let dx = grid[work].0.dx;
+                let x = grid[work].x;
+                let y = grid[work].y;
+                let dx = grid[work].dx;
 
-                pippenger_tile_pub(
-                    unsafe { grid[work].1.as_ptr().as_mut() }.unwrap(),
-                    &points[x..(x + dx)],
+                let points = &table.precomputed[((y / window) * table.numpoints + x)
+                    ..((y / window) * table.numpoints + x + dx)];
+
+                bgmw_tile_pub(
+                    points,
                     dx,
-                    &scalars[x * nbytes..(x + dx) * nbytes],
+                    &scalars[x * nbytes..],
                     nbits,
                     &mut scratch,
                     y,
                     window,
                 );
-                if row_sync[y / window].fetch_add(1, Ordering::AcqRel) == nx - 1 {
-                    tx.send(y).expect("disaster");
-                }
             }
         });
     }
 
     let mut ret = <blst_p1>::default();
-    let mut rows = vec![false; ny];
-    let mut row = 0usize;
-    for _ in 0..ny {
-        let mut y = rx.recv().unwrap();
-        rows[y / window] = true;
-        while grid[row].0.y == y {
-            while row < total && grid[row].0.y == y {
-                unsafe {
-                    blst_p1_add_or_double(&mut ret, &ret, grid[row].1.as_ptr() as *const blst_p1);
-                }
-                row += 1;
-            }
-            if y == 0 {
-                break;
-            }
-            for _ in 0..window {
-                unsafe { blst_p1_double(&mut ret, &ret) };
-            }
-            y -= window;
-            if !rows[y / window] {
-                break;
-            }
+    for _ in 0..n_workers {
+        let idx = rx.recv().unwrap();
+        unsafe {
+            blst_p1_add_or_double(&mut ret, &ret, results[idx].as_ptr() as *const blst_p1);
         }
     }
     ret
@@ -251,7 +201,7 @@ fn num_bits(l: usize) -> usize {
     8 * core::mem::size_of_val(&l) - l.leading_zeros() as usize
 }
 
-fn breakdown(nbits: usize, window: usize, ncpus: usize) -> (usize, usize, usize) {
+pub fn breakdown(nbits: usize, window: usize, ncpus: usize) -> (usize, usize, usize) {
     let mut nx: usize;
     let mut wnd: usize;
 

@@ -1,4 +1,6 @@
 mod bgmw;
+#[cfg(all(feature = "parallel", feature = "std"))]
+mod bgmw_parallel;
 mod pippenger;
 #[cfg(all(feature = "parallel", feature = "std"))]
 mod pippenger_parallel;

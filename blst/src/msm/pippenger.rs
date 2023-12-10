@@ -244,7 +244,7 @@ unsafe fn p1_dadd_affine(
     }
 }
 
-unsafe fn p1_dadd(p3: *mut P1XYZZ, p1: *const P1XYZZ, p2: *const P1XYZZ) {
+pub unsafe fn p1_dadd(p3: *mut P1XYZZ, p1: *const P1XYZZ, p2: *const P1XYZZ) {
     if vec_is_zero(
         &(*p2).zzz as *const blst_fp as *const u8,
         2 * size_of::<blst_fp>(),
@@ -395,7 +395,7 @@ pub fn p1s_bucket(
     }
 }
 
-unsafe fn p1_to_jacobian(out: *mut blst_p1, input: *const P1XYZZ) {
+pub unsafe fn p1_to_jacobian(out: *mut blst_p1, input: *const P1XYZZ) {
     // POINTonE1 *out, const POINTonE1xyzz *in
 
     // blst::blst_p1_from_jacobian(out, in_)
