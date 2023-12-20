@@ -5,8 +5,7 @@ members = [
     "blst",
     "kzg",
     "kzg-bench",
-    "mcl/kzg",
-    "mcl/kzg-bench",
+    "mcl",
     "zkcrypto",
 ]
 
