@@ -1,10 +1,9 @@
-use crate::kzg_proofs::FFTSettings;
-use crate::kzg_types::ZFr as BlstFr;
+use crate::{kzg_proofs::FFTSettings, kzg_types::MclFr};
 use kzg::{Fr, DAS};
 use std::cmp::Ordering;
 
 impl FFTSettings {
-    fn das_fft_extension_stride(&self, ab: &mut [BlstFr], stride: usize) {
+    fn das_fft_extension_stride(&self, ab: &mut [MclFr], stride: usize) {
         match ab.len().cmp(&2_usize) {
             Ordering::Less => {}
             Ordering::Greater => {
@@ -56,8 +55,8 @@ impl FFTSettings {
     }
 }
 
-impl DAS<BlstFr> for FFTSettings {
-    fn das_fft_extension(&self, vals: &[BlstFr]) -> Result<Vec<BlstFr>, String> {
+impl DAS<MclFr> for FFTSettings {
+    fn das_fft_extension(&self, vals: &[MclFr]) -> Result<Vec<MclFr>, String> {
         if vals.is_empty() {
             return Err(String::from("vals can not be empty"));
         }
@@ -75,11 +74,11 @@ impl DAS<BlstFr> for FFTSettings {
 
         self.das_fft_extension_stride(&mut vals, stride);
 
-        let invlen = BlstFr::from_u64(vals.len() as u64);
+        let invlen = MclFr::from_u64(vals.len() as u64);
         let invlen = invlen.inverse();
 
         for val in &mut vals {
-            val.fr *= invlen.fr
+            val.fr *= &invlen.fr
         }
 
         Ok(vals)

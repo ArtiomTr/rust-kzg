@@ -1,7 +1,7 @@
 extern crate alloc;
 
 use crate::kzg_proofs::{FFTSettings, KZGSettings};
-use crate::kzg_types::{ZFr, ZG1, ZG2};
+use crate::kzg_types::{MclFr, MclG1, MclG2};
 use blst::{blst_fr, blst_p1, blst_p2};
 use kzg::common_utils::reverse_bit_order;
 use kzg::eip_4844::{
@@ -44,12 +44,12 @@ fn fft_settings_to_rust(c_settings: *const CKZGSettings) -> Result<FFTSettings, 
     let roots_of_unity = unsafe {
         core::slice::from_raw_parts(settings.roots_of_unity, settings.max_width as usize)
             .iter()
-            .map(|r| ZFr::from_blst_fr(*r))
-            .collect::<Vec<ZFr>>()
+            .map(|r| MclFr::from_blst_fr(*r))
+            .collect::<Vec<MclFr>>()
     };
     let mut expanded_roots_of_unity = roots_of_unity.clone();
     reverse_bit_order(&mut expanded_roots_of_unity)?;
-    expanded_roots_of_unity.push(ZFr::one());
+    expanded_roots_of_unity.push(MclFr::one());
     let mut reverse_roots_of_unity = expanded_roots_of_unity.clone();
     reverse_roots_of_unity.reverse();
 
@@ -70,14 +70,14 @@ fn kzg_settings_to_rust(c_settings: &CKZGSettings) -> Result<KZGSettings, String
     let secret_g1 = unsafe {
         core::slice::from_raw_parts(c_settings.g1_values, TRUSTED_SETUP_NUM_G1_POINTS)
             .iter()
-            .map(|r| ZG1::from_blst_p1(*r))
-            .collect::<Vec<ZG1>>()
+            .map(|r| MclG1::from_blst_p1(*r))
+            .collect::<Vec<MclG1>>()
     };
     let secret_g2 = unsafe {
         core::slice::from_raw_parts(c_settings.g2_values, TRUSTED_SETUP_NUM_G2_POINTS)
             .iter()
-            .map(|r| ZG2::from_blst_p2(*r))
-            .collect::<Vec<ZG2>>()
+            .map(|r| MclG2::from_blst_p2(*r))
+            .collect::<Vec<MclG2>>()
     };
     Ok(KZGSettings {
         fs: fft_settings_to_rust(c_settings)?,
@@ -119,20 +119,20 @@ fn kzg_settings_to_c(rust_settings: &KZGSettings) -> CKZGSettings {
     }
 }
 
-unsafe fn deserialize_blob(blob: *const Blob) -> Result<Vec<ZFr>, C_KZG_RET> {
+unsafe fn deserialize_blob(blob: *const Blob) -> Result<Vec<MclFr>, C_KZG_RET> {
     (*blob)
         .bytes
         .chunks(BYTES_PER_FIELD_ELEMENT)
         .map(|chunk| {
             let mut bytes = [0u8; BYTES_PER_FIELD_ELEMENT];
             bytes.copy_from_slice(chunk);
-            if let Ok(result) = ZFr::from_bytes(&bytes) {
+            if let Ok(result) = MclFr::from_bytes(&bytes) {
                 Ok(result)
             } else {
                 Err(C_KZG_RET_BADARGS)
             }
         })
-        .collect::<Result<Vec<ZFr>, C_KZG_RET>>()
+        .collect::<Result<Vec<MclFr>, C_KZG_RET>>()
 }
 
 macro_rules! handle_ckzg_badargs {
@@ -250,10 +250,10 @@ pub unsafe extern "C" fn verify_kzg_proof(
     proof_bytes: *const Bytes48,
     s: &CKZGSettings,
 ) -> C_KZG_RET {
-    let frz = handle_ckzg_badargs!(ZFr::from_bytes(&(*z_bytes).bytes));
-    let fry = handle_ckzg_badargs!(ZFr::from_bytes(&(*y_bytes).bytes));
-    let g1commitment = handle_ckzg_badargs!(ZG1::from_bytes(&(*commitment_bytes).bytes));
-    let g1proof = handle_ckzg_badargs!(ZG1::from_bytes(&(*proof_bytes).bytes));
+    let frz = handle_ckzg_badargs!(MclFr::from_bytes(&(*z_bytes).bytes));
+    let fry = handle_ckzg_badargs!(MclFr::from_bytes(&(*y_bytes).bytes));
+    let g1commitment = handle_ckzg_badargs!(MclG1::from_bytes(&(*commitment_bytes).bytes));
+    let g1proof = handle_ckzg_badargs!(MclG1::from_bytes(&(*proof_bytes).bytes));
 
     let settings = handle_ckzg_badargs!(kzg_settings_to_rust(s));
 
@@ -280,8 +280,8 @@ pub unsafe extern "C" fn verify_blob_kzg_proof(
 ) -> C_KZG_RET {
     let deserialized_blob = handle_ckzg_badargs!(deserialize_blob(blob));
 
-    let commitment_g1 = handle_ckzg_badargs!(ZG1::from_bytes(&(*commitment_bytes).bytes));
-    let proof_g1 = handle_ckzg_badargs!(ZG1::from_bytes(&(*proof_bytes).bytes));
+    let commitment_g1 = handle_ckzg_badargs!(MclG1::from_bytes(&(*commitment_bytes).bytes));
+    let proof_g1 = handle_ckzg_badargs!(MclG1::from_bytes(&(*proof_bytes).bytes));
 
     let settings = handle_ckzg_badargs!(kzg_settings_to_rust(s));
 
@@ -310,16 +310,16 @@ pub unsafe extern "C" fn verify_blob_kzg_proof_batch(
     let raw_commitments = core::slice::from_raw_parts(commitments_bytes, n);
     let raw_proofs = core::slice::from_raw_parts(proofs_bytes, n);
 
-    let deserialized_blobs: Result<Vec<Vec<ZFr>>, C_KZG_RET> = cfg_into_iter!(raw_blobs)
+    let deserialized_blobs: Result<Vec<Vec<MclFr>>, C_KZG_RET> = cfg_into_iter!(raw_blobs)
         .map(|raw_blob| deserialize_blob(raw_blob).map_err(|_| C_KZG_RET_BADARGS))
         .collect();
 
-    let commitments_g1: Result<Vec<ZG1>, C_KZG_RET> = cfg_into_iter!(raw_commitments)
-        .map(|raw_commitment| ZG1::from_bytes(&raw_commitment.bytes).map_err(|_| C_KZG_RET_BADARGS))
+    let commitments_g1: Result<Vec<MclG1>, C_KZG_RET> = cfg_into_iter!(raw_commitments)
+        .map(|raw_commitment| MclG1::from_bytes(&raw_commitment.bytes).map_err(|_| C_KZG_RET_BADARGS))
         .collect();
 
-    let proofs_g1: Result<Vec<ZG1>, C_KZG_RET> = cfg_into_iter!(raw_proofs)
-        .map(|raw_proof| ZG1::from_bytes(&raw_proof.bytes).map_err(|_| C_KZG_RET_BADARGS))
+    let proofs_g1: Result<Vec<MclG1>, C_KZG_RET> = cfg_into_iter!(raw_proofs)
+        .map(|raw_proof| MclG1::from_bytes(&raw_proof.bytes).map_err(|_| C_KZG_RET_BADARGS))
         .collect();
 
     if let (Ok(blobs), Ok(commitments), Ok(proofs)) =
@@ -358,7 +358,7 @@ pub unsafe extern "C" fn compute_blob_kzg_proof(
         Err(err) => return err,
     };
 
-    let commitment_g1 = handle_ckzg_badargs!(ZG1::from_bytes(&(*commitment_bytes).bytes));
+    let commitment_g1 = handle_ckzg_badargs!(MclG1::from_bytes(&(*commitment_bytes).bytes));
     let settings = handle_ckzg_badargs!(kzg_settings_to_rust(s));
     let proof = handle_ckzg_badargs!(compute_blob_kzg_proof_rust(
         &deserialized_blob,
@@ -384,7 +384,7 @@ pub unsafe extern "C" fn compute_kzg_proof(
         Err(err) => return err,
     };
 
-    let frz = match ZFr::from_bytes(&(*z_bytes).bytes) {
+    let frz = match MclFr::from_bytes(&(*z_bytes).bytes) {
         Ok(value) => value,
         Err(_) => return C_KZG_RET_BADARGS,
     };

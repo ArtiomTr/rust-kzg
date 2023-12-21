@@ -1,5 +1,4 @@
-use crate::kzg_types::{ZG1, ZG2};
-use bls12_381::{Fp as ZFp, Fp2 as ZFp2, G1Projective, G2Projective};
+use mcl_rust::{Fp, Fp2, G1, G2, Fr};
 pub const SCALE_FACTOR: u64 = 5;
 pub const NUM_ROOTS: usize = 32;
 #[rustfmt::skip]
@@ -39,176 +38,191 @@ pub const SCALE2_ROOT_OF_UNITY: [[u64; 4]; 32] = [
 ];
 
 /** The G1 generator */
-pub const G1_GENERATOR: ZG1 = ZG1::from_g1_projective(G1Projective {
-    x: ZFp::from_raw_unchecked([
+pub const G1_GENERATOR: G1 = G1 {
+    x: Fp{d: [
         0x5cb3_8790_fd53_0c16,
         0x7817_fc67_9976_fff5,
         0x154f_95c7_143b_a1c1,
         0xf0ae_6acd_f3d0_e747,
         0xedce_6ecc_21db_f440,
         0x1201_7741_9e0b_fb75,
-    ]),
-    y: ZFp::from_raw_unchecked([
+    ]},
+    y: Fp{d: [
         0xbaac_93d5_0ce7_2271,
         0x8c22_631a_7918_fd8e,
         0xdd59_5f13_5707_25ce,
         0x51ac_5829_5040_5194,
         0x0e1c_8c3f_ad00_59c0,
         0x0bbc_3efc_5008_a26a,
-    ]),
-    z: ZFp::from_raw_unchecked([
+    ]},
+    z: Fp{d: [
         0x7609_0000_0002_fffd,
         0xebf4_000b_c40c_0002,
         0x5f48_9857_53c7_58ba,
         0x77ce_5853_7052_5745,
         0x5c07_1a97_a256_ec6d,
         0x15f6_5ec3_fa80_e493,
-    ]),
-});
+    ]},
+};
 
-pub const G1_NEGATIVE_GENERATOR: ZG1 = ZG1::from_g1_projective(G1Projective {
-    x: ZFp::from_raw_unchecked([
+pub const G1_NEGATIVE_GENERATOR: G1 = G1 {
+    x: Fp{d: [
         0x5cb3_8790_fd53_0c16,
         0x7817_fc67_9976_fff5,
         0x154f_95c7_143b_a1c1,
         0xf0ae_6acd_f3d0_e747,
         0xedce_6ecc_21db_f440,
         0x1201_7741_9e0b_fb75,
-    ]),
-    y: ZFp::from_raw_unchecked([
+    ]},
+    y: Fp{d: [
         0xff52_6c2a_f318_883a,
         0x9289_9ce4_383b_0270,
         0x89d7_738d_9fa9_d055,
         0x12ca_f35b_a344_c12a,
         0x3cff_1b76_964b_5317,
         0x0e44_d2ed_e977_4430,
-    ]),
-    z: ZFp::from_raw_unchecked([
+    ]},
+    z: Fp{d: [
         0x7609_0000_0002_fffd,
         0xebf4_000b_c40c_0002,
         0x5f48_9857_53c7_58ba,
         0x77ce_5853_7052_5745,
         0x5c07_1a97_a256_ec6d,
         0x15f6_5ec3_fa80_e493,
-    ]),
-});
-#[rustfmt::skip]
-pub const G1_IDENTITY: ZG1 = ZG1::from_g1_projective( G1Projective {
-    x: ZFp::zero(),
-    y: ZFp::one(),
-    z: ZFp::zero(),
-});
+    ]},
+};
 
-pub const G2_GENERATOR: ZG2 = ZG2::from_g2_projective(G2Projective {
-    x: ZFp2 {
-        c0: ZFp([
+fn mclBnFp_One() -> Fp {
+    let mut a: Fp;
+    a.set_int(1);
+    a
+}
+
+#[rustfmt::skip]
+pub const G1_IDENTITY: G1 = G1 {
+    x: Fp::zero(),
+    y: mclBnFp_One(),
+    z: Fp::zero(),
+};
+
+pub const G2_GENERATOR: G2 = G2 {
+    x: Fp2 { d: [
+        Fp { d: [
             0xf5f28fa202940a10,
             0xb3f5fb2687b4961a,
             0xa1a893b53e2ae580,
             0x9894999d1a3caee9,
             0x6f67b7631863366b,
             0x058191924350bcd7,
-        ]),
-        c1: ZFp([
+        ]},
+        Fp { d: [
             0xa5a9c0759e23f606,
             0xaaa0c59dbccd60c3,
             0x3bb17e18e2867806,
             0x1b1ab6cc8541b367,
             0xc2b6ed0ef2158547,
             0x11922a097360edf3,
-        ]),
-    },
-    y: ZFp2 {
-        c0: ZFp([
+        ]},
+    ]},
+    y: Fp2 { d: [
+        Fp { d: [
             0x4c730af860494c4a,
             0x597cfa1f5e369c5a,
             0xe7e6856caa0a635a,
             0xbbefb5e96e0d495f,
             0x07d3a975f0ef25a2,
             0x0083fd8e7e80dae5,
-        ]),
-        c1: ZFp([
+        ]},
+        Fp { d: [
             0xadc0fc92df64b05d,
             0x18aa270a2b1461dc,
             0x86adac6a3be4eba0,
             0x79495c4ec93da33a,
             0xe7175850a43ccaed,
             0x0b2bc2a163de1bf2,
-        ]),
-    },
-    z: ZFp2 {
-        c0: ZFp([
+        ]},
+    ]},
+    z: Fp2 { d: [
+        Fp { d: [
             0x760900000002fffd,
             0xebf4000bc40c0002,
             0x5f48985753c758ba,
             0x77ce585370525745,
             0x5c071a97a256ec6d,
             0x15f65ec3fa80e493,
-        ]),
-        c1: ZFp([
+        ]},
+        Fp { d: [
             0x0000000000000000,
             0x0000000000000000,
             0x0000000000000000,
             0x0000000000000000,
             0x0000000000000000,
             0x0000000000000000,
-        ]),
-    },
-});
+        ]},
+    ]},
+};
 
-pub const G2_NEGATIVE_GENERATOR: ZG2 = ZG2::from_g2_projective(G2Projective {
-    x: ZFp2 {
-        c0: ZFp([
+pub const G2_NEGATIVE_GENERATOR: G2 = G2 {
+    x: Fp2 { d: [
+        Fp { d: [
             0xf5f28fa202940a10,
             0xb3f5fb2687b4961a,
             0xa1a893b53e2ae580,
             0x9894999d1a3caee9,
             0x6f67b7631863366b,
             0x058191924350bcd7,
-        ]),
-        c1: ZFp([
+        ]},
+        Fp { d: [
             0xa5a9c0759e23f606,
             0xaaa0c59dbccd60c3,
             0x3bb17e18e2867806,
             0x1b1ab6cc8541b367,
             0xc2b6ed0ef2158547,
             0x11922a097360edf3,
-        ]),
-    },
-    y: ZFp2 {
-        c0: ZFp([
+        ]},
+    ]},
+    y: Fp2 { d: [
+        Fp { d: [
             0x6d8bf5079fb65e61,
             0xc52f05df531d63a5,
             0x7f4a4d344ca692c9,
             0xa887959b8577c95f,
             0x4347fe40525c8734,
             0x197d145bbaff0bb5,
-        ]),
-        c1: ZFp([
+        ]},
+        Fp { d: [
             0x0c3e036d209afa4e,
             0x0601d8f4863f9e23,
             0xe0832636bacc0a84,
             0xeb2def362a476f84,
             0x64044f659f0ee1e9,
             0x0ed54f48d5a1caa7,
-        ]),
-    },
-    z: ZFp2 {
-        c0: ZFp([
+        ]},
+    ]},
+    z: Fp2 { d: [
+        Fp { d: [
             0x760900000002fffd,
             0xebf4000bc40c0002,
             0x5f48985753c758ba,
             0x77ce585370525745,
             0x5c071a97a256ec6d,
             0x15f65ec3fa80e493,
-        ]),
-        c1: ZFp([
+        ]},
+        Fp { d: [
             0x0000000000000000,
             0x0000000000000000,
             0x0000000000000000,
             0x0000000000000000,
             0x0000000000000000,
             0x0000000000000000,
-        ]),
-    },
-});
+        ]},
+    ]},
+};
+
+/// R^2 = 2^512 mod q
+pub const R2: Fr = Fr{ d: [
+    0xc999_e990_f3f2_9c6d,
+    0x2b6c_edcb_8792_5c23,
+    0x05d3_1496_7254_398f,
+    0x0748_d9d9_9f59_ff11,
+]};

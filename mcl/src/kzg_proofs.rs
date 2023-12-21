@@ -1,13 +1,10 @@
 #![allow(non_camel_case_types)]
 use crate::consts::{G1_GENERATOR, G2_GENERATOR};
-use crate::kzg_types::ZFr;
-use crate::kzg_types::{ZFr as BlstFr, ZG1, ZG2};
+use crate::kzg_types::{MclFr as BlstFr, MclG1, MclG2};
 use crate::poly::PolyData;
-use bls12_381::{
-    multi_miller_loop, Fp12 as ZFp12, G1Affine, G2Affine, G2Prepared, MillerLoopResult,
-};
 use kzg::eip_4844::hash_to_bls_field;
 use kzg::{Fr as FrTrait, G1Mul, G2Mul};
+use mcl_rust::{G2, G1, miller_loop, final_exp, GT};
 use std::ops::{Add, Neg};
 
 #[derive(Debug, Clone)]
@@ -40,13 +37,13 @@ pub fn expand_root_of_unity(root: &BlstFr, width: usize) -> Result<Vec<BlstFr>, 
 #[derive(Debug, Clone, Default)]
 pub struct KZGSettings {
     pub fs: FFTSettings,
-    pub secret_g1: Vec<ZG1>,
-    pub secret_g2: Vec<ZG2>,
+    pub secret_g1: Vec<MclG1>,
+    pub secret_g2: Vec<MclG2>,
 }
 
-pub fn generate_trusted_setup(len: usize, secret: [u8; 32usize]) -> (Vec<ZG1>, Vec<ZG2>) {
-    let s = hash_to_bls_field::<ZFr>(&secret);
-    let mut s_pow = ZFr::one();
+pub fn generate_trusted_setup(len: usize, secret: [u8; 32usize]) -> (Vec<MclG1>, Vec<MclG2>) {
+    let s = hash_to_bls_field::<BlstFr>(&secret);
+    let mut s_pow = BlstFr::one();
 
     let mut s1 = Vec::with_capacity(len);
     let mut s2 = Vec::with_capacity(len);
@@ -61,9 +58,9 @@ pub fn generate_trusted_setup(len: usize, secret: [u8; 32usize]) -> (Vec<ZG1>, V
     (s1, s2)
 }
 
-pub fn eval_poly(p: &PolyData, x: &ZFr) -> ZFr {
+pub fn eval_poly(p: &PolyData, x: &BlstFr) -> BlstFr {
     if p.coeffs.is_empty() {
-        return ZFr::zero();
+        return BlstFr::zero();
     } else if x.is_zero() {
         return p.coeffs[0];
     }
@@ -83,23 +80,23 @@ pub fn eval_poly(p: &PolyData, x: &ZFr) -> ZFr {
     out
 }
 
-pub fn pairings_verify(a1: &ZG1, a2: &ZG2, b1: &ZG1, b2: &ZG2) -> bool {
+pub fn pairings_verify(a1: &MclG1, a2: &MclG2, b1: &MclG1, b2: &MclG2) -> bool {
     let a1neg = a1.proj.neg();
 
-    let aa1 = G1Affine::from(&a1neg);
-    let bb1 = G1Affine::from(b1.proj);
-    let aa2 = G2Affine::from(a2.proj);
-    let bb2 = G2Affine::from(b2.proj);
+    let aa1 = G1::from(&a1neg);
+    let bb1 = G1::from(b1.proj);
+    let aa2 = G2::from(a2.proj);
+    let bb2 = G2::from(b2.proj);
 
-    let aa2_prepared = G2Prepared::from(aa2);
-    let bb2_prepared = G2Prepared::from(bb2);
+    let aa2_prepared = G2::from(aa2);
+    let bb2_prepared = G2::from(bb2);
 
-    let loop0 = multi_miller_loop(&[(&aa1, &aa2_prepared)]);
-    let loop1 = multi_miller_loop(&[(&bb1, &bb2_prepared)]);
+    let loop0 = miller_loop(&[(&aa1, &aa2_prepared)]);
+    let loop1 = miller_loop(&[(&bb1, &bb2_prepared)]);
 
     let gt_point = loop0.add(loop1);
 
-    let new_point = MillerLoopResult::final_exponentiation(&gt_point);
+    let new_point = final_exp(&gt_point);
 
-    ZFp12::eq(&ZFp12::one(), &new_point.0)
+    GT::eq(&GT::one(), &new_point.0)
 }

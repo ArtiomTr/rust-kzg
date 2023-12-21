@@ -6,30 +6,30 @@ use alloc::vec::Vec;
 
 use crate::consts::SCALE_FACTOR;
 use crate::kzg_proofs::FFTSettings as ZFFTSettings;
-use crate::kzg_types::ZFr;
+use crate::kzg_types::MclFr;
 use kzg::common_utils::{log2_pow2, log2_u64, next_pow_of_2};
 use kzg::{FFTFr, FFTSettings, FFTSettingsPoly, Fr, Poly};
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct PolyData {
-    pub coeffs: Vec<ZFr>,
+    pub coeffs: Vec<MclFr>,
 }
-impl Poly<ZFr> for PolyData {
+impl Poly<MclFr> for PolyData {
     fn new(size: usize) -> Self {
         Self {
-            coeffs: vec![ZFr::default(); size],
+            coeffs: vec![MclFr::default(); size],
         }
     }
 
-    fn get_coeff_at(&self, i: usize) -> ZFr {
+    fn get_coeff_at(&self, i: usize) -> MclFr {
         self.coeffs[i]
     }
 
-    fn set_coeff_at(&mut self, i: usize, x: &ZFr) {
+    fn set_coeff_at(&mut self, i: usize, x: &MclFr) {
         self.coeffs[i] = *x
     }
 
-    fn get_coeffs(&self) -> &[ZFr] {
+    fn get_coeffs(&self) -> &[MclFr] {
         &self.coeffs
     }
 
@@ -37,9 +37,9 @@ impl Poly<ZFr> for PolyData {
         self.coeffs.len()
     }
 
-    fn eval(&self, x: &ZFr) -> ZFr {
+    fn eval(&self, x: &MclFr) -> MclFr {
         if self.coeffs.is_empty() {
-            return ZFr::zero();
+            return MclFr::zero();
         } else if x.is_zero() {
             return self.coeffs[0];
         }
@@ -60,10 +60,10 @@ impl Poly<ZFr> for PolyData {
     }
 
     fn scale(&mut self) {
-        let scale_factor = ZFr::from_u64(SCALE_FACTOR);
+        let scale_factor = MclFr::from_u64(SCALE_FACTOR);
         let inv_factor = scale_factor.inverse();
 
-        let mut factor_power = ZFr::one();
+        let mut factor_power = MclFr::one();
         for i in 0..self.coeffs.len() {
             factor_power = factor_power.mul(&inv_factor);
             self.coeffs[i] = self.coeffs[i].mul(&factor_power);
@@ -71,9 +71,9 @@ impl Poly<ZFr> for PolyData {
     }
 
     fn unscale(&mut self) {
-        let scale_factor = ZFr::from_u64(SCALE_FACTOR);
+        let scale_factor = MclFr::from_u64(SCALE_FACTOR);
 
-        let mut factor_power = ZFr::one();
+        let mut factor_power = MclFr::one();
         for i in 0..self.coeffs.len() {
             factor_power = factor_power.mul(&scale_factor);
             self.coeffs[i] = self.coeffs[i].mul(&factor_power);
@@ -93,7 +93,7 @@ impl Poly<ZFr> for PolyData {
         }
 
         let mut ret = PolyData {
-            coeffs: vec![ZFr::zero(); output_len],
+            coeffs: vec![MclFr::zero(); output_len],
         };
         // If the input polynomial is constant, the remainder of the series is zero
         if self.coeffs.len() == 1 {
@@ -185,7 +185,7 @@ impl Poly<ZFr> for PolyData {
             Ok(PolyData { coeffs: out_coeffs })
         } else {
             let mut out: PolyData = PolyData {
-                coeffs: vec![ZFr::default(); out_length],
+                coeffs: vec![MclFr::default(); out_length],
             };
 
             let mut a_pos = self.len() - 1;
@@ -229,7 +229,7 @@ impl Poly<ZFr> for PolyData {
         // Special case for divisor.length == 1 (it's a constant)
         if divisor.len() == 1 {
             let mut out = PolyData {
-                coeffs: vec![ZFr::zero(); self.len()],
+                coeffs: vec![MclFr::zero(); self.len()],
             };
             for i in 0..out.len() {
                 out.coeffs[i] = self.coeffs[i].div(&divisor.coeffs[0]).unwrap();
@@ -275,7 +275,7 @@ impl Poly<ZFr> for PolyData {
     }
 }
 
-impl FFTSettingsPoly<ZFr, PolyData, ZFFTSettings> for ZFFTSettings {
+impl FFTSettingsPoly<MclFr, PolyData, ZFFTSettings> for ZFFTSettings {
     fn poly_mul_fft(
         a: &PolyData,
         b: &PolyData,
@@ -314,7 +314,7 @@ impl PolyData {
 
     pub fn pad(&self, out_length: usize) -> Self {
         let mut ret = Self {
-            coeffs: vec![ZFr::zero(); out_length],
+            coeffs: vec![MclFr::zero(); out_length],
         };
 
         for i in 0..self.len().min(out_length) {
@@ -326,7 +326,7 @@ impl PolyData {
 
     pub fn flip(&self) -> Result<PolyData, String> {
         let mut ret = PolyData {
-            coeffs: vec![ZFr::default(); self.len()],
+            coeffs: vec![MclFr::default(); self.len()],
         };
         for i in 0..self.len() {
             ret.coeffs[i] = self.coeffs[self.coeffs.len() - i - 1]
@@ -344,8 +344,8 @@ impl PolyData {
         let a_pad = self.pad(length);
         let b_pad = multiplier.pad(length);
 
-        let a_fft: Vec<ZFr>;
-        let b_fft: Vec<ZFr>;
+        let a_fft: Vec<MclFr>;
+        let b_fft: Vec<MclFr>;
 
         #[cfg(feature = "parallel")]
         {
@@ -384,7 +384,7 @@ impl PolyData {
         drop(ab_fft);
 
         let mut ret = PolyData {
-            coeffs: vec![ZFr::zero(); output_len],
+            coeffs: vec![MclFr::zero(); output_len],
         };
 
         let range = ..output_len.min(length);
