@@ -1,0 +1,6 @@
+[submodule "cuda/external/sppark"]
+	path = cuda/external/sppark
+	url = https://github.com/supranational/sppark.git
+[submodule "cuda/external/blst"]
+	path = cuda/external/blst
+	url = https://github.com/supranational/blst.git

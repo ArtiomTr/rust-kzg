@@ -8,9 +8,9 @@ members = [
     "mcl/kzg",
     "mcl/kzg-bench",
     "zkcrypto",
-    "constantine"
+    "constantine",
+    "cuda"
 ]
-
 
 [profile.bench]
 lto = "thin"
