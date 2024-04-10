@@ -8,7 +8,8 @@ members = [
     "mcl/kzg",
     "mcl/kzg-bench",
     "zkcrypto",
-    "constantine"
+    "constantine",
+    "sppark"
 ]
 
 
