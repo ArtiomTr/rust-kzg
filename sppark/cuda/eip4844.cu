@@ -142,7 +142,7 @@ void poly_to_kzg_commitment(
     blst_p1s_to_affine(p_affine, p_arg, FIELD_ELEMENTS_PER_BLOB);
 
     mult_pippenger<bucket_t>(
-        out, (affine_t*) p_affine, FIELD_ELEMENTS_PER_BLOB, (const scalar_t *)(&p->evals), false, sizeof(blst_p1_affine)
+        out, (affine_t*) p_affine, FIELD_ELEMENTS_PER_BLOB, (const scalar_t *)(&p->evals), true, sizeof(blst_p1_affine)
     );
 }
 
