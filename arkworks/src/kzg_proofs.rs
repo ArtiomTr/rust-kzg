@@ -3,8 +3,7 @@
 extern crate alloc;
 use super::utils::{blst_poly_into_pc_poly, PolyData};
 use crate::consts::{G1_GENERATOR, G2_GENERATOR};
-use crate::kzg_types::{ArkFp, ArkFr, ArkG1Affine};
-use crate::kzg_types::{ArkFr as BlstFr, ArkG1, ArkG2};
+use crate::kzg_types::{ArkFp, ArkFr, ArkG1Affine, ArkG1, ArkG2, ArkG1ProjAddAffine};
 use alloc::sync::Arc;
 use ark_bls12_381::Bls12_381;
 use ark_ec::pairing::Pairing;
@@ -12,7 +11,7 @@ use ark_ec::CurveGroup;
 use ark_poly::Polynomial;
 use ark_std::{vec, One};
 use kzg::eip_4844::hash_to_bls_field;
-use kzg::msm::precompute::PrecomputationTable;
+use kzg::msm::{msm_impls::msm, precompute::PrecomputationTable};
 use kzg::Fr as FrTrait;
 use kzg::{G1Mul, G2Mul};
 use std::ops::Neg;
@@ -20,14 +19,63 @@ use std::ops::Neg;
 #[derive(Debug, Clone)]
 pub struct FFTSettings {
     pub max_width: usize,
-    pub root_of_unity: BlstFr,
-    pub expanded_roots_of_unity: Vec<BlstFr>,
-    pub reverse_roots_of_unity: Vec<BlstFr>,
-    pub roots_of_unity: Vec<BlstFr>,
+    pub root_of_unity: ArkFr,
+    pub expanded_roots_of_unity: Vec<ArkFr>,
+    pub reverse_roots_of_unity: Vec<ArkFr>,
+    pub roots_of_unity: Vec<ArkFr>,
 }
 
-pub fn expand_root_of_unity(root: &BlstFr, width: usize) -> Result<Vec<BlstFr>, String> {
-    let mut generated_powers = vec![BlstFr::one(), *root];
+pub fn g1_linear_combination(
+    out: &mut ArkG1,
+    points: &[ArkG1],
+    scalars: &[ArkFr],
+    len: usize,
+    precomputation: Option<&PrecomputationTable<ArkFr, ArkG1, ArkFp, ArkG1Affine>>,
+) {
+    #[cfg(feature = "sppark")]
+    {
+        use blst::{blst_fr, blst_scalar, blst_scalar_from_fr};
+        use kzg::{G1Mul, G1};
+
+        if len < 8 {
+            *out = ArkG1::default();
+            for i in 0..len {
+                let tmp = points[i].mul(&scalars[i]);
+                out.add_or_dbl_assign(&tmp);
+            }
+
+            return;
+        }
+
+        let scalars =
+            unsafe { alloc::slice::from_raw_parts(scalars.as_ptr() as *const blst_fr, len) };
+
+        let point = if let Some(precomputation) = precomputation {
+            rust_kzg_blst_sppark::multi_scalar_mult_prepared(precomputation.table, scalars)
+        } else {
+            let affines = kzg::msm::msm_impls::batch_convert::<ArkG1, ArkFp, ArkG1Affine>(&points);
+            let affines = unsafe {
+                alloc::slice::from_raw_parts(affines.as_ptr() as *const blst_p1_affine, len)
+            };
+            rust_kzg_blst_sppark::multi_scalar_mult(&affines[0..len], &scalars)
+        };
+
+        *out = ArkG1(point);
+    }
+
+    #[cfg(not(feature = "sppark"))]
+    {
+        *out = msm::<ArkG1, ArkFp, ArkG1Affine, ArkG1ProjAddAffine, ArkFr>(
+            points,
+            scalars,
+            len,
+            precomputation,
+        );
+    }
+}
+
+pub fn expand_root_of_unity(root: &ArkFr, width: usize) -> Result<Vec<ArkFr>, String> {
+    let mut generated_powers = vec![ArkFr::one(), *root];
 
     while !(generated_powers.last().unwrap().is_one()) {
         if generated_powers.len() > width {
@@ -69,9 +117,9 @@ pub fn generate_trusted_setup(len: usize, secret: [u8; 32usize]) -> (Vec<ArkG1>,
     (s1, s2)
 }
 
-pub fn eval_poly(p: &PolyData, x: &BlstFr) -> BlstFr {
+pub fn eval_poly(p: &PolyData, x: &ArkFr) -> ArkFr {
     let poly = blst_poly_into_pc_poly(&p.coeffs);
-    BlstFr {
+    ArkFr {
         fr: poly.evaluate(&x.fr),
     }
 }
