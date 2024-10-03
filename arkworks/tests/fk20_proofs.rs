@@ -3,7 +3,7 @@ mod tests {
     use kzg_bench::tests::fk20_proofs::*;
 
     use rust_kzg_arkworks::fk20_proofs::{KzgFK20MultiSettings, KzgFK20SingleSettings};
-    use rust_kzg_arkworks::kzg_proofs::{generate_trusted_setup, FFTSettings, KZGSettings};
+    use rust_kzg_arkworks::kzg_proofs::{generate_trusted_setup, LFFTSettings, LKZGSettings};
     use rust_kzg_arkworks::kzg_types::{ArkFp, ArkFr as BlstFr, ArkG1Affine};
     use rust_kzg_arkworks::kzg_types::{ArkG1, ArkG2};
     use rust_kzg_arkworks::utils::PolyData;
@@ -15,8 +15,8 @@ mod tests {
             ArkG1,
             ArkG2,
             PolyData,
-            FFTSettings,
-            KZGSettings,
+            LFFTSettings,
+            LKZGSettings,
             KzgFK20SingleSettings,
             ArkFp,
             ArkG1Affine,
@@ -30,8 +30,8 @@ mod tests {
             ArkG1,
             ArkG2,
             PolyData,
-            FFTSettings,
-            KZGSettings,
+            LFFTSettings,
+            LKZGSettings,
             KzgFK20SingleSettings,
             ArkFp,
             ArkG1Affine,
@@ -45,8 +45,8 @@ mod tests {
             ArkG1,
             ArkG2,
             PolyData,
-            FFTSettings,
-            KZGSettings,
+            LFFTSettings,
+            LKZGSettings,
             KzgFK20MultiSettings,
             ArkFp,
             ArkG1Affine,
@@ -60,8 +60,8 @@ mod tests {
             ArkG1,
             ArkG2,
             PolyData,
-            FFTSettings,
-            KZGSettings,
+            LFFTSettings,
+            LKZGSettings,
             KzgFK20MultiSettings,
             ArkFp,
             ArkG1Affine,
@@ -75,8 +75,8 @@ mod tests {
             ArkG1,
             ArkG2,
             PolyData,
-            FFTSettings,
-            KZGSettings,
+            LFFTSettings,
+            LKZGSettings,
             KzgFK20MultiSettings,
             ArkFp,
             ArkG1Affine,
@@ -90,8 +90,8 @@ mod tests {
             ArkG1,
             ArkG2,
             PolyData,
-            FFTSettings,
-            KZGSettings,
+            LFFTSettings,
+            LKZGSettings,
             KzgFK20MultiSettings,
             ArkFp,
             ArkG1Affine,

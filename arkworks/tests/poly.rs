@@ -6,7 +6,7 @@ mod tests {
         poly_inverse_simple_0, poly_inverse_simple_1, poly_mul_direct_test, poly_mul_fft_test,
         poly_mul_random, poly_test_div,
     };
-    use rust_kzg_arkworks::kzg_proofs::FFTSettings;
+    use rust_kzg_arkworks::kzg_proofs::LFFTSettings;
     use rust_kzg_arkworks::kzg_types::ArkFr;
     use rust_kzg_arkworks::utils::PolyData;
 
@@ -58,12 +58,12 @@ mod tests {
 
     #[test]
     fn poly_mul_fft_test_() {
-        poly_mul_fft_test::<ArkFr, PolyData, FFTSettings>();
+        poly_mul_fft_test::<ArkFr, PolyData, LFFTSettings>();
     }
 
     #[test]
     fn poly_mul_random_() {
-        poly_mul_random::<ArkFr, PolyData, FFTSettings>();
+        poly_mul_random::<ArkFr, PolyData, LFFTSettings>();
     }
 
     #[test]
