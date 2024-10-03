@@ -902,7 +902,6 @@ impl Poly<ArkFr> for PolyData {
             let fr_two = kzg::Fr::from_u64(2);
             tmp0.coeffs[0] = tmp0.coeffs[0].add(&fr_two);
 
-            // TODO: Fix the error 'Method `mul` not found in the current scope for type `PolyData` [E0599]'
             // c.(2 - b.c) -> tmp1;
             let tmp1 = ret.mul(&tmp0, d + 1).unwrap();
 

@@ -4,14 +4,7 @@ use crate::kzg_proofs::{LFFTSettings, LKZGSettings};
 use crate::kzg_types::{ArkFp, ArkFr, ArkG1, ArkG1Affine, ArkG2};
 use blst::{blst_fr, blst_p1, blst_p2};
 use kzg::common_utils::reverse_bit_order;
-use kzg::eip_4844::{
-    blob_to_kzg_commitment_rust, compute_blob_kzg_proof_rust, compute_kzg_proof_rust,
-    load_trusted_setup_rust, verify_blob_kzg_proof_batch_rust, verify_blob_kzg_proof_rust,
-    verify_kzg_proof_rust, Blob, Bytes32, Bytes48, CKZGSettings, KZGCommitment, KZGProof,
-    PrecomputationTableManager, BYTES_PER_BLOB, BYTES_PER_FIELD_ELEMENT, BYTES_PER_G1,
-    BYTES_PER_G2, C_KZG_RET, C_KZG_RET_BADARGS, C_KZG_RET_OK, FIELD_ELEMENTS_PER_BLOB,
-    TRUSTED_SETUP_NUM_G1_POINTS, TRUSTED_SETUP_NUM_G2_POINTS,
-};
+use kzg::eip_4844::{blob_to_kzg_commitment_rust, compute_blob_kzg_proof_rust, compute_kzg_proof_rust, load_trusted_setup_rust, verify_blob_kzg_proof_batch_rust, verify_blob_kzg_proof_rust, verify_kzg_proof_rust, Blob, Bytes32, Bytes48, CKZGSettings, KZGCommitment, KZGProof, PrecomputationTableManager, BYTES_PER_BLOB, BYTES_PER_FIELD_ELEMENT, BYTES_PER_G1, BYTES_PER_G2, C_KZG_RET, C_KZG_RET_BADARGS, C_KZG_RET_OK, FIELD_ELEMENTS_PER_BLOB, FIELD_ELEMENTS_PER_CELL, FIELD_ELEMENTS_PER_EXT_BLOB, TRUSTED_SETUP_NUM_G1_POINTS, TRUSTED_SETUP_NUM_G2_POINTS};
 use kzg::{cfg_into_iter, Fr, G1};
 use std::ptr::null_mut;
 
@@ -21,7 +14,7 @@ use libc::FILE;
 use std::fs::File;
 #[cfg(feature = "std")]
 use std::io::Read;
-
+use std::ptr;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
@@ -32,14 +25,17 @@ static mut PRECOMPUTATION_TABLES: PrecomputationTableManager<ArkFr, ArkG1, ArkFp
     PrecomputationTableManager::new();
 
 #[cfg(feature = "std")]
-pub fn load_trusted_setup_filename_rust(filepath: &str) -> Result<LKZGSettings, String> {
+pub fn load_trusted_setup_filename_rust(
+    filepath: &str,
+) -> Result<LKZGSettings, alloc::string::String> {
     let mut file = File::open(filepath).map_err(|_| "Unable to open file".to_string())?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)
         .map_err(|_| "Unable to read file".to_string())?;
 
-    let (g1_bytes, g2_bytes) = load_trusted_setup_string(&contents)?;
-    load_trusted_setup_rust(g1_bytes.as_slice(), g2_bytes.as_slice())
+    let (g1_monomial_bytes, g1_lagrange_bytes, g2_monomial_bytes) =
+        load_trusted_setup_string(&contents)?;
+    load_trusted_setup_rust(&g1_monomial_bytes, &g1_lagrange_bytes, &g2_monomial_bytes)
 }
 
 fn fft_settings_to_rust(c_settings: *const CKZGSettings) -> Result<LFFTSettings, String> {
@@ -202,8 +198,9 @@ pub unsafe extern "C" fn load_trusted_setup_file(
     let mut buf = vec![0u8; 1024 * 1024];
     let len: usize = libc::fread(buf.as_mut_ptr() as *mut libc::c_void, 1, buf.len(), in_);
     let s = handle_ckzg_badargs!(String::from_utf8(buf[..len].to_vec()));
-    let (g1_bytes, g2_bytes) = handle_ckzg_badargs!(load_trusted_setup_string(&s));
-    TRUSTED_SETUP_NUM_G1_POINTS = g1_bytes.len() / BYTES_PER_G1;
+    let (g1_monomial_bytes, g1_lagrange_bytes, g2_monomial_bytes) =
+        handle_ckzg_badargs!(load_trusted_setup_string(&s));
+    TRUSTED_SETUP_NUM_G1_POINTS = g1_monomial_bytes.len() / BYTES_PER_G1;
     if TRUSTED_SETUP_NUM_G1_POINTS != FIELD_ELEMENTS_PER_BLOB {
         // Helps pass the Java test "shouldThrowExceptionOnIncorrectTrustedSetupFromFile",
         // as well as 5 others that pass only if this one passes (likely because Java doesn't
@@ -211,8 +208,9 @@ pub unsafe extern "C" fn load_trusted_setup_file(
         return C_KZG_RET_BADARGS;
     }
     let mut settings = handle_ckzg_badargs!(load_trusted_setup_rust(
-        g1_bytes.as_slice(),
-        g2_bytes.as_slice()
+        &g1_monomial_bytes,
+        &g1_lagrange_bytes,
+        &g2_monomial_bytes
     ));
 
     let c_settings = kzg_settings_to_c(&settings);
@@ -231,30 +229,70 @@ pub unsafe extern "C" fn free_trusted_setup(s: *mut CKZGSettings) {
         return;
     }
 
+    if !(*s).g1_values_monomial.is_null() {
+        let v = Box::from_raw(core::slice::from_raw_parts_mut(
+            (*s).g1_values_monomial,
+            FIELD_ELEMENTS_PER_BLOB,
+        ));
+        drop(v);
+        (*s).g1_values_monomial = ptr::null_mut();
+    }
+
+    if !(*s).g1_values_lagrange_brp.is_null() {
+        let v = Box::from_raw(core::slice::from_raw_parts_mut(
+            (*s).g1_values_lagrange_brp,
+            FIELD_ELEMENTS_PER_BLOB,
+        ));
+        drop(v);
+        (*s).g1_values_lagrange_brp = ptr::null_mut();
+    }
+
+    if !(*s).g2_values_monomial.is_null() {
+        let v = Box::from_raw(core::slice::from_raw_parts_mut(
+            (*s).g2_values_monomial,
+            TRUSTED_SETUP_NUM_G2_POINTS,
+        ));
+        drop(v);
+        (*s).g2_values_monomial = ptr::null_mut();
+    }
+
+    if !(*s).x_ext_fft_columns.is_null() {
+        let v = Box::from_raw(core::slice::from_raw_parts_mut(
+            (*s).x_ext_fft_columns,
+            2 * ((FIELD_ELEMENTS_PER_EXT_BLOB / 2) / FIELD_ELEMENTS_PER_CELL),
+        ));
+        drop(v);
+        (*s).x_ext_fft_columns = ptr::null_mut();
+    }
+
+    if !(*s).roots_of_unity.is_null() {
+        let v = Box::from_raw(core::slice::from_raw_parts_mut(
+            (*s).roots_of_unity,
+            FIELD_ELEMENTS_PER_EXT_BLOB + 1,
+        ));
+        drop(v);
+        (*s).roots_of_unity = ptr::null_mut();
+    }
+
+    if !(*s).reverse_roots_of_unity.is_null() {
+        let v = Box::from_raw(core::slice::from_raw_parts_mut(
+            (*s).reverse_roots_of_unity,
+            FIELD_ELEMENTS_PER_EXT_BLOB + 1,
+        ));
+        drop(v);
+        (*s).reverse_roots_of_unity = ptr::null_mut();
+    }
+
+    if !(*s).brp_roots_of_unity.is_null() {
+        let v = Box::from_raw(core::slice::from_raw_parts_mut(
+            (*s).brp_roots_of_unity,
+            FIELD_ELEMENTS_PER_EXT_BLOB,
+        ));
+        drop(v);
+        (*s).brp_roots_of_unity = ptr::null_mut();
+    }
+
     PRECOMPUTATION_TABLES.remove_precomputation(&*s);
-
-    let max_width = (*s).max_width as usize;
-    let roots = Box::from_raw(core::slice::from_raw_parts_mut(
-        (*s).roots_of_unity,
-        max_width,
-    ));
-    drop(roots);
-    (*s).roots_of_unity = null_mut();
-
-    let g1 = Box::from_raw(core::slice::from_raw_parts_mut(
-        (*s).g1_values,
-        TRUSTED_SETUP_NUM_G1_POINTS,
-    ));
-    drop(g1);
-    (*s).g1_values = null_mut();
-
-    let g2 = Box::from_raw(core::slice::from_raw_parts_mut(
-        (*s).g2_values,
-        TRUSTED_SETUP_NUM_G2_POINTS,
-    ));
-    drop(g2);
-    (*s).g2_values = null_mut();
-    (*s).max_width = 0;
 }
 
 /// # Safety
