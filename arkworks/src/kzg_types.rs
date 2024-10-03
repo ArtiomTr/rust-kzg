@@ -37,6 +37,30 @@ use std::ops::{AddAssign, Mul, Neg, Sub};
 extern crate alloc;
 use alloc::sync::Arc;
 
+///#[derive(Debug, Clone)]
+///pub struct ArkFFTSettings {
+///    pub max_width: usize,
+///    pub root_of_unity: ArkFr,
+///    pub roots_of_unity: Vec<ArkFr>,
+///    pub brp_roots_of_unity: Vec<ArkFr>,
+///    pub reverse_roots_of_unity: Vec<ArkFr>,
+///}
+
+impl Default for LFFTSettings {
+    fn default() -> Self {
+        Self::new(0).unwrap()
+    }
+}
+
+///#[derive(Debug, Clone, Default)]
+///pub struct ArkKZGSettings {
+///    pub fs: ArkFFTSettings,
+///    pub g1_values_monomial: Vec<ArkG1>,
+///    pub g1_values_lagrange_brp: Vec<ArkG1>,
+///    pub g2_values_monomial: Vec<ArkG2>,
+///    pub precomputation: Option<Arc<PrecomputationTable<ArkFr, ArkG1, ArkFp, ArkG1Affine>>>,
+///}
+
 fn bytes_be_to_uint64(inp: &[u8]) -> u64 {
     u64::from_be_bytes(inp.try_into().expect("Input wasn't 8 elements..."))
 }
@@ -622,6 +646,14 @@ impl FFTSettings<ArkFr> for LFFTSettings {
     fn get_roots_of_unity(&self) -> &[ArkFr] {
         &self.roots_of_unity
     }
+
+    fn get_brp_roots_of_unity(&self) -> &[ArkFr] {
+        &self.brp_roots_of_unity
+    }
+
+    fn get_brp_roots_of_unity_at(&self, i: usize) -> ArkFr {
+        self.brp_roots_of_unity[i]
+    }
 }
 
 impl KZGSettings<ArkFr, ArkG1, ArkG2, LFFTSettings, PolyData, ArkFp, ArkG1Affine> for LKZGSettings {
@@ -636,6 +668,7 @@ impl KZGSettings<ArkFr, ArkG1, ArkG2, LFFTSettings, PolyData, ArkFp, ArkG1Affine
             secret_g2: secret_g2.to_vec(),
             fs: fft_settings.clone(),
             precomputation: precompute(secret_g1).ok().flatten().map(Arc::new),
+            g2_values_monomial: g2_monomial.to_vec(),
         })
     }
 

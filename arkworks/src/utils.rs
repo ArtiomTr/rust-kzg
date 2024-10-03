@@ -2,13 +2,16 @@ use super::{Fp, P1};
 use crate::P2;
 use ark_bls12_381::{g1, g2, Fq, Fq2, Fr};
 use crate::kzg_proofs::{FFTSettings, KZGSettings};
-use crate::kzg_types::{ArkFp, ArkFr, ArkG1, ArkG1Affine, ArkG2};
+use crate::kzg_types::{ArkFp, ArkFr, ArkG1, ArkG1Affine, ArkG2, LKZGSettings};
 use ark_ec::models::short_weierstrass::Projective;
 use ark_ff::Fp2;
 use ark_poly::univariate::DensePolynomial as DensePoly;
 use ark_poly::DenseUVPolynomial;
 use blst::{blst_fp, blst_fp2, blst_fr, blst_p1, blst_p2};
-use kzg::eip_4844::{CKZGSettings, FIELD_ELEMENTS_PER_BLOB, FIELD_ELEMENTS_PER_EXT_BLOB};
+use kzg::eip_4844::{
+    CKZGSettings, FIELD_ELEMENTS_PER_BLOB, FIELD_ELEMENTS_PER_EXT_BLOB,
+    TRUSTED_SETUP_NUM_G2_POINTS, FIELD_ELEMENTS_PER_CELL, PrecomputationTableManager
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Error;
@@ -149,8 +152,15 @@ pub(crate) fn fft_settings_to_rust(
     })
 }
 
-pub(crate) fn kzg_settings_to_rust(c_settings: &CKZGSettings) -> Result<CKZGSettings, String> {
-    Ok(CKZGSettings {
+pub(crate) static mut PRECOMPUTATION_TABLES: PrecomputationTableManager<
+    ArkFr,
+    ArkG1,
+    ArkFp,
+    ArkG1Affine,
+> = PrecomputationTableManager::new();
+
+pub(crate) fn kzg_settings_to_rust(c_settings: &CKZGSettings) -> Result<LKZGSettings, String> {
+    Ok(LKZGSettings {
         fs: fft_settings_to_rust(c_settings)?,
         g1_values_monomial: unsafe {
             core::slice::from_raw_parts(c_settings.g1_values_monomial, FIELD_ELEMENTS_PER_BLOB)
@@ -180,7 +190,7 @@ pub(crate) fn kzg_settings_to_rust(c_settings: &CKZGSettings) -> Result<CKZGSett
             .map(|it| {
                 unsafe { core::slice::from_raw_parts(*it, FIELD_ELEMENTS_PER_CELL) }
                     .iter()
-                    .map(|it| FsG1(*it))
+                    .map(|it| ArkG1(*it))
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>(),

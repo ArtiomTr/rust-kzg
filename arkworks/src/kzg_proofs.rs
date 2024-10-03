@@ -98,6 +98,8 @@ pub struct KZGSettings {
     pub secret_g1: Vec<ArkG1>,
     pub secret_g2: Vec<ArkG2>,
     pub precomputation: Option<Arc<PrecomputationTable<ArkFr, ArkG1, ArkFp, ArkG1Affine>>>,
+    pub g1_values_monomial: Vec<ArkG1>,
+    pub g2_values_monomial: Vec<ArkG2>,
 }
 
 pub fn generate_trusted_setup(len: usize, secret: [u8; 32usize]) -> (Vec<ArkG1>, Vec<ArkG2>) {
