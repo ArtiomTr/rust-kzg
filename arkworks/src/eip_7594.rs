@@ -3,7 +3,7 @@ extern crate alloc;
 use crate::consts::{
     FIELD_ELEMENTS_PER_EXT_BLOB, CELL_INDICES_RBL, FIELD_ELEMENTS_PER_CELL
 };
-use crate::kzg_proofs::{FFTSettings, g1_linear_combination, pairings_verify};
+use crate::kzg_proofs::{LFFTSettings, g1_linear_combination, pairings_verify};
 use crate::kzg_types::{
     ArkFp, ArkFr, ArkG1, ArkG1Affine, ArkG2, LKZGSettings, LFFTSettings
 };
@@ -404,7 +404,6 @@ pub fn verify_cell_kzg_proof_batch_rust(
 
     let final_g1_sum = final_g1_sum.add(&weighted_sum_of_proofs);
 
-    // Error
     let power_of_s = s.g2_values_monomial[FIELD_ELEMENTS_PER_CELL];
 
     Ok(pairings_verify(

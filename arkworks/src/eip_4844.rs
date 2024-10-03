@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use crate::kzg_proofs::{FFTSettings, KZGSettings};
+use crate::kzg_proofs::{LFFTSettings, LKZGSettings};
 use crate::kzg_types::{ArkFp, ArkFr, ArkG1, ArkG1Affine, ArkG2};
 use blst::{blst_fr, blst_p1, blst_p2};
 use kzg::common_utils::reverse_bit_order;
@@ -32,7 +32,7 @@ static mut PRECOMPUTATION_TABLES: PrecomputationTableManager<ArkFr, ArkG1, ArkFp
     PrecomputationTableManager::new();
 
 #[cfg(feature = "std")]
-pub fn load_trusted_setup_filename_rust(filepath: &str) -> Result<KZGSettings, String> {
+pub fn load_trusted_setup_filename_rust(filepath: &str) -> Result<LKZGSettings, String> {
     let mut file = File::open(filepath).map_err(|_| "Unable to open file".to_string())?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)
@@ -42,7 +42,7 @@ pub fn load_trusted_setup_filename_rust(filepath: &str) -> Result<KZGSettings, S
     load_trusted_setup_rust(g1_bytes.as_slice(), g2_bytes.as_slice())
 }
 
-fn fft_settings_to_rust(c_settings: *const CKZGSettings) -> Result<FFTSettings, String> {
+fn fft_settings_to_rust(c_settings: *const CKZGSettings) -> Result<LFFTSettings, String> {
     let settings = unsafe { &*c_settings };
     let roots_of_unity = unsafe {
         core::slice::from_raw_parts(settings.roots_of_unity, settings.max_width as usize)
@@ -60,7 +60,7 @@ fn fft_settings_to_rust(c_settings: *const CKZGSettings) -> Result<FFTSettings, 
     let first_root_arr = [first_root; 1];
     first_root = first_root_arr[0];
 
-    Ok(FFTSettings {
+    Ok(LFFTSettings {
         max_width: settings.max_width as usize,
         root_of_unity: first_root,
         expanded_roots_of_unity,
@@ -69,7 +69,7 @@ fn fft_settings_to_rust(c_settings: *const CKZGSettings) -> Result<FFTSettings, 
     })
 }
 
-fn kzg_settings_to_rust(c_settings: &CKZGSettings) -> Result<KZGSettings, String> {
+fn kzg_settings_to_rust(c_settings: &CKZGSettings) -> Result<LKZGSettings, String> {
     let secret_g1 = unsafe {
         core::slice::from_raw_parts(c_settings.g1_values, TRUSTED_SETUP_NUM_G1_POINTS)
             .iter()
@@ -82,7 +82,7 @@ fn kzg_settings_to_rust(c_settings: &CKZGSettings) -> Result<KZGSettings, String
             .map(|r| ArkG2::from_blst_p2(*r))
             .collect::<Vec<ArkG2>>()
     };
-    Ok(KZGSettings {
+    Ok(LKZGSettings {
         fs: fft_settings_to_rust(c_settings)?,
         secret_g1,
         secret_g2,
@@ -91,7 +91,7 @@ fn kzg_settings_to_rust(c_settings: &CKZGSettings) -> Result<KZGSettings, String
     })
 }
 
-fn kzg_settings_to_c(rust_settings: &KZGSettings) -> CKZGSettings {
+fn kzg_settings_to_c(rust_settings: &LKZGSettings) -> CKZGSettings {
     let g1_val = rust_settings
         .secret_g1
         .iter()

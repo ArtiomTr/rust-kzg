@@ -1364,6 +1364,7 @@ dependencies = [
  "libc",
  "rand",
  "rayon",
+ "smallvec",
 ]
 
 [[package]]

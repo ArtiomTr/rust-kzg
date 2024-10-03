@@ -1,8 +1,8 @@
 use super::{Fp, P1};
 use crate::P2;
 use ark_bls12_381::{g1, g2, Fq, Fq2, Fr};
-use crate::kzg_proofs::{FFTSettings, KZGSettings};
-use crate::kzg_types::{ArkFp, ArkFr, ArkG1, ArkG1Affine, ArkG2, LKZGSettings};
+use crate::kzg_proofs::{LFFTSettings, LKZGSettings};
+use crate::kzg_types::{ArkFp, ArkFr, ArkG1, ArkG1Affine, ArkG2, LKZGSettings, LFFTSettings};
 use ark_ec::models::short_weierstrass::Projective;
 use ark_ff::Fp2;
 use ark_poly::univariate::DensePolynomial as DensePoly;
@@ -22,21 +22,21 @@ pub struct PolyData {
 }
 // FIXME: Store just dense poly here
 
-pub fn pc_poly_into_blst_poly(poly: DensePoly<Fr>) -> PolyData {
-    let mut bls_pol: Vec<ArkFr> = { Vec::new() };
-    for x in poly.coeffs {
-        bls_pol.push(ArkFr { fr: x });
-    }
-    PolyData { coeffs: bls_pol }
-}
+///pub fn pc_poly_into_blst_poly(poly: DensePoly<Fr>) -> PolyData {
+///    let mut bls_pol: Vec<ArkFr> = { Vec::new() };
+///    for x in poly.coeffs {
+///        bls_pol.push(ArkFr { fr: x });
+///    }
+///    PolyData { coeffs: bls_pol }
+///}
 
-pub fn blst_poly_into_pc_poly(pd: &[ArkFr]) -> DensePoly<Fr> {
-    let mut poly: Vec<Fr> = vec![Fr::default(); pd.len()];
-    for i in 0..pd.len() {
-        poly[i] = pd[i].fr;
-    }
-    DensePoly::from_coefficients_vec(poly)
-}
+///pub fn blst_poly_into_pc_poly(pd: &[ArkFr]) -> DensePoly<Fr> {
+///    let mut poly: Vec<Fr> = vec![Fr::default(); pd.len()];
+///    for i in 0..pd.len() {
+///        poly[i] = pd[i].fr;
+///    }
+///    DensePoly::from_coefficients_vec(poly)
+///}
 
 pub const fn pc_fq_into_blst_fp(fq: Fq) -> Fp {
     Fp { l: fq.0 .0 }
@@ -116,7 +116,7 @@ pub const fn pc_g2projective_into_blst_p2(p2: Projective<g2::Config>) -> blst_p2
 
 pub(crate) fn fft_settings_to_rust(
     c_settings: *const CKZGSettings,
-) -> Result<FFTSettings, String> {
+) -> Result<LFFTSettings, String> {
     let settings = unsafe { &*c_settings };
 
     let roots_of_unity = unsafe {
@@ -143,7 +143,7 @@ pub(crate) fn fft_settings_to_rust(
             .collect::<Vec<ArkFr>>()
     };
 
-    Ok(FFTSettings {
+    Ok(LFFTSettings {
         max_width: FIELD_ELEMENTS_PER_EXT_BLOB,
         root_of_unity: roots_of_unity[0],
         roots_of_unity,
@@ -162,6 +162,7 @@ pub(crate) static mut PRECOMPUTATION_TABLES: PrecomputationTableManager<
 pub(crate) fn kzg_settings_to_rust(c_settings: &CKZGSettings) -> Result<LKZGSettings, String> {
     Ok(LKZGSettings {
         fs: fft_settings_to_rust(c_settings)?,
+        secret_g1: vec![],
         g1_values_monomial: unsafe {
             core::slice::from_raw_parts(c_settings.g1_values_monomial, FIELD_ELEMENTS_PER_BLOB)
         }
@@ -174,6 +175,7 @@ pub(crate) fn kzg_settings_to_rust(c_settings: &CKZGSettings) -> Result<LKZGSett
             .iter()
             .map(|r| ArkG1(*r))
             .collect::<Vec<_>>(),
+        secret_g2: vec![],
         g2_values_monomial: unsafe {
             core::slice::from_raw_parts(c_settings.g2_values_monomial, TRUSTED_SETUP_NUM_G2_POINTS)
         }

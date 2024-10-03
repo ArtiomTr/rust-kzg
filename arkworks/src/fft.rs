@@ -1,33 +1,12 @@
-use crate::kzg_proofs::FFTSettings;
+use crate::kzg_proofs::LFFTSettings;
 use crate::kzg_types::ArkFr as BlstFr;
 use kzg::{FFTFr, Fr as FFr};
 
-impl FFTFr<BlstFr> for FFTSettings {
+impl FFTFr<BlstFr> for LFFTSettings {
     fn fft_fr(&self, data: &[BlstFr], inverse: bool) -> Result<Vec<BlstFr>, String> {
-        if data.len() > self.max_width {
-            return Err(String::from("data length is longer than allowed max width"));
-        }
-        if !data.len().is_power_of_two() {
-            return Err(String::from("data length is not power of 2"));
-        }
-
-        let stride = self.max_width / data.len();
         let mut ret = vec![BlstFr::default(); data.len()];
 
-        let roots = if inverse {
-            &self.reverse_roots_of_unity
-        } else {
-            &self.expanded_roots_of_unity
-        };
-
-        fft_fr_fast(&mut ret, data, 1, roots, stride);
-
-        if inverse {
-            let inv_fr_len = BlstFr::from_u64(data.len() as u64).inverse();
-            ret[..data.len()]
-                .iter_mut()
-                .for_each(|f| *f = BlstFr::mul(f, &inv_fr_len));
-        }
+        self.fft_fr_output(data, inverse, &mut ret)?;
 
         Ok(ret)
     }

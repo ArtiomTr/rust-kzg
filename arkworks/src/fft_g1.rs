@@ -1,5 +1,5 @@
 use crate::consts::G1_GENERATOR;
-use crate::kzg_proofs::FFTSettings;
+use crate::kzg_proofs::LFFTSettings;
 use crate::kzg_types::{ArkFp, ArkFr, ArkG1, ArkG1Affine};
 
 use crate::kzg_types::ArkG1ProjAddAffine;
@@ -40,32 +40,34 @@ pub fn make_data(data: usize) -> Vec<ArkG1> {
     vec
 }
 
-impl FFTG1<ArkG1> for FFTSettings {
+impl FFTG1<ArkG1> for LFFTSettings {
     fn fft_g1(&self, data: &[ArkG1], inverse: bool) -> Result<Vec<ArkG1>, String> {
         if data.len() > self.max_width {
-            return Err(String::from("data length is longer than allowed max width"));
-        }
-        if !data.len().is_power_of_two() {
-            return Err(String::from("data length is not power of 2"));
+            return Err(String::from(
+                "Supplied list is longer than the available max width",
+            ));
+        } else if !data.len().is_power_of_two() {
+            return Err(String::from("A list with power-of-two length expected"));
         }
 
-        let stride: usize = self.max_width / data.len();
+        let stride = self.max_width / data.len();
         let mut ret = vec![ArkG1::default(); data.len()];
 
         let roots = if inverse {
             &self.reverse_roots_of_unity
         } else {
-            &self.expanded_roots_of_unity
+            &self.roots_of_unity
         };
 
-        fft_g1_fast(&mut ret, data, 1, roots, stride, 1);
+        fft_g1_fast(&mut ret, data, 1, roots, stride);
 
         if inverse {
             let inv_fr_len = ArkFr::from_u64(data.len() as u64).inverse();
             ret[..data.len()]
                 .iter_mut()
-                .for_each(|f| f.0.mul_assign(&inv_fr_len.fr));
+                .for_each(|f| *f = f.mul(&inv_fr_len));
         }
+
         Ok(ret)
     }
 }
@@ -95,7 +97,6 @@ pub fn fft_g1_fast(
     stride: usize,
     roots: &[ArkFr],
     roots_stride: usize,
-    _width: usize,
 ) {
     let half = ret.len() / 2;
     if half > 0 {
@@ -103,28 +104,20 @@ pub fn fft_g1_fast(
         {
             let (lo, hi) = ret.split_at_mut(half);
             rayon::join(
-                || fft_g1_fast(hi, &data[stride..], stride * 2, roots, roots_stride * 2, 1),
-                || fft_g1_fast(lo, data, stride * 2, roots, roots_stride * 2, 1),
+                || fft_g1_fast(lo, data, stride * 2, roots, roots_stride * 2),
+                || fft_g1_fast(hi, &data[stride..], stride * 2, roots, roots_stride * 2),
             );
         }
 
         #[cfg(not(feature = "parallel"))]
         {
-            fft_g1_fast(
-                &mut ret[..half],
-                data,
-                stride * 2,
-                roots,
-                roots_stride * 2,
-                1,
-            );
+            fft_g1_fast(&mut ret[..half], data, stride * 2, roots, roots_stride * 2);
             fft_g1_fast(
                 &mut ret[half..],
                 &data[stride..],
                 stride * 2,
                 roots,
                 roots_stride * 2,
-                1,
             );
         }
 

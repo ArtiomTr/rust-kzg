@@ -1,15 +1,15 @@
 use crate::kzg_types::{ArkG1, ArkG2};
 use crate::P2;
-use blst::{blst_fp, blst_fp2, blst_p1};
+use blst::{blst_fp, blst_fp2, blst_p1, blst_p2};
 use kzg::eip_4844::FIELD_ELEMENTS_PER_BLOB;
 
 /** The G1 identity/infinity */
 #[rustfmt::skip]
-pub const G1_IDENTITY: ArkG1 = ArkG1::from_blst_p1( blst_p1 {
-    x: blst_fp { l: [0, 0, 0, 0, 0, 0], },
-    y: blst_fp { l: [0, 0, 0, 0, 0, 0], },
-    z: blst_fp { l: [0, 0, 0, 0, 0, 0], },
-});
+pub const G1_IDENTITY: ArkG1 = ArkG1::from_xyz(
+    blst_fp { l: [0; 6] },
+    blst_fp { l: [0; 6] },
+    blst_fp { l: [0; 6] },
+);
 
 pub const SCALE_FACTOR: u64 = 5;
 
@@ -52,7 +52,7 @@ pub const SCALE2_ROOT_OF_UNITY: [[u64; 4]; 32] = [
 ];
 
 /** The G1 generator */
-pub const G1_GENERATOR: ArkG1 = ArkG1::from_blst_p1(blst_p1 {
+pub const G1_GENERATOR: ArkG1 = ArkG1(blst_p1 {
     x: blst_fp {
         l: [
             0x5cb38790fd530c16,
@@ -85,7 +85,7 @@ pub const G1_GENERATOR: ArkG1 = ArkG1::from_blst_p1(blst_p1 {
     },
 });
 
-pub const G1_NEGATIVE_GENERATOR: ArkG1 = ArkG1::from_blst_p1(blst_p1 {
+pub const G1_NEGATIVE_GENERATOR: ArkG1 = ArkG1(blst_p1 {
     x: blst_fp {
         l: [
             0x5cb38790fd530c16,
@@ -118,7 +118,7 @@ pub const G1_NEGATIVE_GENERATOR: ArkG1 = ArkG1::from_blst_p1(blst_p1 {
     },
 });
 
-pub const G2_GENERATOR: ArkG2 = ArkG2::from_blst_p2(P2 {
+pub const G2_GENERATOR: ArkG2 = ArkG2(blst_p2 {
     x: blst_fp2 {
         fp: [
             blst_fp {
@@ -193,7 +193,7 @@ pub const G2_GENERATOR: ArkG2 = ArkG2::from_blst_p2(P2 {
     },
 });
 
-pub const G2_NEGATIVE_GENERATOR: ArkG2 = ArkG2::from_blst_p2(P2 {
+pub const G2_NEGATIVE_GENERATOR: ArkG2 = ArkG2(blst_p2 {
     x: blst_fp2 {
         fp: [
             blst_fp {
