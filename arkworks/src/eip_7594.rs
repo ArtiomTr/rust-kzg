@@ -9,18 +9,11 @@ use crate::kzg_types::{
 };
 use crate::fft::fft_fr_fast;
 use blst::{blst_fr_mul};
-use kzg::common_utils::reverse_bit_order;
-use kzg::eip_4844::{
-    blob_to_kzg_commitment_rust, compute_blob_kzg_proof_rust, compute_kzg_proof_rust,
-    load_trusted_setup_rust, verify_blob_kzg_proof_batch_rust, verify_blob_kzg_proof_rust,
-    verify_kzg_proof_rust, Blob, Bytes32, Bytes48, CKZGSettings, KZGCommitment, KZGProof,
-    PrecomputationTableManager, BYTES_PER_FIELD_ELEMENT, BYTES_PER_G1, BYTES_PER_G2, C_KZG_RET,
-    C_KZG_RET_BADARGS, C_KZG_RET_OK, FIELD_ELEMENTS_PER_BLOB, TRUSTED_SETUP_NUM_G1_POINTS,
-    TRUSTED_SETUP_NUM_G2_POINTS, Cell, CELLS_PER_EXT_BLOB, RANDOM_CHALLENGE_KZG_CELL_BATCH_DOMAIN,
-    BYTES_PER_COMMITMENT, BYTES_PER_CELL, BYTES_PER_PROOF, hash, hash_to_bls_field, compute_powers,
-};
-use kzg::{cfg_into_iter, Fr, KZGSettings, G1, G2};
+use kzg::common_utils::{reverse_bit_order, reverse_bits_limited};
+use kzg::eip_4844::{blob_to_kzg_commitment_rust, compute_blob_kzg_proof_rust, compute_kzg_proof_rust, load_trusted_setup_rust, verify_blob_kzg_proof_batch_rust, verify_blob_kzg_proof_rust, verify_kzg_proof_rust, Blob, Bytes32, Bytes48, CKZGSettings, KZGCommitment, KZGProof, PrecomputationTableManager, BYTES_PER_FIELD_ELEMENT, BYTES_PER_G1, BYTES_PER_G2, C_KZG_RET, C_KZG_RET_BADARGS, C_KZG_RET_OK, FIELD_ELEMENTS_PER_BLOB, TRUSTED_SETUP_NUM_G1_POINTS, TRUSTED_SETUP_NUM_G2_POINTS, Cell, CELLS_PER_EXT_BLOB, RANDOM_CHALLENGE_KZG_CELL_BATCH_DOMAIN, BYTES_PER_COMMITMENT, BYTES_PER_CELL, BYTES_PER_PROOF, hash, hash_to_bls_field, compute_powers, blob_to_polynomial};
+use kzg::{cfg_into_iter, Fr, G1Mul, KZGSettings, G1, G2};
 use std::ptr::null_mut;
+use crate::utils::PolyData;
 
 #[cfg(feature = "std")]
 use libc::FILE;
@@ -36,6 +29,7 @@ use rayon::prelude::*;
 use kzg::eip_4844::load_trusted_setup_string;
 
 use crate::eip_4844::kzg_settings_to_rust;
+use crate::fft_g1::fft_g1_fast;
 
 fn fr_ifft(output: &mut [ArkFr], input: &[ArkFr], s: &LFFTSettings) -> Result<(), String> {
     let stride = kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB / input.len();
@@ -47,6 +41,92 @@ fn fr_ifft(output: &mut [ArkFr], input: &[ArkFr], s: &LFFTSettings) -> Result<()
         *el = el.mul(&inv_len);
     }
 
+    Ok(())
+}
+
+fn fr_fft(output: &mut [ArkFr], input: &[ArkFr], s: &LFFTSettings) -> Result<(), String> {
+    let roots_stride = kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB / input.len();
+    fft_fr_fast(output, input, 1, &s.roots_of_unity, roots_stride);
+
+    Ok(())
+}
+
+fn g1_ifft(out: &mut [ArkG1], input: &[ArkG1], s: &LKZGSettings) -> Result<(), String> {
+    if input.len() > kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB || !input.len().is_power_of_two() {
+        return Err("Invalid input length".to_string());
+    }
+
+    let stride = kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB / input.len();
+    fft_g1_fast(out, input, 1, &s.fs.reverse_roots_of_unity, stride);
+
+    let inv_len = ArkFr::from_u64(input.len() as u64).eucl_inverse();
+    for out in out.iter_mut().take(input.len()) {
+        *out = out.mul(&inv_len);
+    }
+
+    Ok(())
+}
+
+fn g1_fft(out: &mut [ArkG1], input: &[ArkG1], s: &LKZGSettings) -> Result<(), String> {
+    if input.len() > kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB || !input.len().is_power_of_two() {
+        return Err("Invalid input length".to_string());
+    }
+
+    let roots_stride = kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB / input.len();
+    fft_g1_fast(out, input, 1, &s.fs.roots_of_unity, roots_stride);
+
+    Ok(())
+}
+
+fn toeplitz_coeffs_stride(
+    out: &mut [ArkFr],
+    input: &[ArkFr],
+    n: usize,
+    offset: usize,
+    stride: usize,
+) -> Result<(), String> {
+    if stride == 0 {
+        return Err("Stride cannot be zero".to_string());
+    }
+    // fr_t *out, const fr_t *in, size_t n, size_t offset, size_t stride
+
+    // size_t k, k2;
+
+    // if (stride == 0) return C_KZG_BADARGS;
+
+    let k = n / stride;
+    let k2 = k * 2;
+    // k = n / stride;
+    // k2 = k * 2;
+
+    out[0] = input[n - 1 - offset];
+    // out[0] = in[n - 1 - offset];
+    // for i in 1..
+    {
+        let mut i = 1;
+        while i <= k + 1 && i < k2 {
+            out[i] = ArkFr::zero();
+            i += 1;
+        }
+    };
+
+    {
+        let mut i = k + 2;
+        let mut j = 2 * stride - offset - 1;
+        while i < k2 {
+            out[i] = input[j];
+            i += 1;
+            j += stride;
+        }
+    };
+    // for (size_t i = 1; i <= k + 1 && i < k2; i++) {
+    //     out[i] = FR_ZERO;
+    // }
+    // for (size_t i = k + 2, j = 2 * stride - offset - 1; i < k2; i++, j += stride) {
+    //     out[i] = in[j];
+    // }
+
+    // return C_KZG_OK;
     Ok(())
 }
 
@@ -76,6 +156,48 @@ fn get_coset_shift_pow_for_cell(
     Ok(settings.get_roots_of_unity_at(h_k_pow_idx))
 }
 
+fn poly_lagrange_to_monomial(
+    output: &mut [ArkFr],
+    largrange_poly: &[ArkFr],
+    s: &LFFTSettings,
+) -> Result<(), String> {
+    let mut poly = largrange_poly.to_vec();
+
+    reverse_bit_order(&mut poly)?;
+
+    fr_ifft(output, &poly, s)?;
+
+    Ok(())
+}
+
+fn coset_fft(input: &[ArkFr], s: &LKZGSettings) -> Result<Vec<ArkFr>, String> {
+    if input.is_empty() {
+        return Err("Invalid input length".to_string());
+    }
+
+    let mut in_shifted = input.to_vec();
+    // TODO: move 7 to constant
+    shift_poly(&mut in_shifted, &ArkFr::from_u64(7));
+
+    let mut output = vec![ArkFr::default(); input.len()];
+    fr_fft(&mut output, &in_shifted, &s.fs)?;
+
+    Ok(output)
+}
+
+fn coset_ifft(input: &[ArkFr], s: &LKZGSettings) -> Result<Vec<ArkFr>, String> {
+    if input.is_empty() {
+        return Err("Invalid input length".to_string());
+    }
+
+    let mut output = vec![ArkFr::default(); input.len()];
+    fr_ifft(&mut output, input, &s.fs)?;
+
+    shift_poly(&mut output, &ArkFr::one().div(&ArkFr::from_u64(7))?);
+
+    Ok(output)
+}
+
 fn deduplicate_commitments(commitments: &mut [ArkG1], indicies: &mut [usize], count: &mut usize) {
     if *count == 0 {
         return;
@@ -102,12 +224,125 @@ fn deduplicate_commitments(commitments: &mut [ArkG1], indicies: &mut [usize], co
     }
 }
 
+fn compute_vanishing_polynomial_from_roots(roots: &[ArkFr]) -> Result<Vec<ArkFr>, String> {
+    if roots.is_empty() {
+        return Err("Roots cannot be empty".to_string());
+    }
+
+    let mut poly = Vec::new();
+    poly.push(roots[0].negate());
+
+    for i in 1..roots.len() {
+        let neg_root = roots[i].negate();
+
+        poly.push(neg_root.add(&poly[i - 1]));
+
+        for j in (1..i).rev() {
+            poly[j] = poly[j].mul(&neg_root).add(&poly[j - 1]);
+        }
+        poly[0] = poly[0].mul(&neg_root);
+    }
+
+    poly.push(ArkFr::one());
+
+    Ok(poly)
+}
+
+fn vanishing_polynomial_for_missing_cells(
+    missing_cell_indicies: &[usize],
+    s: &LKZGSettings,
+) -> Result<Vec<ArkFr>, String> {
+    if missing_cell_indicies.is_empty() || missing_cell_indicies.len() >= CELLS_PER_EXT_BLOB {
+        return Err("Invalid missing cell indicies count".to_string());
+    }
+
+    const STRIDE: usize = kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB / CELLS_PER_EXT_BLOB;
+
+    let roots = missing_cell_indicies
+        .iter()
+        .map(|i| s.get_roots_of_unity_at(*i * STRIDE))
+        .collect::<Vec<_>>();
+
+    let short_vanishing_poly = compute_vanishing_polynomial_from_roots(&roots)?;
+
+    let mut vanishing_poly = vec![ArkFr::zero(); kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB];
+
+    for i in 0..short_vanishing_poly.len() {
+        vanishing_poly[i * kzg::eip_4844::FIELD_ELEMENTS_PER_CELL] = short_vanishing_poly[i];
+    }
+
+    Ok(vanishing_poly)
+}
+
 fn shift_poly(poly: &mut [ArkFr], shift_factor: &ArkFr) {
     let mut factor_power = ArkFr::one();
     for coeff in poly.iter_mut().skip(1) {
         factor_power = factor_power.mul(shift_factor);
         *coeff = coeff.mul(&factor_power);
     }
+}
+
+fn recover_cells(
+    output: &mut [ArkFr],
+    cell_indicies: &[usize],
+    s: &LKZGSettings,
+) -> Result<(), String> {
+    let mut missing_cell_indicies = Vec::new();
+
+    let mut cells_brp = output.to_vec();
+    reverse_bit_order(&mut cells_brp)?;
+
+    for i in 0..CELLS_PER_EXT_BLOB {
+        if !cell_indicies.contains(&i) {
+            missing_cell_indicies.push(reverse_bits_limited(CELLS_PER_EXT_BLOB, i));
+        }
+    }
+
+    let missing_cell_indicies = &missing_cell_indicies[..];
+
+    if missing_cell_indicies.len() > CELLS_PER_EXT_BLOB / 2 {
+        return Err("Not enough cells".to_string());
+    }
+
+    let vanishing_poly_coeff = vanishing_polynomial_for_missing_cells(missing_cell_indicies, s)?;
+    let mut vanishing_poly_eval = vec![ArkFr::default(); kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB];
+
+    fr_fft(&mut vanishing_poly_eval, &vanishing_poly_coeff, &s.fs)?;
+
+    let mut extended_evaluation_times_zero = Vec::with_capacity(kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB);
+
+    for i in 0..kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB {
+        if cells_brp[i].is_null() {
+            extended_evaluation_times_zero.push(ArkFr::zero());
+        } else {
+            extended_evaluation_times_zero.push(cells_brp[i].mul(&vanishing_poly_eval[i]));
+        }
+    }
+
+    let mut extended_evaluation_times_zero_coeffs =
+        vec![ArkFr::default(); kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB];
+    fr_ifft(
+        &mut extended_evaluation_times_zero_coeffs,
+        &extended_evaluation_times_zero,
+        &s.fs,
+    )?;
+
+    let mut extended_evaluations_over_coset = coset_fft(&extended_evaluation_times_zero_coeffs, s)?;
+
+    let vanishing_poly_over_coset = coset_fft(&vanishing_poly_coeff, s)?;
+
+    for i in 0..kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB {
+        extended_evaluations_over_coset[i] =
+            extended_evaluations_over_coset[i].div(&vanishing_poly_over_coset[i])?;
+    }
+
+    let reconstructed_poly_coeff = coset_ifft(&extended_evaluations_over_coset, s)?;
+
+    fr_fft(output, &reconstructed_poly_coeff, &s.fs)?;
+
+    reverse_bit_order(output)?;
+
+    Ok(())
 }
 
 fn compute_weighted_sum_of_commitments(
@@ -132,6 +367,163 @@ fn compute_weighted_sum_of_commitments(
     );
 
     sum_of_commitments
+}
+
+fn compute_fk20_proofs(
+    proofs: &mut [ArkG1],
+    poly: &[ArkFr],
+    n: usize,
+    s: &LKZGSettings,
+) -> Result<(), String> {
+    let k = n / kzg::eip_4844::FIELD_ELEMENTS_PER_CELL;
+    let k2 = k * 2;
+
+    let mut coeffs = vec![vec![ArkFr::default(); k]; k2];
+    let mut h_ext_fft = vec![ArkG1::identity(); k2];
+    let mut toeplitz_coeffs = vec![ArkFr::default(); k2];
+    let mut toeplitz_coeffs_fft = vec![ArkFr::default(); k2];
+
+    for i in 0..kzg::eip_4844::FIELD_ELEMENTS_PER_CELL {
+        toeplitz_coeffs_stride(&mut toeplitz_coeffs, poly, n, i, kzg::eip_4844::FIELD_ELEMENTS_PER_CELL)?;
+        fr_fft(&mut toeplitz_coeffs_fft, &toeplitz_coeffs, &s.fs)?;
+        for j in 0..k2 {
+            coeffs[j][i] = toeplitz_coeffs_fft[j];
+        }
+    }
+
+    for i in 0..k2 {
+        g1_linear_combination(
+            &mut h_ext_fft[i],
+            &s.x_ext_fft_columns[i],
+            &coeffs[i],
+            kzg::eip_4844::FIELD_ELEMENTS_PER_CELL,
+            None,
+        );
+    }
+
+    let mut h = vec![ArkG1::identity(); k2];
+    g1_ifft(&mut h, &h_ext_fft, s)?;
+
+    for h in h.iter_mut().take(k2).skip(k) {
+        *h = ArkG1::identity();
+    }
+
+    g1_fft(proofs, &h, s)?;
+
+    Ok(())
+}
+
+pub fn compute_cells_and_kzg_proofs_rust(
+    cells: Option<&mut [[ArkFr; kzg::eip_4844::FIELD_ELEMENTS_PER_CELL]]>,
+    proofs: Option<&mut [ArkG1]>,
+    blob: &[ArkFr],
+    s: &LKZGSettings,
+) -> Result<(), String> {
+    if cells.is_none() && proofs.is_none() {
+        return Err("Both cells & proofs cannot be none".to_string());
+    }
+
+    let poly = blob_to_polynomial::<ArkFr, PolyData>(blob)?;
+
+    let mut poly_monomial = vec![ArkFr::zero(); kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB];
+
+    poly_lagrange_to_monomial(
+        &mut poly_monomial[..FIELD_ELEMENTS_PER_BLOB],
+        &poly.coeffs,
+        &s.fs,
+    )?;
+
+    // compute cells
+    if let Some(cells) = cells {
+        fr_fft(cells.as_flattened_mut(), &poly_monomial, &s.fs)?;
+
+        reverse_bit_order(cells.as_flattened_mut())?;
+    };
+
+    // compute proofs
+    if let Some(proofs) = proofs {
+        compute_fk20_proofs(proofs, &poly_monomial, FIELD_ELEMENTS_PER_BLOB, s)?;
+        reverse_bit_order(proofs)?;
+    }
+
+    Ok(())
+}
+
+pub fn recover_cells_and_kzg_proofs_rust(
+    recovered_cells: &mut [[ArkFr; kzg::eip_4844::FIELD_ELEMENTS_PER_CELL]],
+    recovered_proofs: Option<&mut [ArkG1]>,
+    cell_indicies: &[usize],
+    cells: &[[ArkFr; kzg::eip_4844::FIELD_ELEMENTS_PER_CELL]],
+    s: &LKZGSettings,
+) -> Result<(), String> {
+    if recovered_cells.len() != CELLS_PER_EXT_BLOB
+        || recovered_proofs
+        .as_ref()
+        .is_some_and(|it| it.len() != CELLS_PER_EXT_BLOB)
+    {
+        return Err("Invalid output array length".to_string());
+    }
+
+    if cells.len() != cell_indicies.len() {
+        return Err(
+            "Cell indicies mismatch - cells length must be equal to cell indicies length"
+                .to_string(),
+        );
+    }
+
+    if cells.len() > CELLS_PER_EXT_BLOB {
+        return Err("Cell length cannot be larger than CELLS_PER_EXT_BLOB".to_string());
+    }
+
+    if cells.len() < CELLS_PER_EXT_BLOB / 2 {
+        return Err(
+            "Impossible to recover - cells length cannot be less than CELLS_PER_EXT_BLOB / 2"
+                .to_string(),
+        );
+    }
+
+    for cell_index in cell_indicies {
+        if *cell_index >= CELLS_PER_EXT_BLOB {
+            return Err("Cell index cannot be larger than CELLS_PER_EXT_BLOB".to_string());
+        }
+    }
+
+    for cell in recovered_cells.iter_mut() {
+        for fr in cell {
+            *fr = ArkFr::null();
+        }
+    }
+
+    for i in 0..cells.len() {
+        let index = cell_indicies[i];
+
+        for j in 0..FIELD_ELEMENTS_PER_CELL {
+            if !recovered_cells[index][j].is_null() {
+                return Err("Invalid output cell".to_string());
+            }
+        }
+
+        recovered_cells[index] = cells[i];
+    }
+
+    if cells.len() != CELLS_PER_EXT_BLOB {
+        recover_cells(recovered_cells.as_flattened_mut(), cell_indicies, s)?;
+    }
+
+    #[allow(clippy::redundant_slicing)]
+    let recovered_cells = &recovered_cells[..];
+
+    if let Some(recovered_proofs) = recovered_proofs {
+        let mut poly = vec![ArkFr::default(); FIELD_ELEMENTS_PER_EXT_BLOB];
+
+        poly_lagrange_to_monomial(&mut poly, recovered_cells.as_flattened(), &s.fs)?;
+
+        compute_fk20_proofs(recovered_proofs, &poly, FIELD_ELEMENTS_PER_BLOB, s)?;
+
+        reverse_bit_order(recovered_proofs)?;
+    }
+
+    Ok(())
 }
 
 fn computed_weighted_sum_of_proofs(
