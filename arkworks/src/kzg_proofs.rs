@@ -96,10 +96,12 @@ pub fn expand_root_of_unity(root: &ArkFr, width: usize) -> Result<Vec<ArkFr>, St
 pub struct KZGSettings {
     pub fs: FFTSettings,
     pub secret_g1: Vec<ArkG1>,
-    pub secret_g2: Vec<ArkG2>,
-    pub precomputation: Option<Arc<PrecomputationTable<ArkFr, ArkG1, ArkFp, ArkG1Affine>>>,
     pub g1_values_monomial: Vec<ArkG1>,
+    pub g1_values_lagrange_brp: Vec<ArkG1>,
+    pub secret_g2: Vec<ArkG2>,
     pub g2_values_monomial: Vec<ArkG2>,
+    pub precomputation: Option<Arc<PrecomputationTable<ArkFr, ArkG1, ArkFp, ArkG1Affine>>>,
+    pub x_ext_fft_columns: Vec<Vec<ArkG1>>,
 }
 
 pub fn generate_trusted_setup(len: usize, secret: [u8; 32usize]) -> (Vec<ArkG1>, Vec<ArkG2>) {

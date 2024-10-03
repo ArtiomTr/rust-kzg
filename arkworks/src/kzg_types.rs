@@ -26,7 +26,7 @@ use ark_std::UniformRand;
 
 use blst::{blst_fp, blst_fr, blst_p1};
 use kzg::common_utils::reverse_bit_order;
-use kzg::eip_4844::{BYTES_PER_FIELD_ELEMENT, BYTES_PER_G1, BYTES_PER_G2};
+use kzg::eip_4844::{BYTES_PER_FIELD_ELEMENT, BYTES_PER_G1, BYTES_PER_G2, FIELD_ELEMENTS_PER_BLOB, FIELD_ELEMENTS_PER_CELL, FIELD_ELEMENTS_PER_EXT_BLOB, TRUSTED_SETUP_NUM_G2_POINTS};
 use kzg::msm::precompute::{precompute, PrecomputationTable};
 use kzg::{
     FFTFr, FFTSettings, FFTSettingsPoly, Fr as KzgFr, G1Affine as G1AffineTrait, G1Fp, G1GetFp,
@@ -658,17 +658,87 @@ impl FFTSettings<ArkFr> for LFFTSettings {
 
 impl KZGSettings<ArkFr, ArkG1, ArkG2, LFFTSettings, PolyData, ArkFp, ArkG1Affine> for LKZGSettings {
     fn new(
-        secret_g1: &[ArkG1],
-        secret_g2: &[ArkG2],
-        _length: usize,
+        g1_monomial: &[ArkG1],
+        g1_lagrange_brp: &[ArkG1],
+        g2_monomial: &[ArkG2],
         fft_settings: &LFFTSettings,
-    ) -> Result<LKZGSettings, String> {
+    ) -> Result<Self, String> {
+        if g1_monomial.len() != FIELD_ELEMENTS_PER_BLOB
+            || g1_lagrange_brp.len() != FIELD_ELEMENTS_PER_BLOB
+            || g2_monomial.len() != TRUSTED_SETUP_NUM_G2_POINTS
+        {
+            return Err("Length does not match FIELD_ELEMENTS_PER_BLOB".to_string());
+        }
+
+        let n = FIELD_ELEMENTS_PER_EXT_BLOB / 2;
+        let k = n / FIELD_ELEMENTS_PER_CELL;
+        let k2 = 2 * k;
+
+        let mut points = vec![ArkG1::default(); k2];
+        let mut x = vec![ArkG1::default(); k];
+        let mut x_ext_fft_columns = vec![vec![ArkG1::default(); FIELD_ELEMENTS_PER_CELL]; k2];
+
+        for offset in 0..FIELD_ELEMENTS_PER_CELL {
+            let start = n - FIELD_ELEMENTS_PER_CELL - 1 - offset;
+            for (i, p) in x.iter_mut().enumerate().take(k - 1) {
+                let j = start - i * FIELD_ELEMENTS_PER_CELL;
+                *p = g1_monomial[j];
+            }
+            x[k - 1] = ArkG1::identity();
+
+            toeplitz_part_1(&mut points, &x, fft_settings)?;
+
+            for row in 0..k2 {
+                x_ext_fft_columns[row][offset] = points[row];
+            }
+        }
+
+        // for (size_t offset = 0; offset < FIELD_ELEMENTS_PER_CELL; offset++) {
+        //     /* Compute x, sections of the g1 values */
+        //     size_t start = n - FIELD_ELEMENTS_PER_CELL - 1 - offset;
+        //     for (size_t i = 0; i < k - 1; i++) {
+        //         size_t j = start - i * FIELD_ELEMENTS_PER_CELL;
+        //         x[i] = s->g1_values_monomial[j];
+        //     }
+        //     x[k - 1] = G1_IDENTITY;
+
+        //     /* Compute points, the fft of an extended x */
+        //     ret = toeplitz_part_1(points, x, k, s);
+        //     if (ret != C_KZG_OK) goto out;
+
+        //     /* Reorganize from rows into columns */
+        //     for (size_t row = 0; row < k2; row++) {
+        //         s->x_ext_fft_columns[row][offset] = points[row];
+        //     }
+        // }
+
         Ok(Self {
-            secret_g1: secret_g1.to_vec(),
-            secret_g2: secret_g2.to_vec(),
-            fs: fft_settings.clone(),
-            precomputation: precompute(secret_g1).ok().flatten().map(Arc::new),
+            g1_values_monomial: g1_monomial.to_vec(),
+            g1_values_lagrange_brp: g1_lagrange_brp.to_vec(),
             g2_values_monomial: g2_monomial.to_vec(),
+            fs: fft_settings.clone(),
+            x_ext_fft_columns,
+            precomputation: {
+                #[cfg(feature = "sppark")]
+                {
+                    use blst::blst_p1_affine;
+                    let points =
+                        kzg::msm::msm_impls::batch_convert::<FsG1, FsFp, FsG1Affine>(secret_g1);
+                    let points = unsafe {
+                        alloc::slice::from_raw_parts(
+                            points.as_ptr() as *const blst_p1_affine,
+                            points.len(),
+                        )
+                    };
+                    let prepared = rust_kzg_blst_sppark::prepare_multi_scalar_mult(points);
+                    Some(Arc::new(PrecomputationTable::from_ptr(prepared)))
+                }
+
+                #[cfg(not(feature = "sppark"))]
+                {
+                    precompute(g1_lagrange_brp).ok().flatten().map(Arc::new)
+                }
+            },
         })
     }
 
