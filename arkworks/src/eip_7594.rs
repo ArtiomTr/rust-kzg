@@ -17,7 +17,7 @@ use kzg::eip_4844::{
     PrecomputationTableManager, BYTES_PER_FIELD_ELEMENT, BYTES_PER_G1, BYTES_PER_G2, C_KZG_RET,
     C_KZG_RET_BADARGS, C_KZG_RET_OK, FIELD_ELEMENTS_PER_BLOB, TRUSTED_SETUP_NUM_G1_POINTS,
     TRUSTED_SETUP_NUM_G2_POINTS, Cell, CELLS_PER_EXT_BLOB, RANDOM_CHALLENGE_KZG_CELL_BATCH_DOMAIN,
-    BYTES_PER_COMMITMENT, BYTES_PER_CELL, BYTES_PER_PROOF, hash, hash_to_bls_field, compute_powers
+    BYTES_PER_COMMITMENT, BYTES_PER_CELL, BYTES_PER_PROOF, hash, hash_to_bls_field, compute_powers,
 };
 use kzg::{cfg_into_iter, Fr, KZGSettings, G1, G2};
 use std::ptr::null_mut;
@@ -34,7 +34,8 @@ use rayon::prelude::*;
 
 #[cfg(feature = "std")]
 use kzg::eip_4844::load_trusted_setup_string;
-use crate::utils::kzg_settings_to_rust;
+
+use crate::eip_4844::kzg_settings_to_rust;
 
 fn fr_ifft(output: &mut [ArkFr], input: &[ArkFr], s: &LFFTSettings) -> Result<(), String> {
     let stride = kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB / input.len();
