@@ -2,7 +2,7 @@ use super::{Fp, P1};
 use crate::P2;
 use ark_bls12_381::{g1, g2, Fq, Fq2, Fr};
 use crate::kzg_proofs::{LFFTSettings, LKZGSettings};
-use crate::kzg_types::{ArkFp, ArkFr, ArkG1, ArkG1Affine, ArkG2, LKZGSettings, LFFTSettings};
+use crate::kzg_types::{ArkFp, ArkFr, ArkG1, ArkG1Affine, ArkG2};
 use ark_ec::models::short_weierstrass::Projective;
 use ark_ff::Fp2;
 use ark_poly::univariate::DensePolynomial as DensePoly;
@@ -158,3 +158,44 @@ pub(crate) static mut PRECOMPUTATION_TABLES: PrecomputationTableManager<
     ArkFp,
     ArkG1Affine,
 > = PrecomputationTableManager::new();
+
+pub(crate) fn kzg_settings_to_rust(c_settings: &CKZGSettings) -> Result<LKZGSettings, String> {
+    Ok(LKZGSettings {
+        fs: fft_settings_to_rust(c_settings)?,
+        secret_g1: vec![],
+        g1_values_monomial: unsafe {
+            core::slice::from_raw_parts(c_settings.g1_values_monomial, FIELD_ELEMENTS_PER_BLOB)
+        }
+            .iter()
+            .map(|r| ArkG1(*r))
+            .collect::<Vec<_>>(),
+        g1_values_lagrange_brp: unsafe {
+            core::slice::from_raw_parts(c_settings.g1_values_lagrange_brp, FIELD_ELEMENTS_PER_BLOB)
+        }
+            .iter()
+            .map(|r| ArkG1(*r))
+            .collect::<Vec<_>>(),
+        secret_g2: vec![],
+        g2_values_monomial: unsafe {
+            core::slice::from_raw_parts(c_settings.g2_values_monomial, TRUSTED_SETUP_NUM_G2_POINTS)
+        }
+            .iter()
+            .map(|r| ArkG2(*r))
+            .collect::<Vec<_>>(),
+        x_ext_fft_columns: unsafe {
+            core::slice::from_raw_parts(
+                c_settings.x_ext_fft_columns,
+                2 * ((FIELD_ELEMENTS_PER_EXT_BLOB / 2) / FIELD_ELEMENTS_PER_CELL),
+            )
+        }
+            .iter()
+            .map(|it| {
+                unsafe { core::slice::from_raw_parts(*it, FIELD_ELEMENTS_PER_CELL) }
+                    .iter()
+                    .map(|it| ArkG1(*it))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>(),
+        precomputation: unsafe { PRECOMPUTATION_TABLES.get_precomputation(c_settings) },
+    })
+}

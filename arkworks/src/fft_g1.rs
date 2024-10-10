@@ -78,14 +78,15 @@ pub fn fft_g1_slow(
     stride: usize,
     roots: &[ArkFr],
     roots_stride: usize,
-    _width: usize,
 ) {
     for i in 0..data.len() {
+        // Evaluate first member at 1
         ret[i] = data[0].mul(&roots[0]);
+
+        // Evaluate the rest of members using a step of (i * J) % data.len() over the roots
+        // This distributes the roots over correct x^n members and saves on multiplication
         for j in 1..data.len() {
-            let jv = data[j * stride];
-            let r = roots[((i * j) % data.len()) * roots_stride];
-            let v = jv.mul(&r);
+            let v = data[j * stride].mul(&roots[((i * j) % data.len()) * roots_stride]);
             ret[i] = ret[i].add_or_dbl(&v);
         }
     }

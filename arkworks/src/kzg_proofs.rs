@@ -3,7 +3,7 @@
 extern crate alloc;
 use super::utils::{PolyData};
 use crate::consts::{G1_GENERATOR, G2_GENERATOR};
-use crate::kzg_types::{ArkFp, ArkFr, ArkG1Affine, ArkG1, ArkG2, ArkG1ProjAddAffine, LFFTSettings};
+use crate::kzg_types::{ArkFp, ArkFr, ArkG1Affine, ArkG1, ArkG2, ArkG1ProjAddAffine};
 use alloc::sync::Arc;
 use ark_bls12_381::Bls12_381;
 use ark_ec::pairing::Pairing;
@@ -12,7 +12,7 @@ use ark_poly::Polynomial;
 use ark_std::{vec, One};
 use kzg::eip_4844::hash_to_bls_field;
 use kzg::msm::{msm_impls::msm, precompute::PrecomputationTable};
-use kzg::Fr as FrTrait;
+use kzg::{Fr as FrTrait, Fr};
 use kzg::{G1Mul, G2Mul};
 use std::ops::Neg;
 use blst::{blst_fp12_is_one, blst_p1_affine, blst_p1_cneg, blst_p1_to_affine, blst_p2_affine, blst_p2_to_affine};
@@ -21,8 +21,8 @@ use blst::{blst_fp12_is_one, blst_p1_affine, blst_p1_cneg, blst_p1_to_affine, bl
 pub struct LFFTSettings {
     pub max_width: usize,
     pub root_of_unity: ArkFr,
-    pub roots_of_unity: Vec<ArkFr>,
     pub brp_roots_of_unity: Vec<ArkFr>,
+    pub roots_of_unity: Vec<ArkFr>,
     pub reverse_roots_of_unity: Vec<ArkFr>,
 }
 
@@ -105,21 +105,26 @@ pub struct LKZGSettings {
     pub x_ext_fft_columns: Vec<Vec<ArkG1>>,
 }
 
-pub fn generate_trusted_setup(len: usize, secret: [u8; 32usize]) -> (Vec<ArkG1>, Vec<ArkG2>) {
-    let s = hash_to_bls_field::<ArkFr>(&secret);
-    let mut s_pow = ArkFr::one();
+pub fn generate_trusted_setup(
+    n: usize,
+    secret: [u8; 32usize],
+) -> (Vec<ArkG1>, Vec<ArkG1>, Vec<ArkG2>) {
+    let s = hash_to_bls_field(&secret);
+    let mut s_pow = Fr::one();
 
-    let mut s1 = Vec::with_capacity(len);
-    let mut s2 = Vec::with_capacity(len);
+    let mut s1 = Vec::with_capacity(n);
+    let mut s2 = Vec::with_capacity(n);
+    let mut s3 = Vec::with_capacity(n);
 
-    for _ in 0..len {
+    for _ in 0..n {
         s1.push(G1_GENERATOR.mul(&s_pow));
-        s2.push(G2_GENERATOR.mul(&s_pow));
+        s2.push(G1_GENERATOR); // TODO: this should be lagrange form
+        s3.push(G2_GENERATOR.mul(&s_pow));
 
         s_pow = s_pow.mul(&s);
     }
 
-    (s1, s2)
+    (s1, s2, s3)
 }
 
 ///pub fn eval_poly(p: &PolyData, x: &ArkFr) -> ArkFr {

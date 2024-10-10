@@ -8,7 +8,10 @@ mod tests {
     use rust_kzg_arkworks::eip_4844::load_trusted_setup_filename_rust;
     use rust_kzg_arkworks::eip_7594::{compute_cells_and_kzg_proofs_rust, recover_cells_and_kzg_proofs_rust, verify_cell_kzg_proof_batch_rust};
     use rust_kzg_arkworks::kzg_types::{
-        ArkFp, ArkFr, ArkG1, ArkG1Affine, ArkG2, LKZGSettings, LFFTSettings
+        ArkFp, ArkFr, ArkG1, ArkG1Affine, ArkG2
+    };
+    use rust_kzg_arkworks::kzg_proofs::{
+        LKZGSettings, LFFTSettings
     };
     use rust_kzg_arkworks::utils::PolyData;
 

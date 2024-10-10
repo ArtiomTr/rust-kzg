@@ -3,9 +3,12 @@ extern crate alloc;
 use crate::consts::{
     FIELD_ELEMENTS_PER_EXT_BLOB, CELL_INDICES_RBL, FIELD_ELEMENTS_PER_CELL
 };
-use crate::kzg_proofs::{LFFTSettings, g1_linear_combination, pairings_verify};
+use crate::kzg_proofs::{g1_linear_combination, pairings_verify};
 use crate::kzg_types::{
-    ArkFp, ArkFr, ArkG1, ArkG1Affine, ArkG2, LKZGSettings, LFFTSettings
+    ArkFp, ArkFr, ArkG1, ArkG1Affine, ArkG2
+};
+use crate::kzg_proofs::{
+    LKZGSettings, LFFTSettings
 };
 use crate::fft::fft_fr_fast;
 use blst::{blst_fr_mul};
@@ -28,7 +31,7 @@ use rayon::prelude::*;
 #[cfg(feature = "std")]
 use kzg::eip_4844::load_trusted_setup_string;
 
-use crate::eip_4844::kzg_settings_to_rust;
+use crate::utils::kzg_settings_to_rust;
 use crate::fft_g1::fft_g1_fast;
 
 fn fr_ifft(output: &mut [ArkFr], input: &[ArkFr], s: &LFFTSettings) -> Result<(), String> {

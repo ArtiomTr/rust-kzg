@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use kzg_bench::tests::fft_g1::{compare_sft_fft, roundtrip_fft, stride_fft};
+    use kzg_bench::tests::fft_g1::{compare_ft_fft, roundtrip_fft, stride_fft};
     use rust_kzg_arkworks::fft_g1::{fft_g1_fast, fft_g1_slow, make_data};
     use rust_kzg_arkworks::kzg_proofs::LFFTSettings;
     use rust_kzg_arkworks::kzg_types::{ArkFr, ArkG1};
@@ -16,7 +16,7 @@ mod tests {
     }
 
     #[test]
-    fn compare_sft_fft_() {
-        compare_sft_fft::<ArkFr, ArkG1, LFFTSettings>(&fft_g1_slow, &fft_g1_fast, &make_data);
+    fn compare_ft_fft_() {
+        compare_ft_fft::<ArkFr, ArkG1, LFFTSettings>(&fft_g1_slow, &fft_g1_fast, &make_data);
     }
 }

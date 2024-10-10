@@ -255,22 +255,32 @@ pub unsafe extern "C" fn blob_to_kzg_commitment(
 #[no_mangle]
 pub unsafe extern "C" fn load_trusted_setup(
     out: *mut CKZGSettings,
-    g1_bytes: *const u8,
-    n1: usize,
-    g2_bytes: *const u8,
-    n2: usize,
+    g1_monomial_bytes: *const u8,
+    num_g1_monomial_bytes: u64,
+    g1_lagrange_bytes: *const u8,
+    num_g1_lagrange_bytes: u64,
+    g2_monomial_bytes: *const u8,
+    num_g2_monomial_bytes: u64,
+    _precompute: u64,
 ) -> C_KZG_RET {
-    let g1_bytes = core::slice::from_raw_parts(g1_bytes, n1 * BYTES_PER_G1);
-    let g2_bytes = core::slice::from_raw_parts(g2_bytes, n2 * BYTES_PER_G2);
-    TRUSTED_SETUP_NUM_G1_POINTS = g1_bytes.len() / BYTES_PER_G1;
-    let mut settings = handle_ckzg_badargs!(load_trusted_setup_rust(g1_bytes, g2_bytes));
+    let g1_monomial_bytes =
+        core::slice::from_raw_parts(g1_monomial_bytes, num_g1_monomial_bytes as usize);
+    let g1_lagrange_bytes =
+        core::slice::from_raw_parts(g1_lagrange_bytes, num_g1_lagrange_bytes as usize);
+    let g2_monomial_bytes =
+        core::slice::from_raw_parts(g2_monomial_bytes, num_g2_monomial_bytes as usize);
+    TRUSTED_SETUP_NUM_G1_POINTS = num_g1_monomial_bytes as usize / BYTES_PER_G1;
+    let mut settings = handle_ckzg_badargs!(load_trusted_setup_rust(
+        g1_monomial_bytes,
+        g1_lagrange_bytes,
+        g2_monomial_bytes
+    ));
 
     let c_settings = kzg_settings_to_c(&settings);
 
     PRECOMPUTATION_TABLES.save_precomputation(settings.precomputation.take(), &c_settings);
 
     *out = c_settings;
-
     C_KZG_RET_OK
 }
 
@@ -548,16 +558,17 @@ pub unsafe extern "C" fn compute_kzg_proof(
     C_KZG_RET_OK
 }
 
-/// # Safety
-#[no_mangle]
-pub unsafe extern "C" fn compute_cells_and_kzg_proofs(
-    cells: *mut Cell,
-    proofs: *mut KZGProof,
-    blob: *const Blob,
-    s: &CKZGSettings,
-) -> CKZGSettings {
-    // Check for null pointers
-    if cells.is_null() || proofs.is_null() || blob.is_null() || s.is_null() {
-        return C_KZG_RET_BADARGS;
-    }
-}
+// Ported to eip_7594 (In Progress)
+// # Safety
+//#[no_mangle]
+//pub unsafe extern "C" fn compute_cells_and_kzg_proofs(
+//    cells: *mut Cell,
+//    proofs: *mut KZGProof,
+//    blob: *const Blob,
+//    s: &CKZGSettings,
+//) -> CKZGSettings {
+//    // Check for null pointers
+//    if cells.is_null() || proofs.is_null() || blob.is_null() || s.is_null() {
+//        return C_KZG_RET_BADARGS;
+//    }
+//}

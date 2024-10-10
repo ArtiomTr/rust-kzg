@@ -47,9 +47,8 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     pub fn fr_div_by_zero_() {
-        fr_div_by_zero::<ArkFr>();
+        fr_div_by_zero::<ArkFr>()
     }
 
     #[test]

@@ -1058,6 +1058,7 @@ impl FFTSettingsPoly<ArkFr, PolyData, LFFTSettings> for LFFTSettings {
 }
 
 impl FFTSettings<ArkFr> for LFFTSettings {
+    /// Create FFTSettings with roots of unity for a selected scale. Resulting roots will have a magnitude of 2 ^ max_scale.
     fn new(scale: usize) -> Result<LFFTSettings, String> {
         if scale >= SCALE2_ROOT_OF_UNITY.len() {
             return Err(String::from(
@@ -1065,23 +1066,26 @@ impl FFTSettings<ArkFr> for LFFTSettings {
             ));
         }
 
+        // max_width = 2 ^ max_scale
         let max_width: usize = 1 << scale;
         let root_of_unity = ArkFr::from_u64_arr(&SCALE2_ROOT_OF_UNITY[scale]);
 
-        let expanded_roots_of_unity = expand_root_of_unity(&root_of_unity, max_width)?;
-        let mut reverse_roots_of_unity = expanded_roots_of_unity.clone();
-        reverse_roots_of_unity.reverse();
+        // create max_width of roots & store them reversed as well
+        let roots_of_unity = expand_root_of_unity(&root_of_unity, max_width)?;
 
-        let mut roots_of_unity = expanded_roots_of_unity.clone();
-        roots_of_unity.pop();
-        reverse_bit_order(&mut roots_of_unity)?;
+        let mut brp_roots_of_unity = roots_of_unity.clone();
+        brp_roots_of_unity.pop();
+        reverse_bit_order(&mut brp_roots_of_unity)?;
+
+        let mut reverse_roots_of_unity = roots_of_unity.clone();
+        reverse_roots_of_unity.reverse();
 
         Ok(LFFTSettings {
             max_width,
             root_of_unity,
-            brp_roots_of_unity,
             reverse_roots_of_unity,
             roots_of_unity,
+            brp_roots_of_unity,
         })
     }
 
