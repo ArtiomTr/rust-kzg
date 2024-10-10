@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use kzg_bench::benches::kzg::{bench_commit_to_poly, bench_compute_proof_single};
 
-use rust_kzg_arkworks::kzg_proofs::{generate_trusted_setup, FFTSettings, KZGSettings};
+use rust_kzg_arkworks::kzg_proofs::{generate_trusted_setup, LFFTSettings, LKZGSettings};
 use rust_kzg_arkworks::kzg_types::{ArkFp, ArkFr, ArkG1, ArkG1Affine, ArkG2};
 use rust_kzg_arkworks::utils::PolyData;
 
@@ -11,8 +11,8 @@ fn bench_commit_to_poly_(c: &mut Criterion) {
         ArkG1,
         ArkG2,
         PolyData,
-        FFTSettings,
-        KZGSettings,
+        LFFTSettings,
+        LKZGSettings,
         ArkFp,
         ArkG1Affine,
     >(c, &generate_trusted_setup);
@@ -24,8 +24,8 @@ fn bench_compute_proof_single_(c: &mut Criterion) {
         ArkG1,
         ArkG2,
         PolyData,
-        FFTSettings,
-        KZGSettings,
+        LFFTSettings,
+        LKZGSettings,
         ArkFp,
         ArkG1Affine,
     >(c, &generate_trusted_setup);
