@@ -127,12 +127,12 @@ pub fn generate_trusted_setup(
     (s1, s2, s3)
 }
 
-///pub fn eval_poly(p: &PolyData, x: &ArkFr) -> ArkFr {
-///    let poly = blst_poly_into_pc_poly(&p.coeffs);
-///    ArkFr {
-///        fr: poly.evaluate(&x.fr),
-///    }
-///}
+//pub fn eval_poly(p: &PolyData, x: &ArkFr) -> ArkFr {
+//    let poly = blst_poly_into_pc_poly(&p.coeffs);
+//    ArkFr {
+//        fr: poly.evaluate(&x.fr),
+//    }
+//}
 
 pub fn pairings_verify(a1: &ArkG1, a2: &ArkG2, b1: &ArkG1, b2: &ArkG2) -> bool {
     let mut aa1 = blst_p1_affine::default();

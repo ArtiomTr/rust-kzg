@@ -53,14 +53,14 @@ extern crate alloc;
 use alloc::sync::Arc;
 use std::ptr;
 
-///#[derive(Debug, Clone, Default)]
-///pub struct ArkKZGSettings {
-///    pub fs: ArkFFTSettings,
-///    pub g1_values_monomial: Vec<ArkG1>,
-///    pub g1_values_lagrange_brp: Vec<ArkG1>,
-///    pub g2_values_monomial: Vec<ArkG2>,
-///    pub precomputation: Option<Arc<PrecomputationTable<ArkFr, ArkG1, ArkFp, ArkG1Affine>>>,
-///}
+//#[derive(Debug, Clone, Default)]
+//pub struct ArkKZGSettings {
+//    pub fs: ArkFFTSettings,
+//    pub g1_values_monomial: Vec<ArkG1>,
+//    pub g1_values_lagrange_brp: Vec<ArkG1>,
+//    pub g2_values_monomial: Vec<ArkG2>,
+//    pub precomputation: Option<Arc<PrecomputationTable<ArkFr, ArkG1, ArkFp, ArkG1Affine>>>,
+//}
 
 fn bytes_be_to_uint64(inp: &[u8]) -> u64 {
     u64::from_be_bytes(inp.try_into().expect("Input wasn't 8 elements..."))

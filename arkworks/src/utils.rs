@@ -22,21 +22,21 @@ pub struct PolyData {
 }
 // FIXME: Store just dense poly here
 
-///pub fn pc_poly_into_blst_poly(poly: DensePoly<Fr>) -> PolyData {
-///    let mut bls_pol: Vec<ArkFr> = { Vec::new() };
-///    for x in poly.coeffs {
-///        bls_pol.push(ArkFr { fr: x });
-///    }
-///    PolyData { coeffs: bls_pol }
-///}
+//pub fn pc_poly_into_blst_poly(poly: DensePoly<Fr>) -> PolyData {
+//    let mut bls_pol: Vec<ArkFr> = { Vec::new() };
+//    for x in poly.coeffs {
+//        bls_pol.push(ArkFr { fr: x });
+//    }
+//    PolyData { coeffs: bls_pol }
+//}
 
-///pub fn blst_poly_into_pc_poly(pd: &[ArkFr]) -> DensePoly<Fr> {
-///    let mut poly: Vec<Fr> = vec![Fr::default(); pd.len()];
-///    for i in 0..pd.len() {
-///        poly[i] = pd[i].fr;
-///    }
-///    DensePoly::from_coefficients_vec(poly)
-///}
+//pub fn blst_poly_into_pc_poly(pd: &[ArkFr]) -> DensePoly<Fr> {
+//    let mut poly: Vec<Fr> = vec![Fr::default(); pd.len()];
+//    for i in 0..pd.len() {
+//        poly[i] = pd[i].fr;
+//    }
+//    DensePoly::from_coefficients_vec(poly)
+//}
 
 pub const fn pc_fq_into_blst_fp(fq: Fq) -> Fp {
     Fp { l: fq.0 .0 }
