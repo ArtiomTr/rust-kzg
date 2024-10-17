@@ -8,22 +8,23 @@ use kzg::eip_4844::{
     blob_to_kzg_commitment_rust, compute_blob_kzg_proof_rust, compute_kzg_proof_rust,
     load_trusted_setup_rust, verify_blob_kzg_proof_batch_rust, verify_blob_kzg_proof_rust,
     verify_kzg_proof_rust, Blob, Bytes32, Bytes48, CKZGSettings, Cell, KZGCommitment, KZGProof,
-    PrecomputationTableManager, BYTES_PER_BLOB, BYTES_PER_FIELD_ELEMENT, BYTES_PER_G1, BYTES_PER_G2,
-    C_KZG_RET, C_KZG_RET_BADARGS, C_KZG_RET_OK, FIELD_ELEMENTS_PER_BLOB, FIELD_ELEMENTS_PER_CELL,
-    FIELD_ELEMENTS_PER_EXT_BLOB, TRUSTED_SETUP_NUM_G1_POINTS, TRUSTED_SETUP_NUM_G2_POINTS
+    PrecomputationTableManager, BYTES_PER_BLOB, BYTES_PER_FIELD_ELEMENT, BYTES_PER_G1,
+    BYTES_PER_G2, C_KZG_RET, C_KZG_RET_BADARGS, C_KZG_RET_OK, FIELD_ELEMENTS_PER_BLOB,
+    FIELD_ELEMENTS_PER_CELL, FIELD_ELEMENTS_PER_EXT_BLOB, TRUSTED_SETUP_NUM_G1_POINTS,
+    TRUSTED_SETUP_NUM_G2_POINTS,
 };
 use kzg::{cfg_into_iter, Fr, G1};
 use std::ptr::null_mut;
 
 #[cfg(feature = "std")]
 use libc::FILE;
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
 #[cfg(feature = "std")]
 use std::fs::File;
 #[cfg(feature = "std")]
 use std::io::Read;
 use std::ptr;
-#[cfg(feature = "parallel")]
-use rayon::prelude::*;
 
 #[cfg(feature = "std")]
 use kzg::eip_4844::load_trusted_setup_string;
@@ -69,9 +70,9 @@ pub(crate) fn fft_settings_to_rust(
             settings.reverse_roots_of_unity,
             FIELD_ELEMENTS_PER_EXT_BLOB + 1,
         )
-            .iter()
-            .map(|r| ArkFr(*r))
-            .collect::<Vec<ArkFr>>()
+        .iter()
+        .map(|r| ArkFr(*r))
+        .collect::<Vec<ArkFr>>()
     };
 
     Ok(LFFTSettings {
@@ -90,36 +91,36 @@ pub(crate) fn kzg_settings_to_rust(c_settings: &CKZGSettings) -> Result<LKZGSett
         g1_values_monomial: unsafe {
             core::slice::from_raw_parts(c_settings.g1_values_monomial, FIELD_ELEMENTS_PER_BLOB)
         }
-            .iter()
-            .map(|r| ArkG1(*r))
-            .collect::<Vec<_>>(),
+        .iter()
+        .map(|r| ArkG1(*r))
+        .collect::<Vec<_>>(),
         g1_values_lagrange_brp: unsafe {
             core::slice::from_raw_parts(c_settings.g1_values_lagrange_brp, FIELD_ELEMENTS_PER_BLOB)
         }
-            .iter()
-            .map(|r| ArkG1(*r))
-            .collect::<Vec<_>>(),
+        .iter()
+        .map(|r| ArkG1(*r))
+        .collect::<Vec<_>>(),
         secret_g2: vec![],
         g2_values_monomial: unsafe {
             core::slice::from_raw_parts(c_settings.g2_values_monomial, TRUSTED_SETUP_NUM_G2_POINTS)
         }
-            .iter()
-            .map(|r| ArkG2(*r))
-            .collect::<Vec<_>>(),
+        .iter()
+        .map(|r| ArkG2(*r))
+        .collect::<Vec<_>>(),
         x_ext_fft_columns: unsafe {
             core::slice::from_raw_parts(
                 c_settings.x_ext_fft_columns,
                 2 * ((FIELD_ELEMENTS_PER_EXT_BLOB / 2) / FIELD_ELEMENTS_PER_CELL),
             )
         }
-            .iter()
-            .map(|it| {
-                unsafe { core::slice::from_raw_parts(*it, FIELD_ELEMENTS_PER_CELL) }
-                    .iter()
-                    .map(|it| ArkG1(*it))
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>(),
+        .iter()
+        .map(|it| {
+            unsafe { core::slice::from_raw_parts(*it, FIELD_ELEMENTS_PER_CELL) }
+                .iter()
+                .map(|it| ArkG1(*it))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>(),
         precomputation: unsafe { PRECOMPUTATION_TABLES.get_precomputation(c_settings) },
     })
 }
@@ -135,7 +136,7 @@ pub(crate) fn kzg_settings_to_c(rust_settings: &LKZGSettings) -> CKZGSettings {
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
         )
-            .as_mut_ptr(),
+        .as_mut_ptr(),
         brp_roots_of_unity: Box::leak(
             rust_settings
                 .fs
@@ -145,7 +146,7 @@ pub(crate) fn kzg_settings_to_c(rust_settings: &LKZGSettings) -> CKZGSettings {
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
         )
-            .as_mut_ptr(),
+        .as_mut_ptr(),
         reverse_roots_of_unity: Box::leak(
             rust_settings
                 .fs
@@ -155,7 +156,7 @@ pub(crate) fn kzg_settings_to_c(rust_settings: &LKZGSettings) -> CKZGSettings {
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
         )
-            .as_mut_ptr(),
+        .as_mut_ptr(),
         g1_values_monomial: Box::leak(
             rust_settings
                 .g1_values_monomial
@@ -164,7 +165,7 @@ pub(crate) fn kzg_settings_to_c(rust_settings: &LKZGSettings) -> CKZGSettings {
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
         )
-            .as_mut_ptr(),
+        .as_mut_ptr(),
         g1_values_lagrange_brp: Box::leak(
             rust_settings
                 .g1_values_lagrange_brp
@@ -173,7 +174,7 @@ pub(crate) fn kzg_settings_to_c(rust_settings: &LKZGSettings) -> CKZGSettings {
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
         )
-            .as_mut_ptr(),
+        .as_mut_ptr(),
         g2_values_monomial: Box::leak(
             rust_settings
                 .g2_values_monomial
@@ -182,7 +183,7 @@ pub(crate) fn kzg_settings_to_c(rust_settings: &LKZGSettings) -> CKZGSettings {
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
         )
-            .as_mut_ptr(),
+        .as_mut_ptr(),
         x_ext_fft_columns: Box::leak(
             rust_settings
                 .x_ext_fft_columns
@@ -194,12 +195,12 @@ pub(crate) fn kzg_settings_to_c(rust_settings: &LKZGSettings) -> CKZGSettings {
                             .collect::<Vec<_>>()
                             .into_boxed_slice(),
                     )
-                        .as_mut_ptr()
+                    .as_mut_ptr()
                 })
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
         )
-            .as_mut_ptr(),
+        .as_mut_ptr(),
         tables: core::ptr::null_mut(),
         wbits: 0,
         scratch_size: 0,

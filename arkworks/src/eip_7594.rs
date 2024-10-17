@@ -35,6 +35,7 @@ use rayon::prelude::*;
 use kzg::eip_4844::load_trusted_setup_string;
 
 use crate::fft_g1::fft_g1_fast;
+use crate::utils::deserialize_blob;
 use crate::utils::kzg_settings_to_rust;
 
 fn fr_ifft(output: &mut [ArkFr], input: &[ArkFr], s: &LFFTSettings) -> Result<(), String> {
@@ -755,7 +756,7 @@ pub unsafe extern "C" fn compute_cells_and_kzg_proofs(
             None
         } else {
             Some(vec![
-                [FsFr::default(); FIELD_ELEMENTS_PER_CELL];
+                [ArkFr::default(); FIELD_ELEMENTS_PER_CELL];
                 CELLS_PER_EXT_BLOB
             ])
         };
