@@ -1376,19 +1376,19 @@ impl KZGSettings<ArkFr, ArkG1, ArkG2, LFFTSettings, PolyData, ArkFp, ArkG1Affine
     }
 
     fn get_g1_monomial(&self) -> &[ArkG1] {
-        // todo
+        &self.g1_values_monomial
     }
 
     fn get_g1_lagrange_brp(&self) -> &[ArkG1] {
-        // todo
+        &self.g1_values_lagrange_brp
     }
 
     fn get_g2_monomial(&self) -> &[ArkG2] {
-        // todo
+        &self.g2_values_monomial
     }
 
     fn get_x_ext_fft_column(&self, index: usize) -> &[ArkG1] {
-        // todo
+        &self.x_ext_fft_columns[index]
     }
 
     fn get_precomputation(&self) -> Option<&PrecomputationTable<ArkFr, ArkG1, ArkFp, ArkG1Affine>> {

@@ -428,39 +428,12 @@ fn compute_fk20_proofs(
 }
 
 pub fn compute_cells_and_kzg_proofs_rust(
-    cells: Option<&mut [[ArkFr; kzg::eip_4844::FIELD_ELEMENTS_PER_CELL]]>,
+    cells: Option<&mut [[ArkFr; FIELD_ELEMENTS_PER_CELL]]>,
     proofs: Option<&mut [ArkG1]>,
     blob: &[ArkFr],
     s: &LKZGSettings,
 ) -> Result<(), String> {
-    if cells.is_none() && proofs.is_none() {
-        return Err("Both cells & proofs cannot be none".to_string());
-    }
-
-    let poly = blob_to_polynomial::<ArkFr, PolyData>(blob)?;
-
-    let mut poly_monomial = vec![ArkFr::zero(); kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB];
-
-    poly_lagrange_to_monomial(
-        &mut poly_monomial[..FIELD_ELEMENTS_PER_BLOB],
-        &poly.coeffs,
-        &s.fs,
-    )?;
-
-    // compute cells
-    if let Some(cells) = cells {
-        fr_fft(cells.as_flattened_mut(), &poly_monomial, &s.fs)?;
-
-        reverse_bit_order(cells.as_flattened_mut())?;
-    };
-
-    // compute proofs
-    if let Some(proofs) = proofs {
-        compute_fk20_proofs(proofs, &poly_monomial, FIELD_ELEMENTS_PER_BLOB, s)?;
-        reverse_bit_order(proofs)?;
-    }
-
-    Ok(())
+    kzg::eip_7594::compute_cells_and_kzg_proofs(cells, proofs, blob, s)
 }
 
 pub fn recover_cells_and_kzg_proofs_rust(
@@ -762,6 +735,71 @@ pub fn verify_cell_kzg_proof_batch_rust(
         &proof_lincomb,
         &power_of_s,
     ))
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn compute_cells_and_kzg_proofs(
+    cells: *mut Cell,
+    proofs: *mut KZGProof,
+    blob: *const Blob,
+    settings: *const CKZGSettings,
+) -> C_KZG_RET {
+    unsafe fn inner(
+        cells: *mut Cell,
+        proofs: *mut KZGProof,
+        blob: *const Blob,
+        settings: *const CKZGSettings,
+    ) -> Result<(), String> {
+        let mut cells_rs = if cells.is_null() {
+            None
+        } else {
+            Some(vec![
+                [FsFr::default(); FIELD_ELEMENTS_PER_CELL];
+                CELLS_PER_EXT_BLOB
+            ])
+        };
+        let mut proofs_rs = if proofs.is_null() {
+            None
+        } else {
+            Some(vec![ArkG1::default(); CELLS_PER_EXT_BLOB])
+        };
+
+        let blob = deserialize_blob(blob).map_err(|_| "Invalid blob".to_string())?;
+        let settings = kzg_settings_to_rust(&*settings)?;
+
+        compute_cells_and_kzg_proofs_rust(
+            cells_rs.as_deref_mut(),
+            proofs_rs.as_deref_mut(),
+            &blob,
+            &settings,
+        )?;
+
+        if let Some(cells_rs) = cells_rs {
+            let cells = core::slice::from_raw_parts_mut(cells, CELLS_PER_EXT_BLOB);
+            for (cell_index, cell) in cells_rs.iter().enumerate() {
+                for (fr_index, fr) in cell.iter().enumerate() {
+                    cells[cell_index].bytes[(fr_index * BYTES_PER_FIELD_ELEMENT)
+                        ..((fr_index + 1) * BYTES_PER_FIELD_ELEMENT)]
+                        .copy_from_slice(&fr.to_bytes());
+                }
+            }
+        }
+
+        if let Some(proofs_rs) = proofs_rs {
+            let proofs = core::slice::from_raw_parts_mut(proofs, CELLS_PER_EXT_BLOB);
+            for (proof_index, proof) in proofs_rs.iter().enumerate() {
+                proofs[proof_index].bytes.copy_from_slice(&proof.to_bytes());
+            }
+        }
+
+        Ok(())
+    }
+
+    match inner(cells, proofs, blob, settings) {
+        Ok(()) => C_KZG_RET_OK,
+        Err(_) => C_KZG_RET_BADARGS,
+    }
 }
 
 /// # Safety
