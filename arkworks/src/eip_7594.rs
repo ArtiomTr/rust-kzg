@@ -1,22 +1,25 @@
 extern crate alloc;
 
-use crate::consts::{
-    FIELD_ELEMENTS_PER_EXT_BLOB, CELL_INDICES_RBL, FIELD_ELEMENTS_PER_CELL
-};
-use crate::kzg_proofs::{g1_linear_combination, pairings_verify};
-use crate::kzg_types::{
-    ArkFp, ArkFr, ArkG1, ArkG1Affine, ArkG2
-};
-use crate::kzg_proofs::{
-    LKZGSettings, LFFTSettings
-};
+use crate::consts::{CELL_INDICES_RBL, FIELD_ELEMENTS_PER_CELL, FIELD_ELEMENTS_PER_EXT_BLOB};
 use crate::fft::fft_fr_fast;
-use blst::{blst_fr_mul};
+use crate::kzg_proofs::{g1_linear_combination, pairings_verify};
+use crate::kzg_proofs::{LFFTSettings, LKZGSettings};
+use crate::kzg_types::{ArkFp, ArkFr, ArkG1, ArkG1Affine, ArkG2};
+use crate::utils::PolyData;
+use blst::blst_fr_mul;
 use kzg::common_utils::{reverse_bit_order, reverse_bits_limited};
-use kzg::eip_4844::{blob_to_kzg_commitment_rust, compute_blob_kzg_proof_rust, compute_kzg_proof_rust, load_trusted_setup_rust, verify_blob_kzg_proof_batch_rust, verify_blob_kzg_proof_rust, verify_kzg_proof_rust, Blob, Bytes32, Bytes48, CKZGSettings, KZGCommitment, KZGProof, PrecomputationTableManager, BYTES_PER_FIELD_ELEMENT, BYTES_PER_G1, BYTES_PER_G2, C_KZG_RET, C_KZG_RET_BADARGS, C_KZG_RET_OK, FIELD_ELEMENTS_PER_BLOB, TRUSTED_SETUP_NUM_G1_POINTS, TRUSTED_SETUP_NUM_G2_POINTS, Cell, CELLS_PER_EXT_BLOB, RANDOM_CHALLENGE_KZG_CELL_BATCH_DOMAIN, BYTES_PER_COMMITMENT, BYTES_PER_CELL, BYTES_PER_PROOF, hash, hash_to_bls_field, compute_powers, blob_to_polynomial};
+use kzg::eip_4844::{
+    blob_to_kzg_commitment_rust, blob_to_polynomial, compute_blob_kzg_proof_rust,
+    compute_kzg_proof_rust, compute_powers, hash, hash_to_bls_field, load_trusted_setup_rust,
+    verify_blob_kzg_proof_batch_rust, verify_blob_kzg_proof_rust, verify_kzg_proof_rust, Blob,
+    Bytes32, Bytes48, CKZGSettings, Cell, KZGCommitment, KZGProof, PrecomputationTableManager,
+    BYTES_PER_CELL, BYTES_PER_COMMITMENT, BYTES_PER_FIELD_ELEMENT, BYTES_PER_G1, BYTES_PER_G2,
+    BYTES_PER_PROOF, CELLS_PER_EXT_BLOB, C_KZG_RET, C_KZG_RET_BADARGS, C_KZG_RET_OK,
+    FIELD_ELEMENTS_PER_BLOB, RANDOM_CHALLENGE_KZG_CELL_BATCH_DOMAIN, TRUSTED_SETUP_NUM_G1_POINTS,
+    TRUSTED_SETUP_NUM_G2_POINTS,
+};
 use kzg::{cfg_into_iter, Fr, G1Mul, KZGSettings, G1, G2};
 use std::ptr::null_mut;
-use crate::utils::PolyData;
 
 #[cfg(feature = "std")]
 use libc::FILE;
@@ -31,8 +34,8 @@ use rayon::prelude::*;
 #[cfg(feature = "std")]
 use kzg::eip_4844::load_trusted_setup_string;
 
-use crate::utils::kzg_settings_to_rust;
 use crate::fft_g1::fft_g1_fast;
+use crate::utils::kzg_settings_to_rust;
 
 fn fr_ifft(output: &mut [ArkFr], input: &[ArkFr], s: &LFFTSettings) -> Result<(), String> {
     let stride = kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB / input.len();
@@ -308,11 +311,13 @@ fn recover_cells(
     }
 
     let vanishing_poly_coeff = vanishing_polynomial_for_missing_cells(missing_cell_indicies, s)?;
-    let mut vanishing_poly_eval = vec![ArkFr::default(); kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB];
+    let mut vanishing_poly_eval =
+        vec![ArkFr::default(); kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB];
 
     fr_fft(&mut vanishing_poly_eval, &vanishing_poly_coeff, &s.fs)?;
 
-    let mut extended_evaluation_times_zero = Vec::with_capacity(kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB);
+    let mut extended_evaluation_times_zero =
+        Vec::with_capacity(kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB);
 
     for i in 0..kzg::eip_4844::FIELD_ELEMENTS_PER_EXT_BLOB {
         if cells_brp[i].is_null() {
@@ -387,7 +392,13 @@ fn compute_fk20_proofs(
     let mut toeplitz_coeffs_fft = vec![ArkFr::default(); k2];
 
     for i in 0..kzg::eip_4844::FIELD_ELEMENTS_PER_CELL {
-        toeplitz_coeffs_stride(&mut toeplitz_coeffs, poly, n, i, kzg::eip_4844::FIELD_ELEMENTS_PER_CELL)?;
+        toeplitz_coeffs_stride(
+            &mut toeplitz_coeffs,
+            poly,
+            n,
+            i,
+            kzg::eip_4844::FIELD_ELEMENTS_PER_CELL,
+        )?;
         fr_fft(&mut toeplitz_coeffs_fft, &toeplitz_coeffs, &s.fs)?;
         for j in 0..k2 {
             coeffs[j][i] = toeplitz_coeffs_fft[j];
@@ -453,80 +464,19 @@ pub fn compute_cells_and_kzg_proofs_rust(
 }
 
 pub fn recover_cells_and_kzg_proofs_rust(
-    recovered_cells: &mut [[ArkFr; kzg::eip_4844::FIELD_ELEMENTS_PER_CELL]],
+    recovered_cells: &mut [[ArkFr; FIELD_ELEMENTS_PER_CELL]],
     recovered_proofs: Option<&mut [ArkG1]>,
     cell_indicies: &[usize],
-    cells: &[[ArkFr; kzg::eip_4844::FIELD_ELEMENTS_PER_CELL]],
+    cells: &[[ArkFr; FIELD_ELEMENTS_PER_CELL]],
     s: &LKZGSettings,
 ) -> Result<(), String> {
-    if recovered_cells.len() != CELLS_PER_EXT_BLOB
-        || recovered_proofs
-        .as_ref()
-        .is_some_and(|it| it.len() != CELLS_PER_EXT_BLOB)
-    {
-        return Err("Invalid output array length".to_string());
-    }
-
-    if cells.len() != cell_indicies.len() {
-        return Err(
-            "Cell indicies mismatch - cells length must be equal to cell indicies length"
-                .to_string(),
-        );
-    }
-
-    if cells.len() > CELLS_PER_EXT_BLOB {
-        return Err("Cell length cannot be larger than CELLS_PER_EXT_BLOB".to_string());
-    }
-
-    if cells.len() < CELLS_PER_EXT_BLOB / 2 {
-        return Err(
-            "Impossible to recover - cells length cannot be less than CELLS_PER_EXT_BLOB / 2"
-                .to_string(),
-        );
-    }
-
-    for cell_index in cell_indicies {
-        if *cell_index >= CELLS_PER_EXT_BLOB {
-            return Err("Cell index cannot be larger than CELLS_PER_EXT_BLOB".to_string());
-        }
-    }
-
-    for cell in recovered_cells.iter_mut() {
-        for fr in cell {
-            *fr = ArkFr::null();
-        }
-    }
-
-    for i in 0..cells.len() {
-        let index = cell_indicies[i];
-
-        for j in 0..FIELD_ELEMENTS_PER_CELL {
-            if !recovered_cells[index][j].is_null() {
-                return Err("Invalid output cell".to_string());
-            }
-        }
-
-        recovered_cells[index] = cells[i];
-    }
-
-    if cells.len() != CELLS_PER_EXT_BLOB {
-        recover_cells(recovered_cells.as_flattened_mut(), cell_indicies, s)?;
-    }
-
-    #[allow(clippy::redundant_slicing)]
-    let recovered_cells = &recovered_cells[..];
-
-    if let Some(recovered_proofs) = recovered_proofs {
-        let mut poly = vec![ArkFr::default(); FIELD_ELEMENTS_PER_EXT_BLOB];
-
-        poly_lagrange_to_monomial(&mut poly, recovered_cells.as_flattened(), &s.fs)?;
-
-        compute_fk20_proofs(recovered_proofs, &poly, FIELD_ELEMENTS_PER_BLOB, s)?;
-
-        reverse_bit_order(recovered_proofs)?;
-    }
-
-    Ok(())
+    kzg::eip_7594::recover_cells_and_kzg_proofs(
+        recovered_cells,
+        recovered_proofs,
+        cell_indicies,
+        cells,
+        s,
+    )
 }
 
 fn computed_weighted_sum_of_proofs(
@@ -618,8 +568,10 @@ fn compute_commitment_to_aggregated_interpolation_poly(
         is_cell_used[*cell_index] = true;
     }
 
-    let mut aggregated_interpolation_poly = vec![ArkFr::zero(); kzg::eip_4844::FIELD_ELEMENTS_PER_CELL];
-    let mut column_interpolation_poly = vec![ArkFr::default(); kzg::eip_4844::FIELD_ELEMENTS_PER_CELL];
+    let mut aggregated_interpolation_poly =
+        vec![ArkFr::zero(); kzg::eip_4844::FIELD_ELEMENTS_PER_CELL];
+    let mut column_interpolation_poly =
+        vec![ArkFr::default(); kzg::eip_4844::FIELD_ELEMENTS_PER_CELL];
     for (i, is_cell_used) in is_cell_used.iter().enumerate() {
         if !is_cell_used {
             continue;
@@ -627,7 +579,9 @@ fn compute_commitment_to_aggregated_interpolation_poly(
 
         let index = i * kzg::eip_4844::FIELD_ELEMENTS_PER_CELL;
 
-        reverse_bit_order(&mut aggregated_column_cells[index..(index + kzg::eip_4844::FIELD_ELEMENTS_PER_CELL)])?;
+        reverse_bit_order(
+            &mut aggregated_column_cells[index..(index + kzg::eip_4844::FIELD_ELEMENTS_PER_CELL)],
+        )?;
 
         fr_ifft(
             &mut column_interpolation_poly,
@@ -812,6 +766,95 @@ pub fn verify_cell_kzg_proof_batch_rust(
 
 /// # Safety
 #[no_mangle]
+pub unsafe extern "C" fn recover_cells_and_kzg_proofs(
+    recovered_cells: *mut Cell,
+    recovered_proofs: *mut KZGProof,
+    cell_indices: *const u64,
+    cells: *const Cell,
+    num_cells: u64,
+    s: *const CKZGSettings,
+) -> C_KZG_RET {
+    unsafe fn inner(
+        recovered_cells: *mut Cell,
+        recovered_proofs: *mut KZGProof,
+        cell_indices: *const u64,
+        cells: *const Cell,
+        num_cells: u64,
+        s: *const CKZGSettings,
+    ) -> Result<(), String> {
+        let mut recovered_cells_rs =
+            vec![[ArkFr::default(); FIELD_ELEMENTS_PER_CELL]; CELLS_PER_EXT_BLOB];
+
+        let mut recovered_proofs_rs = if recovered_proofs.is_null() {
+            None
+        } else {
+            Some(vec![ArkG1::default(); CELLS_PER_EXT_BLOB])
+        };
+
+        let cell_indicies = core::slice::from_raw_parts(cell_indices, num_cells as usize)
+            .iter()
+            .map(|it| *it as usize)
+            .collect::<Vec<_>>();
+        let cells = core::slice::from_raw_parts(cells, num_cells as usize)
+            .iter()
+            .map(|it| -> Result<[ArkFr; FIELD_ELEMENTS_PER_CELL], String> {
+                it.bytes
+                    .chunks(BYTES_PER_FIELD_ELEMENT)
+                    .map(ArkFr::from_bytes)
+                    .collect::<Result<Vec<_>, String>>()
+                    .and_then(|frs| {
+                        frs.try_into()
+                            .map_err(|_| "Invalid field element count per cell".to_string())
+                    })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let settings = kzg_settings_to_rust(&*s)?;
+
+        recover_cells_and_kzg_proofs_rust(
+            &mut recovered_cells_rs,
+            recovered_proofs_rs.as_deref_mut(),
+            &cell_indicies,
+            &cells,
+            &settings,
+        )?;
+
+        let recovered_cells = core::slice::from_raw_parts_mut(recovered_cells, CELLS_PER_EXT_BLOB);
+        for (cell_c, cell_rs) in recovered_cells.iter_mut().zip(recovered_cells_rs.iter()) {
+            cell_c.bytes.copy_from_slice(
+                &cell_rs
+                    .iter()
+                    .flat_map(|fr| fr.to_bytes())
+                    .collect::<Vec<_>>(),
+            );
+        }
+
+        if let Some(recovered_proofs_rs) = recovered_proofs_rs {
+            let recovered_proofs =
+                core::slice::from_raw_parts_mut(recovered_proofs, CELLS_PER_EXT_BLOB);
+
+            for (proof_c, proof_rs) in recovered_proofs.iter_mut().zip(recovered_proofs_rs.iter()) {
+                proof_c.bytes = proof_rs.to_bytes();
+            }
+        }
+
+        Ok(())
+    }
+
+    match inner(
+        recovered_cells,
+        recovered_proofs,
+        cell_indices,
+        cells,
+        num_cells,
+        s,
+    ) {
+        Ok(()) => C_KZG_RET_OK,
+        Err(_) => C_KZG_RET_BADARGS,
+    }
+}
+
+/// # Safety
+#[no_mangle]
 pub unsafe extern "C" fn verify_cell_kzg_proof_batch(
     ok: *mut bool,
     commitments_bytes: *const Bytes48,
@@ -830,8 +873,7 @@ pub unsafe extern "C" fn verify_cell_kzg_proof_batch(
         num_cells: u64,
         s: *const CKZGSettings,
     ) -> Result<(), String> {
-        let commitments =
-            core::slice::from_raw_parts(commitments_bytes, num_cells as usize)
+        let commitments = core::slice::from_raw_parts(commitments_bytes, num_cells as usize)
             .iter()
             .map(|bytes| ArkG1::from_bytes(&bytes.bytes))
             .collect::<Result<Vec<_>, String>>()?;
@@ -843,16 +885,18 @@ pub unsafe extern "C" fn verify_cell_kzg_proof_batch(
 
         let cells = core::slice::from_raw_parts(cells, num_cells as usize)
             .iter()
-            .map(|it| -> Result<[ArkFr; kzg::eip_4844::FIELD_ELEMENTS_PER_CELL], String> {
-                it.bytes
-                    .chunks(BYTES_PER_FIELD_ELEMENT)
-                    .map(ArkFr::from_bytes)
-                    .collect::<Result<Vec<_>, String>>()
-                    .and_then(|frs| {
-                        frs.try_into()
-                            .map_err(|_| "Invalid field element count per cell".to_string())
-                    })
-            })
+            .map(
+                |it| -> Result<[ArkFr; kzg::eip_4844::FIELD_ELEMENTS_PER_CELL], String> {
+                    it.bytes
+                        .chunks(BYTES_PER_FIELD_ELEMENT)
+                        .map(ArkFr::from_bytes)
+                        .collect::<Result<Vec<_>, String>>()
+                        .and_then(|frs| {
+                            frs.try_into()
+                                .map_err(|_| "Invalid field element count per cell".to_string())
+                        })
+                },
+            )
             .collect::<Result<Vec<_>, String>>()?;
 
         let proofs = core::slice::from_raw_parts(proofs_bytes, num_cells as usize)
