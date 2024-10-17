@@ -9,7 +9,8 @@ use ark_poly::univariate::DensePolynomial as DensePoly;
 use ark_poly::DenseUVPolynomial;
 use blst::{blst_fp, blst_fp2, blst_fr, blst_p1, blst_p2};
 use kzg::eip_4844::{
-    CKZGSettings, PrecomputationTableManager, FIELD_ELEMENTS_PER_BLOB, FIELD_ELEMENTS_PER_CELL,
+    Blob, CKZGSettings, PrecomputationTableManager, BYTES_PER_FIELD_ELEMENT, C_KZG_RET,
+    C_KZG_RET_BADARGS, FIELD_ELEMENTS_PER_BLOB, FIELD_ELEMENTS_PER_CELL,
     FIELD_ELEMENTS_PER_EXT_BLOB, TRUSTED_SETUP_NUM_G2_POINTS,
 };
 

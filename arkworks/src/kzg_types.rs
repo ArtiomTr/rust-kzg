@@ -39,8 +39,8 @@ use kzg::eip_4844::{
 };
 use kzg::msm::precompute::{precompute, PrecomputationTable};
 use kzg::{
-    FFTFr, FFTSettings, FFTSettingsPoly, Fr as KzgFr, G1Affine as G1AffineTrait, G1Fp, G1GetFp,
-    G1LinComb, G1Mul, G1ProjAddAffine, G2Mul, KZGSettings, PairingVerify, Poly, Scalar256, G1, G2,
+    FFTFr, FFTSettings, FFTSettingsPoly, Fr, G1Affine as G1AffineTrait, G1Fp, G1GetFp, G1LinComb,
+    G1Mul, G1ProjAddAffine, G2Mul, KZGSettings, PairingVerify, Poly, Scalar256, G1, G2,
 };
 use std::ops::{AddAssign, Mul, Neg, Sub};
 
@@ -68,6 +68,14 @@ const BLS12_381_MOD_256: [u64; 4] = [
     0x73eda753299d7d48,
 ];
 
+fn bigint_check_mod_256(a: &[u64; 4]) -> bool {
+    let (_, overflow) = a[0].overflowing_sub(BLS12_381_MOD_256[0]);
+    let (_, overflow) = a[1].overflowing_sub(BLS12_381_MOD_256[1] + overflow as u64);
+    let (_, overflow) = a[2].overflowing_sub(BLS12_381_MOD_256[2] + overflow as u64);
+    let (_, overflow) = a[3].overflowing_sub(BLS12_381_MOD_256[3] + overflow as u64);
+    overflow
+}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Default)]
 pub struct ArkFr(pub blst_fr);
@@ -78,15 +86,7 @@ impl Default for LFFTSettings {
     }
 }
 
-fn bigint_check_mod_256(a: &[u64; 4]) -> bool {
-    let (_, overflow) = a[0].overflowing_sub(BLS12_381_MOD_256[0]);
-    let (_, overflow) = a[1].overflowing_sub(BLS12_381_MOD_256[1] + overflow as u64);
-    let (_, overflow) = a[2].overflowing_sub(BLS12_381_MOD_256[2] + overflow as u64);
-    let (_, overflow) = a[3].overflowing_sub(BLS12_381_MOD_256[3] + overflow as u64);
-    overflow
-}
-
-impl KzgFr for ArkFr {
+impl Fr for ArkFr {
     fn null() -> Self {
         Self::from_u64_arr(&[u64::MAX, u64::MAX, u64::MAX, u64::MAX])
     }
