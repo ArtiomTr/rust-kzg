@@ -39,8 +39,8 @@ use kzg::eip_4844::{
 };
 use kzg::msm::precompute::{precompute, PrecomputationTable};
 use kzg::{
-    FFTFr, FFTSettings, FFTSettingsPoly, Fr, G1Affine as G1AffineTrait, G1Fp, G1GetFp, G1LinComb,
-    G1Mul, G1ProjAddAffine, G2Mul, KZGSettings, PairingVerify, Poly, Scalar256, G1, G2,
+    FFTFr, FFTSettings, FFTSettingsPoly, Fr as KzgFr, G1Affine as G1AffineTrait, G1Fp, G1GetFp,
+    G1LinComb, G1Mul, G1ProjAddAffine, G2Mul, KZGSettings, PairingVerify, Poly, Scalar256, G1, G2,
 };
 use std::ops::{AddAssign, Mul, Neg, Sub};
 
@@ -86,7 +86,7 @@ impl Default for LFFTSettings {
     }
 }
 
-impl Fr for ArkFr {
+impl KzgFr for ArkFr {
     fn null() -> Self {
         Self::from_u64_arr(&[u64::MAX, u64::MAX, u64::MAX, u64::MAX])
     }
