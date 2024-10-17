@@ -2,13 +2,8 @@ use crate::consts::{
     G1_GENERATOR, G1_IDENTITY, G1_NEGATIVE_GENERATOR, G2_GENERATOR, G2_NEGATIVE_GENERATOR,
     SCALE2_ROOT_OF_UNITY, SCALE_FACTOR,
 };
-use crate::fft_g1::{
-    g1_linear_combination, fft_g1_fast
-};
-use crate::kzg_proofs::{
-    expand_root_of_unity, pairings_verify,
-    LKZGSettings, LFFTSettings
-};
+use crate::fft_g1::{fft_g1_fast, g1_linear_combination};
+use crate::kzg_proofs::{expand_root_of_unity, pairings_verify, LFFTSettings, LKZGSettings};
 use crate::recover::{scale_poly, unscale_poly};
 use crate::utils::{
     blst_fp_into_pc_fq, blst_fr_into_pc_fr, blst_p1_into_pc_g1projective,
@@ -35,12 +30,12 @@ use blst::{
     blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg, blst_p2_compress, blst_p2_double,
     blst_p2_from_affine, blst_p2_is_equal, blst_p2_mult, blst_p2_uncompress, blst_scalar,
     blst_scalar_fr_check, blst_scalar_from_bendian, blst_scalar_from_fr, blst_uint64_from_fr,
-    BLST_ERROR
+    BLST_ERROR,
 };
 use kzg::common_utils::{log2_u64, log_2_byte, reverse_bit_order};
 use kzg::eip_4844::{
     BYTES_PER_FIELD_ELEMENT, BYTES_PER_G1, BYTES_PER_G2, FIELD_ELEMENTS_PER_BLOB,
-    FIELD_ELEMENTS_PER_CELL, FIELD_ELEMENTS_PER_EXT_BLOB, TRUSTED_SETUP_NUM_G2_POINTS
+    FIELD_ELEMENTS_PER_CELL, FIELD_ELEMENTS_PER_EXT_BLOB, TRUSTED_SETUP_NUM_G2_POINTS,
 };
 use kzg::msm::precompute::{precompute, PrecomputationTable};
 use kzg::{
@@ -1380,12 +1375,20 @@ impl KZGSettings<ArkFr, ArkG1, ArkG2, LFFTSettings, PolyData, ArkFp, ArkG1Affine
         &self.fs
     }
 
-    fn get_g1_secret(&self) -> &[ArkG1] {
-        &self.secret_g1
+    fn get_g1_monomial(&self) -> &[ArkG1] {
+        // todo
     }
 
-    fn get_g2_secret(&self) -> &[ArkG2] {
-        &self.secret_g2
+    fn get_g1_lagrange_brp(&self) -> &[ArkG1] {
+        // todo
+    }
+
+    fn get_g2_monomial(&self) -> &[ArkG2] {
+        // todo
+    }
+
+    fn get_x_ext_fft_column(&self, index: usize) -> &[ArkG1] {
+        // todo
     }
 
     fn get_precomputation(&self) -> Option<&PrecomputationTable<ArkFr, ArkG1, ArkFp, ArkG1Affine>> {
