@@ -1228,14 +1228,14 @@ impl KZGSettings<ArkFr, ArkG1, ArkG2, LFFTSettings, PolyData, ArkFp, ArkG1Affine
     }
 
     fn commit_to_poly(&self, p: &PolyData) -> Result<ArkG1, String> {
-        if p.coeffs.len() > self.secret_g1.len() {
+        if p.coeffs.len() > self.g1_values_lagrange_brp.len() {
             return Err(String::from("Polynomial is longer than secret g1"));
         }
 
         let mut out = ArkG1::default();
         g1_linear_combination(
             &mut out,
-            &self.secret_g1,
+            &self.g1_values_lagrange_brp,
             &p.coeffs,
             p.coeffs.len(),
             self.get_precomputation(),
@@ -1274,7 +1274,7 @@ impl KZGSettings<ArkFr, ArkG1, ArkG2, LFFTSettings, PolyData, ArkFp, ArkG1Affine
         y: &ArkFr,
     ) -> Result<bool, String> {
         let x_g2: ArkG2 = G2_GENERATOR.mul(x);
-        let s_minus_x: ArkG2 = self.secret_g2[0].sub(&x_g2);
+        let s_minus_x: ArkG2 = self.g2_values_monomial[1].sub(&x_g2);
         let y_g1 = G1_GENERATOR.mul(y);
         let commitment_minus_y: ArkG1 = com.sub(&y_g1);
 
@@ -1354,7 +1354,7 @@ impl KZGSettings<ArkFr, ArkG1, ArkG2, LFFTSettings, PolyData, ArkFp, ArkG1Affine
         let xn2 = G2_GENERATOR.mul(&x_pow);
 
         // [s^n - x^n]_2
-        let xn_minus_yn = self.secret_g2[n].sub(&xn2);
+        let xn_minus_yn = self.g2_values_monomial[n].sub(&xn2);
 
         // [interpolation_polynomial(s)]_1
         let is1 = self.commit_to_poly(&interp).unwrap();
