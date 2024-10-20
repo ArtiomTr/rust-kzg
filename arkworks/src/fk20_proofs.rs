@@ -26,8 +26,16 @@ pub struct KzgFK20MultiSettings {
 }
 
 impl
-    FK20SingleSettings<BlstFr, ArkG1, ArkG2, LFFTSettings, PolyData, LKZGSettings, ArkFp, ArkG1Affine>
-    for KzgFK20SingleSettings
+    FK20SingleSettings<
+        BlstFr,
+        ArkG1,
+        ArkG2,
+        LFFTSettings,
+        PolyData,
+        LKZGSettings,
+        ArkFp,
+        ArkG1Affine,
+    > for KzgFK20SingleSettings
 {
     fn new(ks: &LKZGSettings, n2: usize) -> Result<Self, String> {
         let n = n2 / 2;
@@ -46,7 +54,7 @@ impl
 
         let mut x = Vec::new();
         for i in 0..(n - 1) {
-            x.push(ks.secret_g1[n - 2 - i])
+            x.push(ks.g1_values_lagrange_brp[n - 2 - i])
         }
         x.push(G1_IDENTITY);
 
@@ -85,8 +93,17 @@ impl
     }
 }
 
-impl FK20MultiSettings<BlstFr, ArkG1, ArkG2, LFFTSettings, PolyData, LKZGSettings, ArkFp, ArkG1Affine>
-    for KzgFK20MultiSettings
+impl
+    FK20MultiSettings<
+        BlstFr,
+        ArkG1,
+        ArkG2,
+        LFFTSettings,
+        PolyData,
+        LKZGSettings,
+        ArkFp,
+        ArkG1Affine,
+    > for KzgFK20MultiSettings
 {
     fn new(ks: &LKZGSettings, n2: usize, chunk_len: usize) -> Result<Self, String> {
         if n2 > ks.fs.max_width {
@@ -124,7 +141,7 @@ impl FK20MultiSettings<BlstFr, ArkG1, ArkG2, LFFTSettings, PolyData, LKZGSetting
             };
             let mut j = start;
             for i in x.iter_mut().take(k - 1) {
-                i.0 = ks.secret_g1[j].0;
+                i.0 = ks.g1_values_lagrange_brp[j].0;
                 if j >= chunk_len {
                     j -= chunk_len;
                 } else {
