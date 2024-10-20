@@ -1274,7 +1274,7 @@ impl KZGSettings<ArkFr, ArkG1, ArkG2, LFFTSettings, PolyData, ArkFp, ArkG1Affine
         y: &ArkFr,
     ) -> Result<bool, String> {
         let x_g2: ArkG2 = G2_GENERATOR.mul(x);
-        let s_minus_x: ArkG2 = self.secret_g2[1].sub(&x_g2);
+        let s_minus_x: ArkG2 = self.secret_g2[0].sub(&x_g2);
         let y_g1 = G1_GENERATOR.mul(y);
         let commitment_minus_y: ArkG1 = com.sub(&y_g1);
 
