@@ -2,7 +2,7 @@ use super::{Fp, P1};
 use crate::kzg_proofs::{LFFTSettings, LKZGSettings};
 use crate::kzg_types::{ArkFp, ArkFr, ArkG1, ArkG1Affine, ArkG2};
 use crate::P2;
-use ark_bls12_381::{g1, g2, Fq, Fq2, Fr as BLS12FR};
+use ark_bls12_381::{g1, g2, Fq, Fq2, Fr as Bls12Fr};
 use ark_ec::models::short_weierstrass::Projective;
 use ark_ff::Fp2;
 use ark_poly::univariate::DensePolynomial as DensePoly;
@@ -45,14 +45,14 @@ pub const fn pc_fq_into_blst_fp(fq: Fq) -> Fp {
     Fp { l: fq.0 .0 }
 }
 
-pub const fn blst_fr_into_pc_fr(fr: blst_fr) -> BLS12FR {
-    BLS12FR {
+pub const fn blst_fr_into_pc_fr(fr: blst_fr) -> Bls12Fr {
+    Bls12Fr {
         0: ark_ff::BigInt(fr.l),
         1: core::marker::PhantomData,
     }
 }
 
-pub const fn pc_fr_into_blst_fr(fr: Fr) -> blst_fr {
+pub const fn pc_fr_into_blst_fr(fr: Bls12Fr) -> blst_fr {
     blst::blst_fr { l: fr.0 .0 }
 }
 
