@@ -2,7 +2,7 @@ use super::{Fp, P1};
 use crate::kzg_proofs::{LFFTSettings, LKZGSettings};
 use crate::kzg_types::{ArkFp, ArkFr, ArkG1, ArkG1Affine, ArkG2};
 use crate::P2;
-use ark_bls12_381::{g1, g2, Fq, Fq2, Fr};
+use ark_bls12_381::{g1, g2, Fq, Fq2, Fr as BLS12FR};
 use ark_ec::models::short_weierstrass::Projective;
 use ark_ff::Fp2;
 use ark_poly::univariate::DensePolynomial as DensePoly;
@@ -13,6 +13,8 @@ use kzg::eip_4844::{
     C_KZG_RET_BADARGS, FIELD_ELEMENTS_PER_BLOB, FIELD_ELEMENTS_PER_CELL,
     FIELD_ELEMENTS_PER_EXT_BLOB, TRUSTED_SETUP_NUM_G2_POINTS,
 };
+
+use kzg::Fr;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Error;
@@ -43,8 +45,8 @@ pub const fn pc_fq_into_blst_fp(fq: Fq) -> Fp {
     Fp { l: fq.0 .0 }
 }
 
-pub const fn blst_fr_into_pc_fr(fr: blst_fr) -> Fr {
-    Fr {
+pub const fn blst_fr_into_pc_fr(fr: blst_fr) -> BLS12FR {
+    BLS12FR {
         0: ark_ff::BigInt(fr.l),
         1: core::marker::PhantomData,
     }
