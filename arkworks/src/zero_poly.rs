@@ -1,5 +1,5 @@
 use super::kzg_proofs::LFFTSettings;
-use super::utils::{PolyData};
+use super::utils::PolyData;
 use crate::kzg_types::ArkFr as BlstFr;
 use kzg::common_utils::next_pow_of_2;
 use kzg::{FFTFr, Fr as FrTrait, ZeroPoly};
@@ -154,7 +154,11 @@ impl ZeroPoly<BlstFr, PolyData> for LFFTSettings {
             })
     }
 
-    fn reduce_partials(&self, domain_size: usize, partials: &[PolyData]) -> Result<PolyData, String> {
+    fn reduce_partials(
+        &self,
+        domain_size: usize,
+        partials: &[PolyData],
+    ) -> Result<PolyData, String> {
         self.reduce_partials(
             domain_size,
             partials
@@ -162,9 +166,9 @@ impl ZeroPoly<BlstFr, PolyData> for LFFTSettings {
                 .map(|partial| SmallVec::from_slice(&partial.coeffs))
                 .collect(),
         )
-            .map(|coeffs| PolyData {
-                coeffs: coeffs.into_vec(),
-            })
+        .map(|coeffs| PolyData {
+            coeffs: coeffs.into_vec(),
+        })
     }
 
     fn zero_poly_via_multiplication(
