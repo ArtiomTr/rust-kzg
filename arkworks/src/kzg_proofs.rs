@@ -138,6 +138,7 @@ pub fn generate_trusted_setup(
 //}
 
 pub fn pairings_verify(a1: &ArkG1, a2: &ArkG2, b1: &ArkG1, b2: &ArkG2) -> bool {
+    // TODO: Should look into rewriting this without blst methods. Not sure if it is possible though.
     let mut aa1 = blst_p1_affine::default();
     let mut bb1 = blst_p1_affine::default();
 
