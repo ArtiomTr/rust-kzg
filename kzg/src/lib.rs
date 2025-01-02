@@ -148,6 +148,24 @@ pub trait G1LinComb<TFr: Fr, TG1Fp: G1Fp, TG1Affine: G1Affine<Self, TG1Fp>>:
         len: usize,
         precomputation: Option<&PrecomputationTable<TFr, Self, TG1Fp, TG1Affine>>,
     ) -> Self;
+
+    fn g1_lincomb_batch(
+        points: &[Vec<Self>],
+        scalars: &[Vec<TFr>],
+        _precomputation: Option<&PrecomputationTable<TFr, Self, TG1Fp, TG1Affine>>
+    ) -> Result<Vec<Self>, String> {
+        if points.len() != scalars.len() {
+            return Err("points and scalars must have the same length".to_string());
+        }
+
+        points.iter().zip(scalars.iter()).map(|(points, scalars)| {
+            if points.len() != scalars.len() {
+                return Err("points and scalars must have the same length".to_string());
+            }
+
+            Ok(Self::g1_lincomb(&points, &scalars, points.len(), None))
+        }).collect::<Result<Vec<_>, _>>()
+    }
 }
 
 pub trait G1Fp: Clone + Default + Sync + Copy + PartialEq + Debug + Send {
@@ -558,6 +576,8 @@ pub trait KZGSettings<
     fn get_precomputation(&self) -> Option<&PrecomputationTable<Coeff1, Coeff2, TG1Fp, TG1Affine>>;
 
     fn get_x_ext_fft_column(&self, index: usize) -> &[Coeff2];
+
+    fn get_x_ext_fft(&self) -> &[Vec<Coeff2>];
 
     fn get_cell_size(&self) -> usize;
 }

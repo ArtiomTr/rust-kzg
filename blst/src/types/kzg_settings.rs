@@ -11,7 +11,7 @@ use kzg::{FFTFr, FFTSettings, Fr, G1Mul, G2Mul, KZGSettings, Poly, G1, G2};
 
 use crate::consts::{G1_GENERATOR, G2_GENERATOR};
 use crate::fft_g1::fft_g1_fast;
-use crate::kzg_proofs::{g1_linear_combination, pairings_verify};
+use crate::kzg_proofs::{g1_linear_combination, pairings_verify, PRECOMP};
 use crate::types::fft_settings::FsFFTSettings;
 use crate::types::fr::FsFr;
 use crate::types::g1::FsG1;
@@ -95,6 +95,29 @@ impl KZGSettings<FsFr, FsG1, FsG2, FsFFTSettings, FsPoly, FsFp, FsG1Affine> for 
                 x_ext_fft_columns[row][offset] = points[row];
             }
         }
+
+        PRECOMP.get_or_init(|| {
+            let table_size = unsafe { blst::blst_p1s_mult_wbits_precompute_sizeof(8, cell_size) };
+
+            let mut tables = vec![vec![blst::blst_p1_affine::default(); table_size]; field_elements_per_ext_blob / cell_size];
+
+            for i in 0..(field_elements_per_ext_blob / cell_size) {
+                let affines = kzg::msm::msm_impls::batch_convert::<FsG1, FsFp, FsG1Affine>(&x_ext_fft_columns[i]);
+                let affines = affines.iter().map(|v| v.0).collect::<Vec<_>>();
+                let affines_arg = [affines.as_ptr(), core::ptr::null()];
+
+                unsafe {
+                    blst::blst_p1s_mult_wbits_precompute(
+                        tables[i].as_mut_ptr(),
+                        8,
+                        affines_arg.as_ptr(),
+                        cell_size,
+                    );
+                }
+            }
+
+            tables
+        });
 
         Ok(Self {
             g1_values_monomial: g1_monomial.to_vec(),
@@ -299,6 +322,10 @@ impl KZGSettings<FsFr, FsG1, FsG2, FsFFTSettings, FsPoly, FsFp, FsG1Affine> for 
 
     fn get_cell_size(&self) -> usize {
         self.cell_size
+    }
+    
+    fn get_x_ext_fft(&self) -> &[Vec<FsG1>] {
+        &self.x_ext_fft_columns
     }
 }
 

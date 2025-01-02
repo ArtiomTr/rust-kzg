@@ -24,6 +24,7 @@ use kzg::{G1Mul, G1};
 
 use crate::consts::{G1_GENERATOR, G1_IDENTITY, G1_NEGATIVE_GENERATOR};
 use crate::kzg_proofs::g1_linear_combination;
+use crate::kzg_proofs::g1_linear_combination_batch;
 use crate::types::fr::FsFr;
 
 use super::fp::FsFp;
@@ -277,6 +278,14 @@ impl G1LinComb<FsFr, FsFp, FsG1Affine> for FsG1 {
         let mut out = FsG1::default();
         g1_linear_combination(&mut out, points, scalars, len, precomputation);
         out
+    }
+
+    fn g1_lincomb_batch(
+            points: &[Vec<Self>],
+            scalars: &[Vec<FsFr>],
+            precomputation: Option<&PrecomputationTable<FsFr, Self, FsFp, FsG1Affine>>
+        ) -> Result<Vec<Self>, String> {
+        g1_linear_combination_batch(points, scalars, precomputation)
     }
 }
 

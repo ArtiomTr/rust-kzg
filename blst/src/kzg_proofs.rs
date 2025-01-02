@@ -1,20 +1,21 @@
 extern crate alloc;
 
+use core::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, OnceLock};
+
 use crate::types::fp::FsFp;
 use crate::types::g1::FsG1;
 use crate::types::{fr::FsFr, g1::FsG1Affine};
 
-use crate::types::g1::FsG1ProjAddAffine;
-
-use kzg::msm::{msm_impls::msm, precompute::PrecomputationTable};
+use kzg::msm::cell::Cell;
+use kzg::msm::precompute::PrecomputationTable;
 
 use crate::types::g2::FsG2;
 use blst::{
-    blst_fp12_is_one, blst_p1_affine, blst_p1_cneg, blst_p1_to_affine, blst_p2_affine,
-    blst_p2_to_affine, Pairing,
+    blst_fp12_is_one, blst_p1_affine, blst_p1_cneg, blst_p1_to_affine, blst_p2_affine, blst_p2_to_affine, blst_scalar, Pairing
 };
 
-use kzg::PairingVerify;
+use kzg::{eth, PairingVerify};
 
 impl PairingVerify<FsG1, FsG2> for FsG1 {
     fn verify(a1: &FsG1, a2: &FsG2, b1: &FsG1, b2: &FsG2) -> bool {
@@ -31,7 +32,7 @@ pub fn g1_linear_combination(
 ) {
     #[cfg(feature = "sppark")]
     {
-        use blst::{blst_fr, blst_scalar, blst_scalar_from_fr};
+        use blst::blst_fr;
         use kzg::{G1Mul, G1};
 
         if len < 8 {
@@ -62,12 +63,84 @@ pub fn g1_linear_combination(
 
     #[cfg(not(feature = "sppark"))]
     {
-        *out = msm::<FsG1, FsFp, FsG1Affine, FsG1ProjAddAffine, FsFr>(
+        use crate::types::g1::FsG1ProjAddAffine;
+
+        *out = kzg::msm::msm_impls::msm::<FsG1, FsFp, FsG1Affine, FsG1ProjAddAffine, FsFr>(
             points,
             scalars,
             len,
             precomputation,
         );
+    }
+}
+
+pub static PRECOMP: OnceLock<Vec<Vec<blst_p1_affine>>> = OnceLock::new();
+
+pub fn g1_linear_combination_batch(_points: &[Vec<FsG1>], coeffs: &[Vec<FsFr>], _precomputation: Option<&PrecomputationTable<FsFr, FsG1, FsFp, FsG1Affine>>) -> Result<Vec<FsG1>, String> {
+    
+    #[cfg(feature = "parallel")]
+    {
+        use kzg::msm::thread_pool::ThreadPoolExt;
+        
+        let pool = kzg::msm::thread_pool::da_pool();
+        let ncpus = pool.max_count();
+        let counter = Arc::new(AtomicUsize::new(0));
+        let mut results: Vec<Cell<FsG1>> = Vec::with_capacity(eth::CELLS_PER_EXT_BLOB);
+        #[allow(clippy::uninit_vec)]
+        unsafe {
+            results.set_len(eth::CELLS_PER_EXT_BLOB);
+        };
+        let results = &results[..];
+
+        for _ in 0..ncpus {
+            let counter = counter.clone();
+            pool.joined_execute(move || {
+                let mut scalars = vec![blst_scalar::default(); eth::FIELD_ELEMENTS_PER_CELL];
+                let mut scratch = vec![0u64; unsafe { (blst::blst_p1s_mult_wbits_scratch_sizeof(eth::FIELD_ELEMENTS_PER_CELL) + 7) / 8 }];
+
+                loop {
+                    let work = counter.fetch_add(1, Ordering::Relaxed);
+
+                    if work >= eth::CELLS_PER_EXT_BLOB {
+                        break;
+                    }
+
+                    for j in 0..eth::FIELD_ELEMENTS_PER_CELL {
+                        unsafe { blst::blst_scalar_from_fr(&mut scalars[j], &coeffs[work][j].0); }
+                    }
+
+                    let scalars_arg = [scalars.as_ptr() as *const u8, core::ptr::null()];
+                    let mut p: blst::blst_p1 = blst::blst_p1::default();
+                    unsafe { blst::blst_p1s_mult_wbits(&mut p, PRECOMP.get().map(|it| it[work].as_ptr()).unwrap(), 8, eth::FIELD_ELEMENTS_PER_CELL, scalars_arg.as_ptr(), 255, scratch.as_mut_ptr()) };
+                    unsafe { *results[work].as_ptr().as_mut().unwrap() = FsG1(p) };
+                }
+            });
+        }
+
+        pool.join();
+
+        Ok(results.iter().map(|it| *it.as_mut()).collect())
+    }
+
+    #[cfg(not(feature = "parallel"))]
+    {
+        let mut results: Vec<FsG1> = Vec::with_capacity(eth::CELLS_PER_EXT_BLOB);
+        let mut scalars = vec![blst_scalar::default(); eth::FIELD_ELEMENTS_PER_CELL];
+        let mut scratch = vec![0u64; unsafe { (blst::blst_p1s_mult_wbits_scratch_sizeof(eth::FIELD_ELEMENTS_PER_CELL) + 7) / 8 }];
+
+        for i in 0..eth::CELLS_PER_EXT_BLOB {
+
+            for j in 0..eth::FIELD_ELEMENTS_PER_CELL {
+                unsafe { blst::blst_scalar_from_fr(&mut scalars[j], &coeffs[i][j].0); }
+            }
+
+            let scalars_arg = [scalars.as_ptr() as *const u8, core::ptr::null()];
+            let mut p: blst::blst_p1 = blst::blst_p1::default();
+            unsafe { blst::blst_p1s_mult_wbits(&mut p, PRECOMP.get().map(|it| it[i].as_ptr()).unwrap(), 8, eth::FIELD_ELEMENTS_PER_CELL, scalars_arg.as_ptr(), 255, scratch.as_mut_ptr()) };
+            results.push(FsG1(p));
+        }
+
+        Ok(results)
     }
 }
 

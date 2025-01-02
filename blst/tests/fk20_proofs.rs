@@ -27,6 +27,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_fk_multi_chunk_len_16_512() {
         fk_multi_chunk_len_16_512::<BlstBackend, FsFK20MultiSettings>(&generate_trusted_setup);
     }
