@@ -873,6 +873,10 @@ impl KZGSettings<ArkFr, ArkG1, ArkG2, LFFTSettings, PolyData, ArkFp, ArkG1Affine
     fn get_cell_size(&self) -> usize {
         self.cell_size
     }
+
+    fn get_x_ext_fft(&self) -> &[Vec<ArkG1>] {
+        &self.x_ext_fft_columns
+    }
 }
 
 impl<'a> TryFrom<&'a CKZGSettings> for LKZGSettings {

@@ -46,24 +46,27 @@ git checkout Integrate_sppark_msm || exit
 
 # 3. run benchmarks
 print_msg "rust-kzg with blst backend (parallel, bgmw)" ../"$paste_file"
-cargo bench --manifest-path blst/Cargo.toml --bench eip_4844 --no-default-features --features std,rand,parallel,bgmw >> ../"$paste_file"
+cargo bench --manifest-path blst/Cargo.toml --bench eip_4844 --bench eip_7594 --no-default-features --features std,rand,parallel >> ../"$paste_file"
+
+print_msg "rust-kzg with blst backend (parallel, bgmw)" ../"$paste_file"
+cargo bench --manifest-path blst/Cargo.toml --bench eip_4844 --bench eip_7594 --no-default-features --features std,rand,parallel,bgmw >> ../"$paste_file"
 
 print_msg "rust-kzg with blst backend (sppark)" ../"$paste_file"
-cargo bench --manifest-path blst/Cargo.toml --bench eip_4844 --no-default-features --features std,rand,parallel,sppark >> ../"$paste_file"
+cargo bench --manifest-path blst/Cargo.toml --bench eip_4844 --bench eip_7594 --no-default-features --features std,rand,parallel,sppark >> ../"$paste_file"
 
 print_msg "rust-kzg with arkworks backend (parallel, bgmw)" ../"$paste_file"
-cargo bench --manifest-path arkworks/Cargo.toml --bench eip_4844 --no-default-features --features std,rand,parallel,bgmw >> ../"$paste_file"
+cargo bench --manifest-path arkworks/Cargo.toml --bench eip_4844 --bench eip_7594 --no-default-features --features std,rand,parallel,bgmw >> ../"$paste_file"
 
 print_msg "rust-kzg with arkworks3 backend (parallel)" ../"$paste_file"
-cargo bench --manifest-path arkworks3/Cargo.toml --bench eip_4844 --no-default-features --features std,rand,parallel >> ../"$paste_file"
+cargo bench --manifest-path arkworks3/Cargo.toml --bench eip_4844 --bench eip_7594 --no-default-features --features std,rand,parallel >> ../"$paste_file"
 
 print_msg "rust-kzg with arkworks3 backend (sppark)" ../"$paste_file"
-cargo bench --manifest-path arkworks3/Cargo.toml --bench eip_4844 --no-default-features --features std,rand,parallel,sppark >> ../"$paste_file"
+cargo bench --manifest-path arkworks3/Cargo.toml --bench eip_4844 --bench eip_7594 --no-default-features --features std,rand,parallel,sppark >> ../"$paste_file"
 
 print_msg "rust-kzg with arkworks3 backend (sppark_wlc)" ../"$paste_file"
-cargo bench --manifest-path arkworks3/Cargo.toml --bench eip_4844 --no-default-features --features std,rand,parallel,sppark_wlc >> ../"$paste_file"
+cargo bench --manifest-path arkworks3/Cargo.toml --bench eip_4844 --bench eip_7594 --no-default-features --features std,rand,parallel,sppark_wlc >> ../"$paste_file"
 
-point_count=("12" "14" "16" "18" "20")
+point_count=("6" "10" "12" "14" "16" "18" "20")
 jobs_count=${#point_count[@]}
 
 for (( i=0; i<jobs_count; i++ ));
