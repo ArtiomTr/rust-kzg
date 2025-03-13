@@ -1,0 +1,38 @@
+[package]
+name = "msm-benches"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+blst = "0.3.11"
+rust-kzg-blst = { path = "../blst" }
+rust-kzg-arkworks4 = { path = "../arkworks4" }
+rust-kzg-arkworks5 = { path = "../arkworks5" }
+rust-kzg-constantine = { path = "../constantine" }
+crate_crypto_internal_eth_kzg_bls12_381 = { git = "https://github.com/crate-crypto/rust-eth-kzg.git" }
+blstrs = "0.7.1"
+kzg = { path = "../kzg" }
+rand = "0.8.5"
+rand_core = "0.6"
+
+[dev-dependencies]
+criterion = "0.5.1"
+human_bytes = "0.4.3"
+
+[features]
+# wbits = [
+#     "rust-kzg-blst/wbits",
+#     "rust-kzg-arkworks4/wbits",
+#     "rust-kzg-arkworks5/wbits",
+#     "rust-kzg-constantine/wbits",
+# ]
+bgmw = [
+    "rust-kzg-blst/bgmw",
+    "rust-kzg-arkworks4/bgmw",
+    "rust-kzg-arkworks5/bgmw",
+    "rust-kzg-constantine/bgmw",
+]
+
+[[bench]]
+name = "g1_fixed_base_msm"
+harness = false
