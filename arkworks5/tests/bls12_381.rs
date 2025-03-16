@@ -108,6 +108,20 @@ mod tests {
     }
 
     #[test]
+    fn _g1_linear_combination_with_identity_points() {
+        g1_linear_combination_with_identity_points::<ArkFr, ArkG1, ArkFp, ArkG1Affine>(
+            &g1_linear_combination,
+        )
+    }
+
+    #[test]
+    fn _g1_linear_combination_with_zero_points() {
+        g1_linear_combination_with_zero_points::<ArkFr, ArkG1, ArkFp, ArkG1Affine>(
+            &g1_linear_combination,
+        )
+    }
+
+    #[test]
     pub fn pairings_work_() {
         pairings_work::<ArkFr, ArkG1, ArkG2>(&pairings_verify);
     }

@@ -313,6 +313,72 @@ pub fn g1_small_linear_combination<
     }
 }
 
+#[allow(clippy::type_complexity)]
+pub fn g1_linear_combination_with_identity_points<
+    TFr: Fr,
+    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + Copy,
+    TG1Fp: G1Fp,
+    TG1Affine: G1Affine<TG1, TG1Fp>,
+>(
+    g1_linear_combination: &dyn Fn(
+        &mut TG1,
+        &[TG1],
+        &[TFr],
+        usize,
+        Option<&PrecomputationTable<TFr, TG1, TG1Fp, TG1Affine>>,
+    ),
+) {
+    let points = vec![TG1::identity(); 128];
+    let scalars = (0..128).map(|_| TFr::rand()).collect::<Vec<_>>();
+
+    let output = scalars
+        .clone()
+        .into_iter()
+        .reduce(|a, b| a.add(&b))
+        .unwrap();
+    let expected_result = TG1::identity().mul(&output);
+
+    let mut result = TG1::rand();
+    g1_linear_combination(&mut result, &points, &scalars, 128, None);
+    assert_eq!(result, expected_result);
+
+    let precomputation = precompute(&points).unwrap();
+    let mut result = TG1::rand();
+    g1_linear_combination(&mut result, &points, &scalars, 128, precomputation.as_ref());
+    assert_eq!(result, expected_result);
+}
+
+#[allow(clippy::type_complexity)]
+pub fn g1_linear_combination_with_zero_points<
+    TFr: Fr,
+    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + Copy,
+    TG1Fp: G1Fp,
+    TG1Affine: G1Affine<TG1, TG1Fp>,
+>(
+    g1_linear_combination: &dyn Fn(
+        &mut TG1,
+        &[TG1],
+        &[TFr],
+        usize,
+        Option<&PrecomputationTable<TFr, TG1, TG1Fp, TG1Affine>>,
+    ),
+) {
+    let mut points = vec![TG1::zero(); 128];
+    points[0] = TG1::identity().mul(&TFr::from_u64(78));
+
+    let mut scalars = (0..128).map(|_| TFr::rand()).collect::<Vec<_>>();
+    scalars[0] = TFr::one();
+
+    let mut result = TG1::rand();
+    g1_linear_combination(&mut result, &points, &scalars, 128, None);
+    assert_eq!(result, points[0]);
+
+    let precomputation = precompute(&points).unwrap();
+    let mut result = TG1::rand();
+    g1_linear_combination(&mut result, &points, &scalars, 128, precomputation.as_ref());
+    assert_eq!(result, points[0]);
+}
+
 pub fn pairings_work<TFr: Fr, TG1: G1 + G1Mul<TFr>, TG2: G2 + G2Mul<TFr>>(
     pairings_verify: &dyn Fn(&TG1, &TG2, &TG1, &TG2) -> bool,
 ) {

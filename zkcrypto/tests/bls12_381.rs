@@ -103,6 +103,18 @@ mod tests {
     }
 
     #[test]
+    fn _g1_linear_combination_with_identity_points() {
+        g1_linear_combination_with_identity_points::<ZFr, ZG1, ZFp, ZG1Affine>(
+            &g1_linear_combination,
+        )
+    }
+
+    #[test]
+    fn _g1_linear_combination_with_zero_points() {
+        g1_linear_combination_with_zero_points::<ZFr, ZG1, ZFp, ZG1Affine>(&g1_linear_combination)
+    }
+
+    #[test]
     pub fn pairings_work_() {
         pairings_work::<ZFr, ZG1, ZG2>(&pairings_verify);
     }
