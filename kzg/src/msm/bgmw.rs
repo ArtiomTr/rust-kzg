@@ -473,11 +473,9 @@ impl<
         let (tx, rx) = mpsc::channel();
         let n_workers = core::cmp::min(ncpus, total);
 
-        let mut results: Vec<Cell<TG1>> = Vec::with_capacity(n_workers);
-        #[allow(clippy::uninit_vec)]
-        unsafe {
-            results.set_len(results.capacity());
-        };
+        let results = (0..n_workers)
+            .map(|_| Cell::new(vec![P1XYZZ::<TG1Fp>::default(); 1 << (window - 1)]))
+            .collect::<Vec<_>>();
 
         let results = &results[..];
 
@@ -487,15 +485,10 @@ impl<
             let counter = counter.clone();
 
             pool.joined_execute(move || {
-                let mut buckets = vec![P1XYZZ::<TG1Fp>::default(); 1 << (window - 1)];
+                let mut buckets = results[worker_index].as_mut();
                 loop {
                     let work = counter.fetch_add(1, Ordering::Relaxed);
                     if work >= total {
-                        integrate_buckets(
-                            unsafe { results[worker_index].as_ptr().as_mut() }.unwrap(),
-                            &mut buckets,
-                            window - 1,
-                        );
                         tx.send(worker_index).expect("disaster");
 
                         break;
@@ -520,12 +513,21 @@ impl<
             });
         }
 
-        let mut ret = TG1::zero();
+        let mut buckets = vec![P1XYZZ::<TG1Fp>::default(); 1 << (window - 1)];
+
         for _ in 0..n_workers {
             let idx = rx.recv().unwrap();
 
-            ret.add_or_dbl_assign(results[idx].as_mut());
+            let result = results[idx].as_mut();
+
+            for (a, b) in buckets.iter_mut().zip(result) {
+                p1_dadd(a, b);
+            }
         }
+
+        let mut ret = TG1::zero();
+        integrate_buckets(&mut ret, &mut buckets, window - 1);
+
         ret
     }
 

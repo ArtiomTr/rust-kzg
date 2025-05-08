@@ -7,6 +7,10 @@ pub struct Cell<T: ?Sized> {
 }
 unsafe impl<T: ?Sized + Sync> Sync for Cell<T> {}
 impl<T> Cell<T> {
+    pub fn new(value: T) -> Self {
+        Self { value }
+    }
+
     pub fn as_ptr(&self) -> *mut T {
         &self.value as *const T as *mut T
     }
