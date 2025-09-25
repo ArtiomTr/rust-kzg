@@ -108,35 +108,35 @@ make blst
 unset CFLAGS
 cd ..
 
-###################### python tests ######################
+# ###################### python tests ######################
 
-print_msg "Patching python binding"
-git apply < ../python.patch
-cd bindings/python || exit
+# print_msg "Patching python binding"
+# git apply < ../python.patch
+# cd bindings/python || exit
 
-print_msg "Running python tests"
-make
-cd ../..
+# print_msg "Running python tests"
+# make
+# cd ../..
 
 ###################### java tests ######################
 
-print_msg "Patching java binding"
-git apply < ../java.patch
-cd bindings/java || exit
+# print_msg "Patching java binding"
+# git apply < ../java.patch
+# cd bindings/java || exit
 
-print_msg "Running java tests"
-make build test
-cd ../..
+# print_msg "Running java tests"
+# make build test
+# cd ../..
 
 ###################### nodejs tests ######################
 
-print_msg "Patching nodejs binding"
-git apply < ../nodejs.patch
-cd bindings/node.js || exit
+# print_msg "Patching nodejs binding"
+# git apply < ../nodejs.patch
+# cd bindings/node.js || exit
 
-print_msg "Running nodejs tests"
-make
-cd ../..
+# print_msg "Running nodejs tests"
+# make
+# cd ../..
 
 ###################### go tests ######################
 

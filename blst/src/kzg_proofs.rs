@@ -62,10 +62,13 @@ pub fn g1_linear_combination(
 
     #[cfg(not(feature = "sppark"))]
     {
+        use kzg::G1;
+
+        let (points, scalars): (Vec<_>, Vec<_>) = points[0..len].iter().cloned().zip(scalars[0..len].iter()).filter(|(i, _)| !i.is_inf()).collect();
         *out = msm::<FsG1, FsFp, FsG1Affine, FsG1ProjAddAffine, FsFr>(
-            points,
-            scalars,
-            len,
+            &points,
+            &scalars,
+            points.len(),
             precomputation,
         );
     }

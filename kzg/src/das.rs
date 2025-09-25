@@ -141,9 +141,15 @@ pub trait DAS<B: EcBackend> {
         // Trick to use HashSet, to check for duplicate commitments, is taken from rust-eth-kzg:
         // https://github.com/crate-crypto/rust-eth-kzg/blob/63d469ce1c98a9898a0d8cd717aa3ebe46ace227/eip7594/src/recovery.rs#L64-L76
         let mut provided_indices = HashSet::new();
-        for (i, &cell_index) in cell_indices.iter().enumerate() {
+        for ((i, &cell_index), next_cell_index) in cell_indices.iter().enumerate().zip(cell_indices.iter().map(|i| Some(i)).skip(1).chain(Some(None))) {
             if cell_index >= (2 * ts_len) / cell_size {
                 return Err("Cell index cannot be larger than CELLS_PER_EXT_BLOB".to_string());
+            }
+
+            if let Some(&idx) = next_cell_index {
+                if idx <= cell_index {
+                    return Err("Indices must be in strictly ascending order".to_string());
+                }
             }
 
             if !provided_indices.insert(cell_index) {
@@ -313,14 +319,17 @@ pub trait DAS<B: EcBackend> {
 
         let fft_settings = settings.get_fft_settings();
 
-        let r_powers = compute_r_powers_for_verify_cell_kzg_proof_batch::<B>(
+        let r = compute_verify_cell_kzg_proof_batch_challenge::<B>(
             cell_size,
             &unique_commitments,
             &commitment_indices,
             cell_indices,
             cells,
             proofs,
+            ts_size,
         )?;
+
+        let r_powers = compute_powers(&r, cell_count);
 
         let proof_lincomb = B::G1::g1_lincomb(proofs, &r_powers, cell_count, None);
 
@@ -544,31 +553,24 @@ fn toeplitz_coeffs_stride<B: EcBackend>(
     offset: usize,
     stride: usize,
 ) -> Result<(), String> {
-    if stride == 0 {
-        return Err("Stride cannot be zero".to_string());
+    let r = n / stride;
+    let l = stride;
+    let d = n - 1;
+    let d_minus_i = d - offset;
+
+    if d < offset {
+        return Err("Invalid offset".to_string());
     }
 
-    let k = n / stride;
-    let k2 = k * 2;
+    for j in 0..2 * r {
+        out[j] = B::Fr::zero();
+    }
 
-    out[0] = input[n - 1 - offset].clone();
-    {
-        let mut i = 1;
-        while i <= k + 1 && i < k2 {
-            out[i] = B::Fr::zero();
-            i += 1;
-        }
-    };
+    out[0] = input[d_minus_i].clone();
 
-    {
-        let mut i = k + 2;
-        let mut j = 2 * stride - offset - 1;
-        while i < k2 {
-            out[i] = input[j].clone();
-            i += 1;
-            j += stride;
-        }
-    };
+    for j in 1..r - 1 {
+        out[2 * r - j] = input[d_minus_i - j * l].clone();
+    }
 
     Ok(())
 }
@@ -611,14 +613,15 @@ fn compute_fk20_proofs<B: EcBackend>(
     fft_settings.fft_g1(&h, false)
 }
 
-fn compute_r_powers_for_verify_cell_kzg_proof_batch<B: EcBackend>(
+fn compute_verify_cell_kzg_proof_batch_challenge<B: EcBackend>(
     cell_size: usize,
     commitments: &[B::G1],
     commitment_indices: &[usize],
     cell_indices: &[usize],
     cells: &[B::Fr],
     proofs: &[B::G1],
-) -> Result<Vec<B::Fr>, String> {
+    blob_size: usize,
+) -> Result<B::Fr, String> {
     debug_assert!(cells.len() % cell_size == 0);
 
     let cell_count = cells.len() / cell_size;
@@ -631,18 +634,20 @@ fn compute_r_powers_for_verify_cell_kzg_proof_batch<B: EcBackend>(
     }
 
     let input_size = RANDOM_CHALLENGE_KZG_CELL_BATCH_DOMAIN.len() /* the domain separator */
-        + size_of::<u64>()                                               /* cell_size */
-        + size_of::<u64>()                                               /* commitment count */
-        + size_of::<u64>()                                               /* cell count */
-        + (commitments.len() * BYTES_PER_COMMITMENT)                     /* commitment bytes */
-        + (cell_count * size_of::<u64>())                                /* commitment_indices */
-        + (cell_count * size_of::<u64>())                                /* cell_indices */
-        + (cells.len() * BYTES_PER_FIELD_ELEMENT)                        /* cells */
-        + (cell_count * BYTES_PER_PROOF)                                 /* proofs bytes */
+        + size_of::<u64>()                                        /* field elements per blob */
+        + size_of::<u64>()                                        /* cell_size */
+        + size_of::<u64>()                                        /* commitment count */
+        + size_of::<u64>()                                        /* cell count */
+        + (commitments.len() * BYTES_PER_COMMITMENT)              /* commitment bytes */
+        + (cell_count * size_of::<u64>())                           /* commitment indices */
+        + (cell_count * size_of::<u64>())                           /* cell indices */
+        + (cell_count * cell_size * BYTES_PER_FIELD_ELEMENT)      /* cells */
+        + (cell_count * BYTES_PER_PROOF)                          /* proofs bytes */
         ;
-
+    
     let mut bytes = Vec::with_capacity(input_size);
     bytes.extend_from_slice(&RANDOM_CHALLENGE_KZG_CELL_BATCH_DOMAIN);
+    bytes.extend_from_slice(&(blob_size as u64).to_be_bytes());
     bytes.extend_from_slice(&(cell_size as u64).to_be_bytes());
     bytes.extend_from_slice(&(commitments.len() as u64).to_be_bytes());
     bytes.extend_from_slice(&(cell_count as u64).to_be_bytes());
@@ -671,7 +676,7 @@ fn compute_r_powers_for_verify_cell_kzg_proof_batch<B: EcBackend>(
     let eval_challenge = hash(bytes);
     let r = hash_to_bls_field(&eval_challenge);
 
-    Ok(compute_powers(&r, cell_count))
+    Ok(r)
 }
 
 fn compute_weighted_sum_of_commitments<B: EcBackend>(

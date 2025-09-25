@@ -91,7 +91,7 @@ mod tests {
             &cell_indices,
             &partial_cells,
         );
-        assert!(result.is_ok());
+        assert_eq!(result, Ok(()));
 
         /* Check that all of the cells match */
         assert!(recovered_cells == cells, "Cells do not match");
