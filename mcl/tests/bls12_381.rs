@@ -120,7 +120,6 @@ mod tests {
         )
     }
 
-    #[ignore = "TODO: handle infinity points"]
     #[test]
     pub fn g1_linear_combination_infinity_points_() {
         g1_linear_combination_infinity_points::<MclFr, MclG1, MclFp, MclG1Affine, MclG1ProjAddAffine>(
