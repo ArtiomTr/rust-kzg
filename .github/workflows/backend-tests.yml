@@ -1,7 +1,7 @@
 name: tests
 on: [push, pull_request, workflow_dispatch]
 env:
-  C_KZG_4844_GIT_HASH: '936125db2d432ff306db5e21e1a4db29e1a7ea0d'
+  C_KZG_4844_GIT_HASH: '00ae727c21a346ba0bd027eca6e378da0def988f'
 
 jobs:
   kzg_ci:
