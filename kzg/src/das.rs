@@ -141,7 +141,11 @@ pub trait DAS<B: EcBackend> {
         // Trick to use HashSet, to check for duplicate commitments, is taken from rust-eth-kzg:
         // https://github.com/crate-crypto/rust-eth-kzg/blob/63d469ce1c98a9898a0d8cd717aa3ebe46ace227/eip7594/src/recovery.rs#L64-L76
         let mut provided_indices = HashSet::new();
-        for ((i, &cell_index), next_cell_index) in cell_indices.iter().enumerate().zip(cell_indices.iter().map(|i| Some(i)).skip(1).chain(Some(None))) {
+        for ((i, &cell_index), next_cell_index) in cell_indices
+            .iter()
+            .enumerate()
+            .zip(cell_indices.iter().map(Some).skip(1).chain(Some(None)))
+        {
             if cell_index >= (2 * ts_len) / cell_size {
                 return Err("Cell index cannot be larger than CELLS_PER_EXT_BLOB".to_string());
             }
@@ -562,8 +566,8 @@ fn toeplitz_coeffs_stride<B: EcBackend>(
         return Err("Invalid offset".to_string());
     }
 
-    for j in 0..2 * r {
-        out[j] = B::Fr::zero();
+    for j in out.iter_mut() {
+        *j = B::Fr::zero();
     }
 
     out[0] = input[d_minus_i].clone();
@@ -644,7 +648,7 @@ fn compute_verify_cell_kzg_proof_batch_challenge<B: EcBackend>(
         + (cell_count * cell_size * BYTES_PER_FIELD_ELEMENT)      /* cells */
         + (cell_count * BYTES_PER_PROOF)                          /* proofs bytes */
         ;
-    
+
     let mut bytes = Vec::with_capacity(input_size);
     bytes.extend_from_slice(&RANDOM_CHALLENGE_KZG_CELL_BATCH_DOMAIN);
     bytes.extend_from_slice(&(blob_size as u64).to_be_bytes());
