@@ -1254,6 +1254,7 @@ name = "kzg"
 version = "0.1.0"
 dependencies = [
  "hashbrown 0.15.5",
+ "hex",
  "num_cpus",
  "rayon",
  "sha2 0.10.9",
