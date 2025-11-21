@@ -1,7 +1,7 @@
 name: benchmarks
 on: [push, pull_request, workflow_dispatch]
 env:
-  C_KZG_4844_GIT_HASH: '00ae727c21a346ba0bd027eca6e378da0def988f'
+  C_KZG_4844_GIT_HASH: '6c2a7839bc320060ff3aa5e871947b4457fb6d07'
 
 jobs:
   benchmarks:
