@@ -1,292 +1,23 @@
-/// This algorithm is taken from https://github.com/crate-crypto/rust-eth-kzg
-use core::{marker::PhantomData, ops::Neg};
+use crate::{
+    msm::pippenger_utils::{booth_encode, get_wval_limb, is_zero},
+    Fr, G1Affine, G1Fp, G1GetFp, G1Mul, G1ProjAddAffine, Scalar256, G1,
+};
+use core::cmp;
+use std::marker::PhantomData;
 
-use crate::{Fr, G1Affine, G1Fp, G1GetFp, G1Mul, G1ProjAddAffine, G1};
+const NBITS: usize = 255;
 
 #[derive(Debug, Clone)]
-pub struct WbitsTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
-where
-    TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
-    TG1Fp: G1Fp,
-    TG1Affine: G1Affine<TG1, TG1Fp>,
-    TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
-{
+pub struct WbitsTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine> {
     numpoints: usize,
     points: Vec<TG1Affine>,
 
-    batch_numpoints: usize,
-    batch_points: Vec<Vec<TG1Affine>>,
-
+    // batch_numpoints: usize,
+    // batch_points: Vec<Vec<TG1Affine>>,
     g1_marker: PhantomData<TG1>,
     g1_fp_marker: PhantomData<TG1Fp>,
     fr_marker: PhantomData<TFr>,
     g1_affine_add_marker: PhantomData<TG1ProjAddAffine>,
-}
-
-fn get_window_size() -> usize {
-    option_env!("WINDOW_SIZE")
-        .map(|v| {
-            v.parse()
-                .expect("WINDOW_SIZE environment variable must be valid number")
-        })
-        .unwrap_or(8)
-}
-
-// Code was taken from: https://github.com/privacy-scaling-explorations/halo2curves/blob/b753a832e92d5c86c5c997327a9cf9de86a18851/src/msm.rs#L13
-pub fn get_booth_index(window_index: usize, window_size: usize, el: &[u8]) -> i32 {
-    // Booth encoding:
-    // * step by `window` size
-    // * slice by size of `window + 1``
-    // * each window overlap by 1 bit
-    // * append a zero bit to the least significant end
-    // Indexing rule for example window size 3 where we slice by 4 bits:
-    // `[0, +1, +1, +2, +2, +3, +3, +4, -4, -3, -3 -2, -2, -1, -1, 0]``
-    // So we can reduce the bucket size without preprocessing scalars
-    // and remembering them as in classic signed digit encoding
-
-    let skip_bits = (window_index * window_size).saturating_sub(1);
-    let skip_bytes = skip_bits / 8;
-
-    // fill into a u32
-    let mut v: [u8; 4] = [0; 4];
-    for (dst, src) in v.iter_mut().zip(el.iter().skip(skip_bytes)) {
-        *dst = *src
-    }
-    let mut tmp = u32::from_le_bytes(v);
-
-    // pad with one 0 if slicing the least significant window
-    if window_index == 0 {
-        tmp <<= 1;
-    }
-
-    // remove further bits
-    tmp >>= skip_bits - (skip_bytes * 8);
-    // apply the booth window
-    tmp &= (1 << (window_size + 1)) - 1;
-
-    let sign = tmp & (1 << window_size) == 0;
-
-    // div ceil by 2
-    tmp = (tmp + 1) >> 1;
-
-    // find the booth action index
-    if sign {
-        tmp as i32
-    } else {
-        ((!(tmp - 1) & ((1 << window_size) - 1)) as i32).neg()
-    }
-}
-
-/// This is the threshold to which batching the inversions in affine
-/// formula costs more than doing mixed addition.
-const BATCH_INVERSE_THRESHOLD: usize = 16;
-
-/// Chooses between point addition and point doubling based on the input points.
-///
-/// Note: This does not handle the case where p1 == -p2.
-///
-/// This case is unlikely for our usecase, and is not trivial
-/// to handle.
-#[inline(always)]
-fn choose_add_or_double<TG1: G1, TG1Fp: G1Fp, TG1Affine: G1Affine<TG1, TG1Fp>>(
-    p1: TG1Affine,
-    p2: TG1Affine,
-) -> TG1Fp {
-    if p1 == p2 {
-        p2.y().double()
-    } else {
-        p2.x().sub_fp(p1.x())
-    }
-}
-
-/// Given a vector of field elements {v_i}, compute the vector {v_i^(-1)}
-///
-/// A scratchpad is used to avoid excessive allocations in the case that this method is
-/// called repeatedly.
-///
-/// Panics if any of the elements are zero
-pub fn batch_inverse_scratch_pad<F: G1Fp>(v: &mut [F], scratchpad: &mut Vec<F>) {
-    // Montgomery's Trick and Fast Implementation of Masked AES
-    // Genelle, Prouff and Quisquater
-    // Section 3.2
-    // but with an optimization to multiply every element in the returned vector by coeff
-
-    // Clear the scratchpad and ensure it has enough capacity
-    scratchpad.clear();
-    scratchpad.reserve(v.len());
-
-    // First pass: compute [a, ab, abc, ...]
-    let mut tmp = F::one();
-    for f in v.iter() {
-        tmp = tmp.mul_fp(f);
-        scratchpad.push(tmp.clone());
-    }
-
-    // Invert `tmp`.
-    tmp = tmp
-        .inverse()
-        .expect("guaranteed to be non-zero since we filtered out zero field elements");
-
-    // Second pass: iterate backwards to compute inverses
-    for (f, s) in v
-        .iter_mut()
-        // Backwards
-        .rev()
-        // Backwards, skip last element, fill in one for last term.
-        .zip(scratchpad.iter().rev().skip(1).chain(Some(&F::one())))
-    {
-        // tmp := tmp * f; f := tmp * s = 1/f
-        let new_tmp = tmp.mul_fp(f);
-        *f = tmp.mul_fp(s);
-        tmp = new_tmp;
-    }
-}
-
-/// Adds two elliptic curve points using the point addition/doubling formula.
-///
-/// Note: The inversion is precomputed and passed as a parameter.
-///
-/// This function handles both addition of distinct points and point doubling.
-#[inline(always)]
-fn point_add_double<TG1: G1, TG1Fp: G1Fp, TG1Affine: G1Affine<TG1, TG1Fp>>(
-    p1: TG1Affine,
-    p2: TG1Affine,
-    inv: &TG1Fp,
-) -> TG1Affine {
-    let lambda = if p1 == p2 {
-        p1.x().square().mul3().mul_fp(inv)
-    } else {
-        p2.y().sub_fp(p1.y()).mul_fp(inv)
-    };
-
-    let x = lambda.square().sub_fp(p1.x()).sub_fp(p2.x());
-    let y = lambda.mul_fp(&p1.x().sub_fp(&x)).sub_fp(p1.y());
-
-    TG1Affine::from_xy(x, y)
-}
-
-/// Performs multi-batch addition of multiple sets of elliptic curve points.
-///
-/// This function efficiently adds multiple sets of points amortizing the cost of the
-/// inversion over all of the sets, using the same binary tree approach with striding
-/// as the single-batch version.
-pub fn multi_batch_addition_binary_tree_stride<
-    TG1: G1,
-    TG1Fp: G1Fp,
-    TG1Affine: G1Affine<TG1, TG1Fp>,
-    TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
->(
-    mut multi_points: Vec<Vec<TG1Affine>>,
-) -> Vec<TG1> {
-    multi_points
-        .iter_mut()
-        .for_each(|points| points.retain(|p| !p.is_infinity()));
-    let total_num_points: usize = multi_points.iter().map(|p| p.len()).sum();
-    let mut scratchpad = Vec::with_capacity(total_num_points);
-
-    // Find the largest buckets, this will be the bottleneck for the number of iterations
-    let mut max_bucket_length = 0;
-    for points in multi_points.iter() {
-        max_bucket_length = std::cmp::max(max_bucket_length, points.len());
-    }
-
-    // Compute the total number of "unit of work"
-    // In the single batch addition case this is analogous to
-    // the batch inversion threshold
-    #[inline(always)]
-    fn compute_threshold<TG1: G1, TG1Fp: G1Fp, TG1Affine: G1Affine<TG1, TG1Fp>>(
-        points: &[Vec<TG1Affine>],
-    ) -> usize {
-        points
-            .iter()
-            .map(|p| {
-                if p.len() % 2 == 0 {
-                    p.len() / 2
-                } else {
-                    (p.len() - 1) / 2
-                }
-            })
-            .sum()
-    }
-
-    let mut denominators = Vec::with_capacity(max_bucket_length);
-    let mut total_amount_of_work = compute_threshold(&multi_points);
-
-    let mut sums = vec![TG1::identity(); multi_points.len()];
-
-    assert!(
-        BATCH_INVERSE_THRESHOLD >= 2,
-        "THRESHOLD cannot be below the number of points needed for group addition"
-    );
-    // TODO: total_amount_of_work does not seem to be changing performance that much
-    while total_amount_of_work > BATCH_INVERSE_THRESHOLD {
-        // For each point, we check if they are odd and pop off
-        // one of the points
-        for (points, sum) in multi_points.iter_mut().zip(sums.iter_mut()) {
-            // Make the number of points even
-            if points.len() % 2 != 0 {
-                TG1ProjAddAffine::add_or_double_assign_affine(sum, &points.pop().unwrap());
-            }
-        }
-
-        denominators.clear();
-
-        // For each pair of points over all
-        // vectors, we collect them and put them in the
-        // inverse array
-        for points in multi_points.iter_mut() {
-            if points.len() < 2 {
-                continue;
-            }
-
-            *points = points
-                .chunks_exact(2)
-                .filter(|v| v[0] != v[1].neg())
-                .flat_map(|v| v)
-                .cloned()
-                .collect::<Vec<_>>();
-
-            for i in (0..=points.len() - 2).step_by(2) {
-                denominators.push(choose_add_or_double(points[i], points[i + 1]));
-            }
-        }
-
-        batch_inverse_scratch_pad(&mut denominators, &mut scratchpad);
-
-        let mut denominators_offset = 0;
-
-        for points in multi_points.iter_mut() {
-            if points.len() < 2 {
-                continue;
-            }
-
-            for (i, inv) in (0..=points.len() - 2)
-                .step_by(2)
-                .zip(&denominators[denominators_offset..])
-            {
-                let p1 = points[i];
-                let p2 = points[i + 1];
-                points[i / 2] = point_add_double(p1, p2, inv);
-            }
-
-            let num_points = points.len() / 2;
-            // The latter half of the vector is now unused,
-            // all results are stored in the former half.
-            points.truncate(num_points);
-            denominators_offset += num_points
-        }
-
-        total_amount_of_work = compute_threshold(&multi_points);
-    }
-
-    for (sum, points) in sums.iter_mut().zip(multi_points) {
-        for point in points {
-            TG1ProjAddAffine::add_or_double_assign_affine(sum, &point);
-        }
-    }
-
-    sums
 }
 
 impl<
@@ -298,180 +29,430 @@ impl<
     > WbitsTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
 {
     pub fn new(points: &[TG1], matrix: &[Vec<TG1>]) -> Result<Option<Self>, String> {
-        let mut table = Vec::new();
+        let points = points
+            .iter()
+            .map(TG1Affine::into_affine)
+            .collect::<Vec<_>>();
 
-        table
-            .try_reserve_exact(points.len() * (1 << (get_window_size() - 1)))
-            .map_err(|_| "WBITS precomputation table is too large".to_string())?;
+        let output = wbits_precompute::<TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>(&points, 8);
 
-        for point in points {
-            let mut current = point.clone();
+        Ok(Some(Self {
+            numpoints: points.len(),
+            points: output,
 
-            for _ in 0..(1 << (get_window_size() - 1)) {
-                table.push(TG1Affine::into_affine(&current));
-                current = current.add_or_dbl(point);
-            }
-        }
-
-        if matrix.is_empty() {
-            Ok(Some(Self {
-                numpoints: points.len(),
-                points: table,
-                batch_numpoints: 0,
-                batch_points: Vec::new(),
-
-                g1_marker: PhantomData,
-                g1_fp_marker: PhantomData,
-                fr_marker: PhantomData,
-                g1_affine_add_marker: PhantomData,
-            }))
-        } else {
-            let batch_numpoints = matrix[0].len();
-
-            let mut batch_points = Vec::new();
-            batch_points
-                .try_reserve_exact(matrix.len())
-                .map_err(|_| "WBITS precomputation table is too large".to_owned())?;
-
-            for row in matrix {
-                let mut temp_table = Vec::new();
-                temp_table
-                    .try_reserve_exact(row.len() * (1 << (get_window_size() - 1)))
-                    .map_err(|_| "WBITS precomputation table is too large".to_owned())?;
-
-                for point in row {
-                    let mut current = point.clone();
-
-                    for _ in 0..(1 << (get_window_size() - 1)) {
-                        temp_table.push(TG1Affine::into_affine(&current));
-                        current = current.add_or_dbl(point);
-                    }
-                }
-
-                batch_points.push(temp_table);
-            }
-
-            Ok(Some(Self {
-                numpoints: points.len(),
-                points: table,
-
-                batch_numpoints,
-                batch_points,
-
-                fr_marker: PhantomData,
-                g1_fp_marker: PhantomData,
-                g1_marker: PhantomData,
-                g1_affine_add_marker: PhantomData,
-            }))
-        }
-    }
-
-    fn multiply_sequential_raw(bases: &[TG1Affine], scalars: &[TFr]) -> TG1 {
-        let scalars = scalars.iter().map(TFr::to_scalar).collect::<Vec<_>>();
-
-        let number_of_windows = 255 / get_window_size() + 1;
-        let mut windows_of_points = vec![Vec::with_capacity(scalars.len()); number_of_windows];
-
-        for window_idx in 0..windows_of_points.len() {
-            for (scalar_idx, scalar_bytes) in scalars.iter().enumerate() {
-                let sub_table = &bases[scalar_idx * (1 << (get_window_size() - 1))
-                    ..(scalar_idx + 1) * (1 << (get_window_size() - 1))];
-
-                let point_idx =
-                    get_booth_index(window_idx, get_window_size(), scalar_bytes.as_u8());
-
-                if point_idx == 0 {
-                    continue;
-                }
-                let is_scalar_positive = point_idx.is_positive();
-                let point_idx = point_idx.unsigned_abs() as usize - 1;
-                let mut point = sub_table[point_idx];
-
-                if !is_scalar_positive {
-                    point = point.neg();
-                }
-
-                windows_of_points[window_idx].push(point);
-            }
-        }
-
-        let accumulated_points =
-            multi_batch_addition_binary_tree_stride::<TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>(
-                windows_of_points,
-            );
-
-        // Now accumulate the windows by doubling wbits times
-        let mut result: TG1 = accumulated_points.last().unwrap().clone();
-        for point in accumulated_points.into_iter().rev().skip(1) {
-            // Double the result 'wbits' times
-            for _ in 0..get_window_size() {
-                result = result.dbl();
-            }
-            // Add the accumulated point for this window
-            result.add_or_dbl_assign(&point);
-        }
-
-        result
+            g1_marker: PhantomData,
+            g1_fp_marker: PhantomData,
+            fr_marker: PhantomData,
+            g1_affine_add_marker: PhantomData,
+        }))
     }
 
     pub fn multiply_sequential(&self, scalars: &[TFr]) -> TG1 {
-        Self::multiply_sequential_raw(&self.points, scalars)
+        let scalars = scalars.iter().map(TFr::to_scalar).collect::<Vec<_>>();
+
+        mult_wbits::<TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>(&self.points, 8, &scalars)
     }
 
-    pub fn multiply_batch(&self, scalars: &[Vec<TFr>]) -> Vec<TG1> {
-        assert!(scalars.len() == self.batch_points.len());
+    // pub fn multiply_batch() {
+    //     let mut result = Vec::new();
 
-        #[cfg(not(feature = "parallel"))]
-        {
-            self.batch_points
-                .iter()
-                .zip(scalars)
-                .map(|(points, scalars)| Self::multiply_sequential_raw(points, scalars))
-                .collect::<Vec<_>>()
+    //     for (points, scalars) in points.iter().zip(scalars.iter()) {
+    //         if points.len() != scalars.len() {
+    //             return Err("Invalid point count length".to_owned());
+    //         }
+
+    //         result.push(Self::g1_lincomb(points, scalars, points.len(), None));
+    //     }
+
+    //     Ok(result)
+    // }
+}
+
+fn gather_booth_wbits<TG1: G1, TG1Fp: G1Fp, TG1Affine: G1Affine<TG1, TG1Fp>>(
+    row: &[TG1Affine],
+    wbits: usize,
+    booth_idx: usize,
+) -> TG1Affine {
+    let booth_sign = (booth_idx >> wbits) & 1;
+
+    let booth_idx = booth_idx & ((1usize << wbits) - 1);
+    let idx_is_zero = is_zero(booth_idx as u64);
+    let booth_idx = booth_idx as u64 - (1 ^ idx_is_zero);
+
+    if idx_is_zero == 1 {
+        TG1Affine::zero()
+    } else {
+        if booth_sign == 1 {
+            row[booth_idx as usize].neg()
+        } else {
+            row[booth_idx as usize]
+        }
+    }
+}
+
+fn head<TG1: G1, TG1Fp: G1Fp, TG1Affine: G1Affine<TG1, TG1Fp>>(
+    ab: &mut [(TG1Affine, TG1Fp)],
+    mul_acc: Option<&TG1Fp>,
+) {
+    let (a, b) = ab.split_at_mut(1);
+
+    let mut inf = a[0].0.is_zero() || b[0].0.is_zero();
+
+    b[0].1 = b[0].0.x().sub_fp(a[0].0.x()); // X2-X1
+    b[0].0.x_mut().add_assign_fp(a[0].0.x()); // X2+X1
+    a[0].1 = b[0].0.y().add_fp(a[0].0.y()); // Y2+Y1
+    b[0].0.y_mut().sub_assign_fp(a[0].0.y()); // Y2-Y1
+
+    if b[0].1.is_zero() {
+        // X2==X1
+        inf = a[0].1.is_zero();
+        *b[0].0.x_mut() = if inf { a[0].1 } else { b[0].0.x().clone() };
+        *b[0].0.y_mut() = a[0].0.x().square();
+        *b[0].0.y_mut() = b[0].0.y().mul3(); // 3*X1^2
+        b[0].1 = a[0].1; // 2*Y1
+    } // b.0.y is numenator
+      // b.1 is denominator
+
+    *a[0].0.x_mut() = if inf {
+        b[0].0.x().clone()
+    } else {
+        a[0].0.x().clone()
+    };
+    *a[0].0.y_mut() = if inf { a[0].1 } else { a[0].0.y().clone() };
+    a[0].1 = if inf { TG1Fp::one() } else { b[0].1 };
+    b[0].1 = if inf { TG1Fp::zero() } else { b[0].1 };
+    if let Some(mul_acc) = mul_acc {
+        a[0].1.mul_assign_fp(mul_acc);
+    }
+}
+
+fn tail<TG1: G1, TG1Fp: G1Fp, TG1Affine: G1Affine<TG1, TG1Fp>>(
+    a: &mut TG1Affine,
+    b: &mut (TG1Affine, TG1Fp),
+    lambda: &mut TG1Fp,
+) -> TG1Affine {
+    let mut dest = TG1Affine::zero();
+
+    let inf = b.1.is_zero();
+
+    lambda.mul_assign_fp(b.0.y()); // λ = (Y2-Y1)/(X2-X1)
+
+    let llambda = lambda.square();
+    *dest.x_mut() = llambda.sub_fp(b.0.x()); // X3 = λ^2-X1-X2
+
+    *dest.y_mut() = a.x().sub_fp(dest.x());
+    dest.y_mut().mul_assign_fp(&lambda);
+    dest.y_mut().sub_assign_fp(a.y()); // Y3 = λ*(X1-X3)-Y1
+
+    if inf {
+        *dest.x_mut() = a.x().clone();
+        *dest.y_mut() = a.y().clone();
+    }
+
+    b.1 = if inf { TG1Fp::one() } else { b.1 };
+
+    dest
+}
+
+fn accumulate<
+    TG1: G1,
+    TG1Fp: G1Fp,
+    TG1Affine: G1Affine<TG1, TG1Fp>,
+    TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
+>(
+    sum: &mut TG1,
+    mut points: &mut [(TG1Affine, TG1Fp)],
+) {
+    let mut n = points.len();
+
+    while n >= 16 {
+        if (n & 1) == 1 {
+            TG1ProjAddAffine::add_assign_affine(sum, &points[0].0);
+            points = &mut points[1..];
+            n -= 1;
         }
 
-        #[cfg(feature = "parallel")]
-        {
-            use super::{
-                cell::Cell,
-                thread_pool::{da_pool, ThreadPoolExt},
+        let mut mul_acc = None;
+        for i in (0..n).step_by(2) {
+            head(&mut points[i..(i + 2)], mul_acc.as_ref());
+            mul_acc = Some(points[i].1);
+        }
+
+        points[n - 2].1 = points[n - 2].1.inverse().unwrap();
+
+        for i in (2..(n - 1)).rev().step_by(2) {
+            let dest = i / 2 + n / 2;
+            points[i - 2].1 = points[i - 2].1.mul_fp(&points[i].1);
+            points[dest].0 = {
+                let mut dest = TG1Affine::zero();
+
+                let inf = points[i + 1].1.is_zero();
+
+                points[i - 2].1 = points[i - 2].1.mul_fp(points[i + 1].0.y()); // λ = (Y2-Y1)/(X2-X1)
+
+                let llambda = points[i - 2].1.square();
+                *dest.x_mut() = llambda.sub_fp(points[i + 1].0.x()); // X3 = λ^2-X1-X2
+
+                *dest.y_mut() = points[i].0.x().sub_fp(dest.x());
+                dest.y_mut().mul_assign_fp(&points[i - 2].1);
+                dest.y_mut().sub_assign_fp(points[i].0.y()); // Y3 = λ*(X1-X3)-Y1
+
+                if inf {
+                    *dest.x_mut() = points[i].0.x().clone();
+                    *dest.y_mut() = points[i].0.y().clone();
+                }
+
+                points[i + 1].1 = if inf { TG1Fp::one() } else { points[i + 1].1 };
+
+                dest
             };
-            use core::sync::atomic::{AtomicUsize, Ordering};
-            use std::sync::Arc;
+            points[i - 2].1 = points[i].1.mul_fp(&points[i + 1].1);
+        }
 
-            let pool = da_pool();
-            let ncpus = pool.max_count();
-            let counter = Arc::new(AtomicUsize::new(0));
-            let mut results: Vec<Cell<TG1>> = Vec::with_capacity(scalars.len());
-            #[allow(clippy::uninit_vec)]
-            unsafe {
-                results.set_len(results.capacity())
-            };
-            let results = &results[..];
+        points[n / 2].0 = {
+            let mut dest = TG1Affine::zero();
 
-            for _ in 0..ncpus {
-                let counter = counter.clone();
-                pool.joined_execute(move || loop {
-                    let work = counter.fetch_add(1, Ordering::Relaxed);
+            let inf = points[1].1.is_zero();
 
-                    if work >= scalars.len() {
-                        break;
-                    }
+            points[0].1.mul_assign_fp(points[1].0.y()); // λ = (Y2-Y1)/(X2-X1)
 
-                    let result =
-                        Self::multiply_sequential_raw(&self.batch_points[work], &scalars[work]);
-                    unsafe { *results[work].as_ptr().as_mut().unwrap() = result };
-                });
+            let llambda = points[0].1.square();
+            *dest.x_mut() = llambda.sub_fp(points[1].0.x()); // X3 = λ^2-X1-X2
+
+            *dest.y_mut() = points[0].0.x().sub_fp(dest.x());
+            dest.y_mut().mul_assign_fp(&points[0].1);
+            dest.y_mut().sub_assign_fp(points[0].0.y()); // Y3 = λ*(X1-X3)-Y1
+
+            if inf {
+                *dest.x_mut() = points[0].0.x().clone();
+                *dest.y_mut() = points[0].0.y().clone();
             }
 
-            pool.join();
+            points[1].1 = if inf { TG1Fp::one() } else { points[1].1 };
 
-            results.iter().map(|it| it.as_mut().clone()).collect()
+            dest
+        };
+        points = &mut points[n / 2..];
+        n /= 2;
+    }
+
+    for i in 0..n {
+        TG1ProjAddAffine::add_assign_affine(sum, &points[i].0);
+    }
+}
+
+fn mult_wbits<
+    TG1: G1,
+    TG1Fp: G1Fp,
+    TG1Affine: G1Affine<TG1, TG1Fp>,
+    TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
+>(
+    table: &[TG1Affine],
+    wbits: usize,
+    scalars: &[Scalar256],
+) -> TG1 {
+    let npoints = scalars.len();
+    let scratch_sz = cmp::min(8192, npoints);
+    let mut scratch = vec![(TG1Affine::zero(), TG1Fp::zero()); scratch_sz];
+
+    let nwin = 1usize << (wbits - 1);
+    let scalar = scalars[0];
+
+    let mut window = NBITS % wbits;
+    let mut wmask = (1u64 << (window + 1)) - 1;
+
+    let mut nbits = NBITS - window;
+    let z = is_zero(nbits as u64);
+    let wval = (get_wval_limb(&scalar, nbits - (z as usize ^ 1), window + (z as usize ^ 1))
+        << z as usize)
+        & wmask;
+    let wval = booth_encode(wval, wbits);
+    scratch[0].0 = gather_booth_wbits(table, wbits, wval as usize);
+
+    let mut result = TG1::zero();
+
+    let mut start_i = 1;
+    while nbits > 0 {
+        let mut j = start_i;
+        for i in start_i..npoints {
+            if j == scratch_sz {
+                accumulate::<TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>(&mut result, &mut scratch);
+                j = 0;
+            }
+
+            let scalar = scalars[i];
+            let wval = get_wval_limb(&scalar, nbits - 1, window + 1) & wmask;
+            let wval = booth_encode(wval, wbits);
+            scratch[j].0 = gather_booth_wbits(&table[i * nwin..], wbits, wval as usize);
+            j += 1;
+        }
+        accumulate::<TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>(&mut result, &mut scratch[0..j]);
+
+        for _ in 0..wbits {
+            result.dbl_assign();
+        }
+
+        window = wbits;
+        wmask = (1u64 << (window + 1)) - 1;
+        nbits -= window;
+        start_i = 0;
+    }
+
+    let mut j = start_i;
+    for i in start_i..npoints {
+        if j == scratch_sz {
+            accumulate::<TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>(&mut result, &mut scratch);
+            j = 0;
+        }
+        let scalar = scalars[i];
+        let wval = (get_wval_limb(&scalar, 0, window) << 1) & wmask;
+        let wval = booth_encode(wval, wbits);
+        scratch[j].0 = gather_booth_wbits(&table[i * nwin..], wbits, wval as usize);
+        j += 1;
+    }
+    accumulate::<TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>(&mut result, &mut scratch[..j]);
+
+    result
+}
+
+fn wbits_precompute<
+    TG1: G1 + G1GetFp<TG1Fp>,
+    TG1Fp: G1Fp,
+    TG1Affine: G1Affine<TG1, TG1Fp>,
+    TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
+>(
+    points: &[TG1Affine],
+    wbits: usize,
+) -> Vec<TG1Affine> {
+    let total = points.len() << (wbits - 1);
+    let mut table = vec![TG1Affine::zero(); total];
+    let nwin = 1usize << (wbits - 1);
+    let nmin = if wbits > 9 {
+        1usize
+    } else {
+        1usize << (9 - wbits)
+    };
+
+    let mut stride = ((512 * 1024) / size_of::<TG1Affine>()) >> wbits;
+    if stride == 0 {
+        stride = 1;
+    }
+
+    let mut top = 0;
+    let mut npoints = points.len();
+    let mut pi = 0;
+
+    let mut rows = Vec::with_capacity(total);
+    while npoints >= nmin {
+        let limit = total - npoints;
+        if top + (stride << wbits) > limit {
+            stride = (limit - top) >> wbits;
+            if stride == 0 {
+                break;
+            }
+        }
+
+        rows.clear();
+        for i in 0..stride {
+            precompute_row_wbits::<TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>(
+                &mut rows,
+                wbits,
+                &points[pi],
+            );
+            pi += 1;
+        }
+        to_affine_row_bits(&mut table[top..], &rows, wbits, stride);
+        top += stride << (wbits - 1);
+        npoints -= stride;
+    }
+
+    rows.clear();
+    for i in 0..npoints {
+        precompute_row_wbits::<TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>(
+            &mut rows,
+            wbits,
+            &points[pi],
+        );
+        pi += 1;
+    }
+    to_affine_row_bits(&mut table[top..], &rows, wbits, npoints);
+
+    table
+}
+
+fn precompute_row_wbits<
+    TG1: G1 + G1GetFp<TG1Fp>,
+    TG1Fp: G1Fp,
+    TG1Affine: G1Affine<TG1, TG1Fp>,
+    TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
+>(
+    points: &mut Vec<TG1>,
+    wbits: usize,
+    point: &TG1Affine,
+) {
+    let n = 1usize << (wbits - 1);
+    let inf = point.is_infinity();
+
+    points.push(point.to_proj());
+    points.push(points[0].dbl());
+
+    if inf {
+        *points[1].z_mut() = TG1Fp::one();
+    }
+
+    for j in 1..(n / 2) {
+        points.push(TG1ProjAddAffine::add_or_double_affine(
+            points[j * 2 - 1].clone(),
+            &point,
+        ));
+        points.push(points[j].dbl());
+        if inf {
+            *points.last_mut().unwrap().z_mut() = TG1Fp::one();
+        }
+    }
+}
+
+fn to_affine_row_bits<TG1: G1 + G1GetFp<TG1Fp>, TG1Fp: G1Fp, TG1Affine: G1Affine<TG1, TG1Fp>>(
+    dst: &mut [TG1Affine],
+    src: &[TG1],
+    wbits: usize,
+    npoints: usize,
+) {
+    let total = npoints << (wbits - 1);
+    let nwin = 1usize << (wbits - 1);
+
+    let mut acc = vec![TG1Fp::zero(); total + 1];
+    acc[0] = TG1Fp::one();
+
+    let mut acc_ptr = 1;
+    let mut src_ptr = total;
+    for i in 0..npoints {
+        for j in (0..nwin).rev() {
+            src_ptr -= 1;
+            acc[acc_ptr] = acc[acc_ptr - 1].mul_fp(src[src_ptr].z());
+            acc_ptr += 1;
         }
     }
 
-    #[cfg(feature = "parallel")]
-    pub fn multiply_parallel(&self, scalars: &[TFr]) -> TG1 {
-        self.multiply_sequential(scalars)
+    acc_ptr -= 1;
+    acc[0] = acc[0].inverse().unwrap();
+
+    let mut dst_ptr = 0;
+    for i in 0..npoints {
+        *dst[dst_ptr].x_mut() = src[src_ptr].x().clone();
+        *dst[dst_ptr].y_mut() = src[src_ptr].y().clone();
+        dst_ptr += 1;
+        src_ptr += 1;
+        for j in 1..nwin {
+            acc[acc_ptr - 1] = acc[acc_ptr - 1].mul_fp(&acc[acc_ptr]);
+            let zz = acc[acc_ptr - 1].square();
+            let zzz = zz.mul_fp(&acc[acc_ptr - 1]);
+            acc[acc_ptr - 1] = src[src_ptr].z().mul_fp(&acc[acc_ptr]);
+            *dst[dst_ptr].x_mut() = src[src_ptr].x().mul_fp(&zz);
+            *dst[dst_ptr].y_mut() = src[src_ptr].y().mul_fp(&zzz);
+            acc_ptr -= 1;
+            src_ptr += 1;
+            dst_ptr += 1;
+        }
     }
 }

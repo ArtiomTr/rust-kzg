@@ -162,21 +162,21 @@ pub trait G1LinComb<
             return Err("Invalid batch size".to_owned());
         }
 
-        if let Some(precomputation) = precomputation {
-            Ok(precomputation.multiply_batch(scalars))
-        } else {
-            let mut result = Vec::new();
+        // if let Some(precomputation) = precomputation {
+        //     Ok(precomputation.multiply_batch(scalars))
+        // } else {
+        let mut result = Vec::new();
 
-            for (points, scalars) in points.iter().zip(scalars.iter()) {
-                if points.len() != scalars.len() {
-                    return Err("Invalid point count length".to_owned());
-                }
-
-                result.push(Self::g1_lincomb(points, scalars, points.len(), None));
+        for (points, scalars) in points.iter().zip(scalars.iter()) {
+            if points.len() != scalars.len() {
+                return Err("Invalid point count length".to_owned());
             }
 
-            Ok(result)
+            result.push(Self::g1_lincomb(points, scalars, points.len(), None));
         }
+
+        Ok(result)
+        // }
     }
 }
 
