@@ -137,12 +137,23 @@ pub fn p1_add_or_dbl_works<TG1: G1>() {
     let expected = p.dbl();
     let actual = p.add_or_dbl(&p);
     assert!(expected.equals(&actual));
+
+    let mut actual = TG1::zero();
+    actual.add_or_dbl_assign(&p);
+    assert!(p.equals(&actual));
 }
 
 pub fn p1_add_zero_works<TG1: G1>() {
     let p = TG1::rand();
     let expected = p.clone();
     let actual = p.add(&TG1::zero());
+    assert!(expected.equals(&actual));
+
+    let actual = TG1::zero().add(&p);
+    assert!(expected.equals(&actual));
+
+    let mut actual = TG1::zero();
+    actual.add_assign(&p);
     assert!(expected.equals(&actual));
 }
 
@@ -211,7 +222,7 @@ pub fn g1_make_linear_combination<
     let mut res = TG1::default();
 
     g1_linear_combination(&mut res, &p, &coeffs, len, None);
-    assert_eq!(exp, res);
+    assert!(exp.equals(&res));
 
     let precomputation = precompute(&p, &[]).unwrap();
     g1_linear_combination(&mut res, &p, &coeffs, len, precomputation.as_ref());

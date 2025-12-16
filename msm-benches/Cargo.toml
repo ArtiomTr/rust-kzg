@@ -35,6 +35,7 @@ bgmw = [
     "rust-kzg-arkworks4/bgmw",
     "rust-kzg-arkworks5/bgmw",
     "rust-kzg-constantine/bgmw",
+    "rust-kzg-zkcrypto/bgmw",
 ]
 arkmsm = [
     "rust-kzg-blst/arkmsm",
@@ -48,6 +49,7 @@ parallel = [
     "rust-kzg-arkworks4/parallel",
     "rust-kzg-arkworks5/parallel",
     "rust-kzg-constantine/parallel",
+    "rust-kzg-zkcrypto/parallel",
     "rust-kzg-mcl/parallel",
 ]
 

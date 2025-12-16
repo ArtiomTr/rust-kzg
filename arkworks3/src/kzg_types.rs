@@ -1316,6 +1316,10 @@ impl G1GetFp<ArkFp> for ArkG1 {
             core::mem::transmute(&mut self.0.z)
         }
     }
+
+    fn from_jacobian(_x: ArkFp, _y: ArkFp, _z: ArkFp) -> Self {
+        todo!()
+    }
 }
 
 #[repr(C)]

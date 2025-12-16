@@ -133,6 +133,9 @@ pub trait G1GetFp<TFp: G1Fp>: G1 + Clone {
 
     // Return field Z of G1 as mutable
     fn z_mut(&mut self) -> &mut TFp;
+
+    // Construct G1 point from jacobian coordinates (x, y, z)
+    fn from_jacobian(x: TFp, y: TFp, z: TFp) -> Self;
 }
 
 pub trait G1Mul<TFr: Fr>: G1 + Clone {
