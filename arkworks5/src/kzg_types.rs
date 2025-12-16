@@ -1071,6 +1071,14 @@ impl G1GetFp<ArkFp> for ArkG1 {
             core::mem::transmute(&mut self.0.z)
         }
     }
+
+    fn from_jacobian(x: ArkFp, y: ArkFp, z: ArkFp) -> Self {
+        Self(Projective {
+            x: x.0,
+            y: y.0,
+            z: z.0,
+        })
+    }
 }
 
 #[repr(C)]

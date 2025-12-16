@@ -68,6 +68,16 @@ mod tests {
     }
 
     #[test]
+    pub fn p1_add_or_dbl_works_() {
+        p1_add_or_dbl_works::<ZG1>();
+    }
+
+    #[test]
+    pub fn p1_add_zero_works_() {
+        p1_add_zero_works::<ZG1>();
+    }
+
+    #[test]
     pub fn p2_add_or_dbl_works_() {
         p2_add_or_dbl_works::<ZG2>();
     }
@@ -106,7 +116,6 @@ mod tests {
         );
     }
 
-    #[ignore = "TODO: handle infinity points"]
     #[test]
     pub fn g1_linear_combination_infinity_points_() {
         g1_linear_combination_infinity_points::<ZFr, ZG1, ZFp, ZG1Affine, ZG1ProjAddAffine>(

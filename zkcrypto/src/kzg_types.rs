@@ -484,8 +484,10 @@ impl G1 for ZG1 {
     }
 
     fn add_or_dbl(&self, b: &Self) -> Self {
-        Self {
-            proj: self.proj + b.proj,
+        if b.proj.eq(&self.proj) {
+            self.dbl()
+        } else {
+            self.add(b)
         }
     }
     fn is_inf(&self) -> bool {
@@ -501,6 +503,14 @@ impl G1 for ZG1 {
         }
     }
     fn add(&self, b: &Self) -> Self {
+        if self.is_inf() {
+            return *b;
+        }
+
+        if b.is_inf() {
+            return *self;
+        }
+
         Self {
             proj: self.proj + b.proj,
         }
@@ -517,11 +527,15 @@ impl G1 for ZG1 {
     }
 
     fn add_or_dbl_assign(&mut self, b: &Self) {
-        self.proj.add_assign(b.proj);
+        if self.proj.eq(&b.proj) {
+            self.dbl_assign();
+        } else {
+            self.add_assign(b);
+        }
     }
 
     fn add_assign(&mut self, b: &Self) {
-        self.proj.add_assign(b.proj);
+        *self = self.add(b);
     }
 
     fn dbl_assign(&mut self) {
@@ -716,6 +730,19 @@ impl G1GetFp<ZFp> for ZG1 {
         unsafe {
             // Transmute safe due to repr(C) on ZFp
             core::mem::transmute(&mut self.proj.z)
+        }
+    }
+
+    fn from_jacobian(x: ZFp, y: ZFp, z: ZFp) -> Self {
+        let x = x.mul_fp(&z);
+        let z = z.square().mul_fp(&z);
+
+        Self {
+            proj: G1Projective {
+                x: x.0,
+                y: y.0,
+                z: z.0,
+            },
         }
     }
 }

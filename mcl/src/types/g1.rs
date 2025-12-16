@@ -293,6 +293,14 @@ impl G1GetFp<MclFp> for MclG1 {
             core::mem::transmute(&mut self.0.z)
         }
     }
+
+    fn from_jacobian(x: MclFp, y: MclFp, z: MclFp) -> Self {
+        Self(mcl_g1 {
+            x: x.0,
+            y: y.0,
+            z: z.0,
+        })
+    }
 }
 
 impl G1Mul<MclFr> for MclG1 {

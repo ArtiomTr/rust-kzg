@@ -329,6 +329,14 @@ impl G1GetFp<CtFp> for CtG1 {
             core::mem::transmute(&mut self.0.z)
         }
     }
+
+    fn from_jacobian(x: CtFp, y: CtFp, z: CtFp) -> Self {
+        Self(bls12_381_g1_jac {
+            x: x.0,
+            y: y.0,
+            z: z.0,
+        })
+    }
 }
 
 #[repr(C)]

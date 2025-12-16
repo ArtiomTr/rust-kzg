@@ -82,9 +82,14 @@ fn vec_copy(ret: *mut u8, a: *const u8, num: usize) {
 }
 
 pub fn p1_to_jacobian<TG1: G1 + G1GetFp<TFp>, TFp: G1Fp>(out: &mut TG1, input: &P1XYZZ<TFp>) {
-    *out.x_mut() = input.x.mul_fp(&input.zz);
-    *out.y_mut() = input.y.mul_fp(&input.zzz);
-    *out.z_mut() = input.zz;
+    if input.zz.is_zero() {
+        *out = TG1::zero();
+    } else {
+        let x = input.x.mul_fp(&input.zz);
+        let y = input.y.mul_fp(&input.zzz);
+        let z = input.zz;
+        *out = TG1::from_jacobian(x, y, z);
+    }
 }
 
 fn p1_dadd_affine<TG1: G1, TFp: G1Fp, TG1Affine: G1Affine<TG1, TFp>>(
