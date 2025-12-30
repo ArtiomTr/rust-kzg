@@ -1,10 +1,17 @@
 .PHONY: help build test bench lint format clean
 
-# Color output
-RED := \033[0;31m
-GREEN := \033[0;32m
-YELLOW := \033[1;33m
-NC := \033[0m # No Color
+# Color output (disable with NOCOLOR=1)
+ifdef NOCOLOR
+  RED :=
+  GREEN :=
+  YELLOW :=
+  NC :=
+else
+  RED := \033[0;31m
+  GREEN := \033[0;32m
+  YELLOW := \033[1;33m
+  NC := \033[0m
+endif
 
 # Environment variables for c-kzg-4844 integration tests
 export C_KZG_4844_GIT_HASH ?= 00ae727c21a346ba0bd027eca6e378da0def988f
