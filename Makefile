@@ -6,6 +6,9 @@ GREEN := \033[0;32m
 YELLOW := \033[1;33m
 NC := \033[0m # No Color
 
+# Environment variables for c-kzg-4844 integration tests
+export C_KZG_4844_GIT_HASH ?= 00ae727c21a346ba0bd027eca6e378da0def988f
+
 # Default target
 help:
 	@echo "$(GREEN)rust-kzg Makefile targets:$(NC)"
@@ -168,11 +171,11 @@ bench-c-kzg-parallel: $(addprefix bench-c-kzg-parallel-,$(CKZG_BACKENDS))
 
 $(addprefix bench-,$(BACKENDS)): bench-%:
 	@echo "$(YELLOW)Benchmarking $*...$(NC)"
-	@cd $* && cargo bench --release 2>&1 | tail -20 && cd - > /dev/null
+	@cd $* && cargo bench 2>&1 | tail -20 && cd - > /dev/null
 
 $(addprefix bench-parallel-,$(BACKENDS)): bench-parallel-%:
 	@echo "$(YELLOW)Benchmarking $* (parallel)...$(NC)"
-	@cd $* && cargo bench --release --features parallel 2>&1 | tail -20 && cd - > /dev/null
+	@cd $* && cargo bench --features parallel 2>&1 | tail -20 && cd - > /dev/null
 
 $(addprefix bench-c-kzg-,$(CKZG_BACKENDS)): bench-c-kzg-%:
 	@echo "$(YELLOW)Running c-kzg-4844 benchmarks for $*...$(NC)"
