@@ -42,6 +42,12 @@ help:
 	@echo "  make build-staticlib-BACKEND  Build static library for specific backend"
 	@echo "  make build-wasm               Build wasm targets for supported backends"
 	@echo ""
+	@echo "$(YELLOW)Cross-compilation (release artifacts):$(NC)"
+	@echo "  make build-cross-BACKEND-TARGET   Build for target (e.g., make build-cross-blst-linux)"
+	@echo "  make archive-BACKEND-TARGET       Create release archive for target"
+	@echo "  make archive-BACKEND              Create release archives for all targets (linux, windows)"
+	@echo "  Targets: linux (x86_64-unknown-linux-gnu), windows (x86_64-pc-windows-gnu)"
+	@echo ""
 	@echo "$(YELLOW)Testing:$(NC)"
 	@echo "  make test                     Run all tests (default + parallel)"
 	@echo "  make test-BACKEND             Test specific backend (e.g., make test-blst)"
@@ -78,6 +84,12 @@ help:
 BACKENDS := blst zkcrypto arkworks5 arkworks4 arkworks3 constantine mcl
 WASM_BACKENDS := blst zkcrypto arkworks5 arkworks4 arkworks3
 CKZG_BACKENDS := blst zkcrypto arkworks5 arkworks4 arkworks3 constantine mcl
+CROSS_BACKENDS := blst zkcrypto arkworks5 arkworks4 arkworks3 constantine
+TARGETS := linux windows
+
+# Cross-compilation target triples
+TARGET_linux := x86_64-unknown-linux-gnu
+TARGET_windows := x86_64-pc-windows-gnu
 
 # KZG crate features
 KZG_FEATURES := parallel,std,rand
@@ -116,6 +128,50 @@ $(addprefix build-wasm-,$(WASM_BACKENDS)): build-wasm-%:
 	@echo "$(YELLOW)Building $* for wasm32...$(NC)"
 	@cd $* && cargo build --target wasm32-unknown-unknown --no-default-features && cd - > /dev/null
 	@echo "$(GREEN)✓ $* wasm32 target built successfully$(NC)"
+
+# ============================================================================
+# CROSS-COMPILATION TARGETS (Release artifacts)
+# ============================================================================
+
+.PHONY: build-cross archive $(addprefix build-cross-,$(CROSS_BACKENDS)) \
+        $(addprefix archive-,$(CROSS_BACKENDS))
+
+# Build cross-compiled static libraries for a specific backend and target
+# Usage: make build-cross-blst-linux  or  make build-cross-blst-windows
+$(foreach backend,$(CROSS_BACKENDS),$(foreach target,$(TARGETS),$(eval $(backend)-$(target)-triple:=$(TARGET_$(target)))))
+
+define build-cross-template
+build-cross-$(1)-$(2): BACKEND=$(1)
+build-cross-$(1)-$(2): TARGET=$(2)
+build-cross-$(1)-$(2): TARGET_TRIPLE=$(TARGET_$(2))
+build-cross-$(1)-$(2): STAGING_DIR=staging/$(1)/$(2)
+build-cross-$(1)-$(2):
+	@echo "$(YELLOW)Building $(1) static libraries for $(2) ($(TARGET_TRIPLE))...$(NC)"
+	@mkdir -p $$(STAGING_DIR)/parallel $$(STAGING_DIR)/non-parallel
+	@echo "$(YELLOW)  [1/2] Building non-parallel version...$(NC)"
+	@cd $(1) && cargo rustc --release --target $$(TARGET_TRIPLE) --crate-type=staticlib --features c_bindings && cd - > /dev/null
+	@mv target/$$(TARGET_TRIPLE)/release/librust_kzg_$(1).a $$(STAGING_DIR)/non-parallel/rust_kzg_$(1).a
+	@echo "$(YELLOW)  [2/2] Building parallel version...$(NC)"
+	@cd $(1) && cargo rustc --release --target $$(TARGET_TRIPLE) --crate-type=staticlib --features c_bindings,parallel && cd - > /dev/null
+	@mv target/$$(TARGET_TRIPLE)/release/librust_kzg_$(1).a $$(STAGING_DIR)/parallel/rust_kzg_$(1).a
+	@echo "$(GREEN)✓ $(1) static libraries for $(2) built successfully$(NC)"
+
+archive-$(1)-$(2): BACKEND=$(1)
+archive-$(1)-$(2): TARGET=$(2)
+archive-$(1)-$(2): STAGING_DIR=staging/$(1)/$(2)
+archive-$(1)-$(2): ARCHIVE_NAME=rust-kzg-$(1)-$(2).zip
+archive-$(1)-$(2): build-cross-$(1)-$(2)
+	@echo "$(YELLOW)Creating release archive for $(1)-$(2)...$(NC)"
+	@cp LICENSE $$(STAGING_DIR)/
+	@cp $(1)/*.patch $$(STAGING_DIR)/ 2>/dev/null || true
+	@cd $$(STAGING_DIR) && zip -rq $$(ARCHIVE_NAME) * && cd - > /dev/null
+	@echo "$(GREEN)✓ Archive created: $$(STAGING_DIR)/$$(ARCHIVE_NAME)$(NC)"
+
+archive-$(1): $(addprefix archive-$(1)-,$(TARGETS))
+	@echo "$(GREEN)✓ All archives created for $(1)$(NC)"
+endef
+
+$(foreach backend,$(CROSS_BACKENDS),$(foreach target,$(TARGETS),$(eval $(call build-cross-template,$(backend),$(target)))))
 
 # ============================================================================
 # TEST TARGETS
