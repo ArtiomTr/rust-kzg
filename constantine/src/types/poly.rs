@@ -160,7 +160,7 @@ impl Poly<CtFr> for CtPoly {
     fn long_div(&mut self, divisor: &Self) -> Result<Self, String> {
         if divisor.coeffs.is_empty() {
             return Err(String::from("Can't divide by zero"));
-        } else if divisor.coeffs[divisor.coeffs.len() - 1].is_zero() {
+        } else if divisor.coeffs[divisor.coeffs.len() - 1] == CtFr::zero() {
             return Err(String::from("Highest coefficient must be non-zero"));
         }
 
@@ -216,7 +216,7 @@ impl Poly<CtFr> for CtPoly {
     fn fast_div(&mut self, divisor: &Self) -> Result<Self, String> {
         if divisor.coeffs.is_empty() {
             return Err(String::from("Cant divide by zero"));
-        } else if divisor.coeffs[divisor.coeffs.len() - 1].is_zero() {
+        } else if divisor.coeffs[divisor.coeffs.len() - 1] == CtFr::zero() {
             return Err(String::from("Highest coefficient must be non-zero"));
         }
 
@@ -293,7 +293,7 @@ impl CtPoly {
         let mut ret = self.clone();
 
         let mut temp_len: usize = ret.coeffs.len();
-        while temp_len > 0 && ret.coeffs[temp_len - 1].is_zero() {
+        while temp_len > 0 && ret.coeffs[temp_len - 1] == CtFr::zero() {
             temp_len -= 1;
         }
 

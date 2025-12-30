@@ -20,7 +20,7 @@ use kzg::G1Affine;
 use kzg::G1GetFp;
 use kzg::G1LinComb;
 use kzg::G1ProjAddAffine;
-use kzg::{Group, TorsionSubgroup, G1};
+use kzg::{Dbl, DblAssign, Group, TorsionSubgroup, G1};
 
 use crate::consts::{G1_GENERATOR, G1_IDENTITY, G1_NEGATIVE_GENERATOR};
 use crate::kzg_proofs::g1_linear_combination;
@@ -116,6 +116,8 @@ impl kzg::Group for MclG1 {
 }
 
 impl kzg::TorsionSubgroup for MclG1 {
+    type Scalar = MclFr;
+
     fn generator() -> Self {
         try_init_mcl();
 

@@ -267,7 +267,7 @@ impl Polynomial {
         if divisor.is_empty() {
             return Err(String::from("Dividing by zero is undefined"));
         }
-        if divisor.last().unwrap().is_zero() {
+        if *divisor.last().unwrap() == Fr::zero() {
             return Err(String::from(
                 "The divisor's highest coefficient must be non-zero",
             ));
@@ -304,7 +304,7 @@ impl Polynomial {
         if divisor.is_empty() {
             return Err(String::from("Dividing by zero is undefined"));
         }
-        if divisor.last().unwrap().is_zero() {
+        if *divisor.last().unwrap() == Fr::zero() {
             return Err(String::from(
                 "The divisor's highest coefficient must be non-zero",
             ));
@@ -334,7 +334,7 @@ impl Polynomial {
 
     fn normalise_coeffs(coeffs: &[Fr]) -> Vec<Fr> {
         let mut ret_length = coeffs.len();
-        while ret_length > 0 && coeffs[ret_length - 1].is_zero() {
+        while ret_length > 0 && coeffs[ret_length - 1] == Fr::zero() {
             ret_length -= 1;
         }
         coeffs[0..ret_length].to_vec()
@@ -530,7 +530,7 @@ impl Polynomial {
         if self_length == 0 || new_length == 0 {
             return Ok(Polynomial::default());
         }
-        if self.coeffs[0].is_zero() {
+        if self.coeffs[0] == Fr::zero() {
             return Err(String::from("The constant term of self must be nonzero."));
         }
 
@@ -666,7 +666,7 @@ impl Curve {
         let pairing1 = a1.pair(a2).get_inv();
         let pairing2 = b1.pair(b2);
         let result = (pairing1 * pairing2).get_final_exp();
-        result.is_one()
+        result == GT::one()
     }
 
     #[cfg(feature = "parallel")]
@@ -679,6 +679,6 @@ impl Curve {
             .collect::<Vec<crate::data_types::gt::GT>>();
         let result = (pairings.pop().unwrap() * pairings.pop().unwrap().get_inv()).get_final_exp();
 
-        result.is_one()
+        result == GT::one()
     }
 }

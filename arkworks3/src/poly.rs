@@ -76,7 +76,7 @@ pub fn poly_inverse(b: &PolyData, output_len: usize) -> Result<PolyData, String>
 pub fn poly_mul_direct(p1: &PolyData, p2: &PolyData, len: usize) -> Result<PolyData, String> {
     let p1 = blst_poly_into_pc_poly(&p1.coeffs);
     let p2 = blst_poly_into_pc_poly(&p2.coeffs);
-    if p1.is_zero() || p2.is_zero() {
+    if p1 == ArkFr::zero() || p2 == ArkFr::zero() {
         Ok(pc_poly_into_blst_poly(DensePolynomial::zero()))
     } else {
         let mut result = vec![Fr::zero(); len];
@@ -204,7 +204,7 @@ pub fn poly_fast_div(dividend: &PolyData, divisor: &PolyData) -> Result<PolyData
         return Err(String::from("divisor coeffs are empty"));
     }
 
-    if divisor.coeffs[divisor.coeffs.len() - 1].is_zero() {
+    if divisor.coeffs[divisor.coeffs.len() - 1] == ArkFr::zero() {
         return Err(String::from("divisor coeffs last member is zero"));
     }
 
@@ -215,7 +215,7 @@ pub fn poly_fast_div(dividend: &PolyData, divisor: &PolyData) -> Result<PolyData
         return Ok(PolyData::new(0));
     }
 
-    if divisor.coeffs[divisor.coeffs.len() - 1].is_zero() {
+    if divisor.coeffs[divisor.coeffs.len() - 1] == ArkFr::zero() {
         return Err(String::from("divisor coeffs last member is zero"));
     }
 

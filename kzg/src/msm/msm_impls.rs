@@ -30,7 +30,7 @@ fn msm_parallel<
             .iter()
             .cloned()
             .zip(scalars.iter())
-            .filter(|(p, _)| !p*self == Self::zero())
+            .filter(|(p, _)| *p != TG1::zero())
             .collect();
         let points = batch_convert::<TG1, TG1Fp, TG1Affine>(&points);
         let scalars = scalars.iter().map(|s| s.to_scalar()).collect::<Vec<_>>();
@@ -56,7 +56,7 @@ pub fn pippenger<
         .collect();
 
     let points = batch_convert::<TG1, TG1Fp, TG1Affine>(&points);
-    let scalars = scalars.iter().map(|s| s.to_scalar()).collect::<Vec<_>>();
+    let scalars = scalars.iter().map(|s: &&TFr| s.to_scalar()).collect::<Vec<_>>();
 
     tiling_pippenger(&points, &scalars)
 }
@@ -91,7 +91,7 @@ fn msm_sequential<
             .iter()
             .cloned()
             .zip(scalars.iter())
-            .filter(|(p, _)| !p*self == Self::zero())
+            .filter(|(p, _)| *p != TG1::zero())
             .collect();
         let points = batch_convert::<TG1, TG1Fp, TG1Affine>(&points);
         let scalars = scalars.iter().map(|s| s.to_scalar()).collect::<Vec<_>>();

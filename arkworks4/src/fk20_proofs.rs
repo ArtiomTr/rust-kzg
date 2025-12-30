@@ -238,7 +238,7 @@ fn fk20_multi_da_opt(p: &PolyData, fk: &KzgFK20MultiSettings) -> Result<Vec<ArkG
         let h_ext_fft_file =
             toeplitz_part_2(&toeplitz_coeffs, &fk.x_ext_fft_files[i], &fk.ks.fs).unwrap();
         for j in 0..k2 {
-            h_ext_fft[j] = h_ext_fft[j].add_or_dbl(&h_ext_fft_file[j]);
+            h_ext_fft[j] = h_ext_fft[j] + h_ext_fft_file[j];
         }
     }
 

@@ -30,7 +30,7 @@ use crate::fft_g1::fft_g1_fast;
 
 use kzg::common_utils::reverse_bit_order;
 use kzg::msm::precompute::{precompute, PrecomputationTable};
-use kzg::{
+use kzg::{Dbl, DblAssign, 
     eth, FFTFr, FFTSettings, FFTSettingsPoly, FiniteField, Fr as KzgFr,
     G1Affine as G1AffineTrait, G1Fp, G1GetFp, G1LinComb, G1ProjAddAffine, Group,
     KZGSettings, PairingVerify, Poly, Scalar256, TorsionSubgroup, G1, G2,
@@ -390,6 +390,8 @@ impl kzg::Group for ArkG1 {
 }
 
 impl kzg::TorsionSubgroup for ArkG1 {
+    type Scalar = ArkFr;
+
     fn generator() -> Self {
         G1_GENERATOR
     }

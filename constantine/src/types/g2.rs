@@ -9,7 +9,7 @@ use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 use kzg::eip_4844::BYTES_PER_G2;
 #[cfg(feature = "rand")]
 use kzg::Fr;
-use kzg::{Group, TorsionSubgroup, G2};
+use kzg::{Dbl, DblAssign, Group, TorsionSubgroup, G2};
 
 use crate::consts::{G2_GENERATOR, G2_NEGATIVE_GENERATOR};
 use crate::types::fr::CtFr;
@@ -122,6 +122,8 @@ impl Group for CtG2 {
 }
 
 impl TorsionSubgroup for CtG2 {
+    type Scalar = CtFr;
+
     fn generator() -> Self {
         G2_GENERATOR
     }

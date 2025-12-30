@@ -24,7 +24,7 @@ use kzg::eip_4844::BYTES_PER_G1;
 use kzg::G1Affine;
 use kzg::G1GetFp;
 use kzg::G1ProjAddAffine;
-use kzg::{Group, TorsionSubgroup, G1};
+use kzg::{Dbl, DblAssign, Group, TorsionSubgroup, G1};
 
 use crate::consts::{G1_GENERATOR, G1_IDENTITY, G1_NEGATIVE_GENERATOR};
 // use crate::kzg_proofs::g1_linear_combination;
@@ -144,6 +144,8 @@ impl kzg::Group for CtG1 {
 }
 
 impl kzg::TorsionSubgroup for CtG1 {
+    type Scalar = CtFr;
+
     fn generator() -> Self {
         G1_GENERATOR
     }

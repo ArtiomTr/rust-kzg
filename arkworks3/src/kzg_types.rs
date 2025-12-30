@@ -29,9 +29,9 @@ use kzg::eip_4844::{BYTES_PER_FIELD_ELEMENT, BYTES_PER_G1, BYTES_PER_G2};
 use kzg::eth::c_bindings::{blst_fp, blst_fp2, blst_fr, blst_p1, blst_p2};
 use kzg::msm::precompute::{precompute, PrecomputationTable};
 use kzg::{
-    FFTFr, FFTSettings, FFTSettingsPoly, FiniteField, Fr as KzgFr, G1Affine as G1AffineTrait,
-    G1Fp, G1GetFp, G1LinComb, G1ProjAddAffine, Group, KZGSettings, PairingVerify,
-    Poly, Scalar256, TorsionSubgroup, G1, G2,
+    Dbl, DblAssign, FFTFr, FFTSettings, FFTSettingsPoly, FiniteField, Fr as KzgFr,
+    G1Affine as G1AffineTrait, G1Fp, G1GetFp, G1LinComb, G1ProjAddAffine, Group, KZGSettings,
+    PairingVerify, Poly, Scalar256, TorsionSubgroup, G1, G2,
 };
 use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
@@ -376,6 +376,8 @@ impl kzg::Group for ArkG1 {
 }
 
 impl kzg::TorsionSubgroup for ArkG1 {
+    type Scalar = ArkFr;
+
     fn generator() -> Self {
         ArkG1::from_blst_p1(blst_p1 {
             x: blst_fp {

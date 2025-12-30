@@ -96,7 +96,7 @@ impl kzg::FiniteField for MclFr {
     fn div(&self, b: &Self) -> Result<Self, String> {
         try_init_mcl();
 
-        if b.is_zero() {
+        if *b == MclFr::zero() {
             return Ok(*b);
         }
 

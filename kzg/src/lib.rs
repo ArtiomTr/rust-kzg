@@ -87,7 +87,20 @@ pub trait FiniteField:
 }
 
 /// Trait for torsion subgroups of elliptic curves (extends Group, Dbl, and DblAssign)
-pub trait TorsionSubgroup: Group + Dbl + DblAssign + Sync + Debug + Send {
+pub trait TorsionSubgroup:
+    Group
+    + Dbl
+    + DblAssign
+    + Sync
+    + Debug
+    + Send
+    + Mul<Self::Scalar, Output = Self>
+    + for<'a> Mul<&'a Self::Scalar, Output = Self>
+    + MulAssign<Self::Scalar>
+{
+    /// The scalar field type for this torsion subgroup
+    type Scalar: FiniteField;
+
     /// Returns a generator of the subgroup
     fn generator() -> Self;
 
@@ -98,7 +111,7 @@ pub trait TorsionSubgroup: Group + Dbl + DblAssign + Sync + Debug + Send {
     fn is_valid(&self) -> bool;
 }
 
-pub trait Fr: FiniteField + for<'a> Arbitrary<'a> {
+pub trait Fr: FiniteField + Copy + for<'a> Arbitrary<'a> {
     /// Returns a null/invalid field element (used for sentinel values)
     fn null() -> Self;
 
@@ -134,7 +147,7 @@ pub trait Fr: FiniteField + for<'a> Arbitrary<'a> {
     fn to_scalar(&self) -> Scalar256;
 }
 
-pub trait G1: TorsionSubgroup {
+pub trait G1: TorsionSubgroup + Copy {
     #[cfg(feature = "rand")]
     fn rand() -> Self;
 
@@ -419,7 +432,7 @@ impl Scalar256 {
     }
 }
 
-pub trait G2: TorsionSubgroup {
+pub trait G2: TorsionSubgroup + Copy {
     fn from_bytes(bytes: &[u8]) -> Result<Self, String>;
 
     fn to_bytes(&self) -> [u8; 96];

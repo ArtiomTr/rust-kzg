@@ -114,7 +114,7 @@ impl PolyRecover<BlstFr, PolyData, FFTSettings> for PolyData {
 
         // Check all is well
         for (i, item) in zero_eval.iter().enumerate().take(samples.len()) {
-            if samples[i].is_none() != item.is_zero() {
+            if samples[i].is_none() != item == ZFr::zero() {
                 return Err(String::from("sample and item are both zero"));
             }
         }

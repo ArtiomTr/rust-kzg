@@ -43,7 +43,7 @@ pub fn fft_g1_fast(
         for i in 0..half {
             let y_times_root = ret[i + half].clone() * &roots[i * roots_stride];
             ret[i + half] = ret[i].clone() - &y_times_root;
-            ret[i] = ret[i].add_or_dbl(&y_times_root);
+            ret[i] = ret[i] + y_times_root;
         }
     } else {
         ret[0] = data[0];
@@ -98,7 +98,7 @@ pub fn fft_g1_slow(
         // This distributes the roots over correct x^n members and saves on multiplication
         for j in 1..data.len() {
             let v = data[j * stride].clone() * &roots[((i * j) % data.len()) * roots_stride];
-            ret[i] = ret[i].add_or_dbl(&v);
+            ret[i] = ret[i] + v;
         }
     }
 }

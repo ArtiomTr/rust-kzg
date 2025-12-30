@@ -125,7 +125,7 @@ pub fn make_data(data: usize) -> Vec<ArkG1> {
     if data != 0 {
         vec.push(ArkG1::generator());
         for i in 1..data as u64 {
-            let res = vec[(i - 1) as usize].add_or_dbl(&ArkG1::generator());
+            let res = vec[(i - 1) as usize] + ArkG1::generator();
             vec.push(res);
         }
     }
@@ -175,7 +175,7 @@ pub fn fft_g1_slow(
             let jv = data[j * stride];
             let r = roots[((i * j) % data.len()) * roots_stride];
             let v = jv.clone() * &r;
-            ret[i] = ret[i].add_or_dbl(&v);
+            ret[i] = ret[i] + v;
         }
     }
 }
@@ -213,7 +213,7 @@ pub fn fft_g1_fast(
         for i in 0..half {
             let y_times_root = ret[i + half].clone() * &roots[i * roots_stride];
             ret[i + half] = ret[i].clone() - &y_times_root;
-            ret[i] = ret[i].add_or_dbl(&y_times_root);
+            ret[i] = ret[i] + y_times_root;
         }
     } else {
         ret[0] = data[0];

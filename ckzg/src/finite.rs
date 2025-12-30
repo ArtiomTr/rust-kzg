@@ -4,7 +4,7 @@ use crate::consts::{
 };
 
 use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
-use kzg::{Fr, Group, TorsionSubgroup, G1, G2};
+use kzg::{Dbl, DblAssign, Fr, Group, TorsionSubgroup, G1, G2};
 use rand::{thread_rng, RngCore};
 
 extern "C" {
@@ -347,6 +347,8 @@ impl Group for BlstP2 {
 }
 
 impl TorsionSubgroup for BlstP2 {
+    type Scalar = BlstFr;
+
     fn generator() -> Self {
         unsafe { *blst_p2_generator() }
     }

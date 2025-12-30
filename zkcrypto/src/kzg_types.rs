@@ -19,8 +19,8 @@ use kzg::common_utils::reverse_bit_order;
 use kzg::eip_4844::{BYTES_PER_FIELD_ELEMENT, BYTES_PER_G1, BYTES_PER_G2};
 use kzg::eth::c_bindings::{blst_fr, blst_p1, blst_p2, CKZGSettings};
 use kzg::msm::precompute::{precompute, PrecomputationTable};
-use kzg::{eth, G1Affine as G1AffineTrait};
-use kzg::{
+use kzg::{Dbl, DblAssign, eth, G1Affine as G1AffineTrait};
+use kzg::{Dbl, DblAssign, 
     FFTFr, FFTSettings, FiniteField, Fr as KzgFr, G1Fp, G1GetFp, G1LinComb,
     G1ProjAddAffine, Group, KZGSettings, PairingVerify, Poly, Scalar256, TorsionSubgroup,
     G1, G2,
@@ -83,7 +83,7 @@ impl kzg::Group for ZFr {
     }
 
     fn is_zero(&self) -> bool {
-        self.fr.is_zero().unwrap_u8() == 1
+        self.fr == ZFr::zero().unwrap_u8() == 1
     }
 
     fn negate(&self) -> Self {
@@ -189,7 +189,7 @@ impl KzgFr for ZFr {
                 tmp2.0[2] = tmp.0[1];
                 tmp2.0[3] = tmp.0[0];
 
-                let is_zero: bool = tmp2.is_zero().into();
+                let is_zero: bool = tmp2 == ZFr::zero().into();
                 if !is_zero && !bigint_check_mod_256(&tmp2.0) {
                     return Err("Invalid scalar".to_string());
                 }
@@ -546,7 +546,7 @@ impl kzg::Group for ZG1 {
     }
 
     fn is_zero(&self) -> bool {
-        self.is_inf()
+        self == ZG1::zero()
     }
 
     fn negate(&self) -> Self {
@@ -561,6 +561,8 @@ impl kzg::Group for ZG1 {
 }
 
 impl kzg::TorsionSubgroup for ZG1 {
+    type Scalar = ZFr;
+
     fn generator() -> Self {
         G1_GENERATOR
     }
@@ -803,7 +805,7 @@ impl G1AffineTrait<ZG1, ZFp> for ZG1Affine {
     }
 
     fn from_xy(x: ZFp, y: ZFp) -> Self {
-        let is_infinity = if x.is_zero() && y.is_zero() { 0u8 } else { 1u8 };
+        let is_infinity = if x == ZFr::zero() && y == ZFr::zero() { 0u8 } else { 1u8 };
 
         Self(G1Affine {
             x: x.0,
@@ -1120,7 +1122,7 @@ pub fn fft_g1_fast(
         for i in 0..half {
             let y_times_root = ret[i + half] * &roots[i * roots_stride];
             ret[i + half] = ret[i] - &y_times_root;
-            ret[i] = ret[i].add_or_dbl(&y_times_root);
+            ret[i] = ret[i] + y_times_root;
         }
     } else {
         ret[0] = data[0];

@@ -40,7 +40,7 @@ impl Poly<ZFr> for PolyData {
     fn eval(&self, x: &ZFr) -> ZFr {
         if self.coeffs.is_empty() {
             return ZFr::zero();
-        } else if x.is_zero() {
+        } else if *x == ZFr::zero() {
             return self.coeffs[0];
         }
 
@@ -86,7 +86,7 @@ impl Poly<ZFr> for PolyData {
             return Err(String::from("Can't produce a zero-length result"));
         } else if self.coeffs.is_empty() {
             return Err(String::from("Can't inverse a zero-length poly"));
-        } else if self.coeffs[0].is_zero() {
+        } else if self.coeffs[0] == ZFr::zero() {
             return Err(String::from(
                 "First coefficient of polynomial mustn't be zero",
             ));
@@ -158,7 +158,7 @@ impl Poly<ZFr> for PolyData {
     fn long_div(&mut self, divisor: &Self) -> Result<Self, String> {
         if divisor.coeffs.is_empty() {
             return Err(String::from("Can't divide by zero"));
-        } else if divisor.coeffs[divisor.coeffs.len() - 1].is_zero() {
+        } else if divisor.coeffs[divisor.coeffs.len() - 1] == ZFr::zero() {
             return Err(String::from("Highest coefficient must be non-zero"));
         }
 
@@ -214,7 +214,7 @@ impl Poly<ZFr> for PolyData {
     fn fast_div(&mut self, divisor: &Self) -> Result<Self, String> {
         if divisor.coeffs.is_empty() {
             return Err(String::from("Cant divide by zero"));
-        } else if divisor.coeffs[divisor.coeffs.len() - 1].is_zero() {
+        } else if divisor.coeffs[divisor.coeffs.len() - 1] == ZFr::zero() {
             return Err(String::from("Highest coefficient must be non-zero"));
         }
 
@@ -291,7 +291,7 @@ impl PolyData {
         let mut ret = self.clone();
 
         let mut temp_len: usize = ret.coeffs.len();
-        while temp_len > 0 && ret.coeffs[temp_len - 1].is_zero() {
+        while temp_len > 0 && ret.coeffs[temp_len - 1] == ZFr::zero() {
             temp_len -= 1;
         }
 

@@ -15,7 +15,7 @@ use blst::{
 };
 use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 use core::{hash::Hash, ptr};
-use kzg::{
+use kzg::{Dbl, DblAssign, 
     common_utils::log_2_byte, eip_4844::BYTES_PER_G1, msm::precompute::PrecomputationTable,
     G1Affine, G1GetFp, G1LinComb, G1ProjAddAffine, Group, TorsionSubgroup, G1,
 };
@@ -87,6 +87,8 @@ impl kzg::Group for FsG1 {
 }
 
 impl kzg::TorsionSubgroup for FsG1 {
+    type Scalar = FsFr;
+
     fn generator() -> Self {
         G1_GENERATOR
     }
@@ -298,7 +300,7 @@ impl G1Affine<FsG1, FsFp> for FsG1Affine {
             // Transmute safe due to repr(C) on FsFp
             core::mem::transmute(&self.0.y)
         }
-    }    }
+    }
 
     fn x_mut(&mut self) -> &mut FsFp {
         unsafe {
@@ -317,7 +319,7 @@ impl G1Affine<FsG1, FsFp> for FsG1Affine {
     fn neg(&self) -> Self {
         let mut ret = *self;
 
-        if !self.is_infinity() {
+        if *self != FsG1::zero() {
             unsafe {
                 blst_fp_cneg(&mut ret.0.y, &self.0.y, true);
             }

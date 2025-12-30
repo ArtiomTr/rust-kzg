@@ -224,7 +224,7 @@ pub unsafe fn init_globals_custom(root_strings: [&str; 32]) {
 pub fn expand_root_of_unity(root: &Fr) -> Vec<Fr> {
     let mut root_z = vec![Fr::one(), *root];
     let mut i = 1;
-    while !root_z[i].is_one() {
+    while root_z[i] != Fr::one() {
         let next = &root_z[i] * root;
         root_z.push(next);
         i += 1;

@@ -90,7 +90,7 @@ impl FFTSettings<MclFr> for MclFFTSettings {
 pub fn expand_root_of_unity(root: &MclFr, width: usize) -> Result<Vec<MclFr>, String> {
     let mut generated_powers = vec![MclFr::one(), *root];
 
-    while !(generated_powers.last().unwrap().is_one()) {
+    while *generated_powers.last().unwrap() != MclFr::one() {
         if generated_powers.len() > width {
             return Err(String::from("Root of unity multiplied for too long"));
         }

@@ -554,7 +554,7 @@ pub fn compute_blob_kzg_proof_rust<
     commitment: &TG1,
     ts: &TKZGSettings,
 ) -> Result<TG1, String> {
-    if !commitment*self == Self::zero() && !commitment.is_valid() {
+    if *commitment != TG1::zero() && !commitment.is_valid() {
         return Err("Invalid commitment".to_string());
     }
 
@@ -601,10 +601,10 @@ pub fn verify_kzg_proof_rust<
     proof: &TG1,
     s: &TKZGSettings,
 ) -> Result<bool, String> {
-    if !commitment*self == Self::zero() && !commitment.is_valid() {
+    if *commitment != TG1::zero() && !commitment.is_valid() {
         return Err("Invalid commitment".to_string());
     }
-    if !proof*self == Self::zero() && !proof.is_valid() {
+    if *proof != TG1::zero() && !proof.is_valid() {
         return Err("Invalid proof".to_string());
     }
 
@@ -652,10 +652,10 @@ pub fn verify_blob_kzg_proof_rust<
     proof_g1: &TG1,
     ts: &TKZGSettings,
 ) -> Result<bool, String> {
-    if !commitment_g1*self == Self::zero() && !commitment_g1.is_valid() {
+    if *commitment_g1 != TG1::zero() && !commitment_g1.is_valid() {
         return Err("Invalid commitment".to_string());
     }
-    if !proof_g1*self == Self::zero() && !proof_g1.is_valid() {
+    if *proof_g1 != TG1::zero() && !proof_g1.is_valid() {
         return Err("Invalid proof".to_string());
     }
 
@@ -721,8 +721,8 @@ fn compute_challenges_and_evaluate_polynomial<
 
 fn validate_batched_input<TG1: G1>(commitments: &[TG1], proofs: &[TG1]) -> Result<(), String> {
     let invalid_commitment = cfg_into_iter!(commitments)
-        .any(|commitment| !commitment*self == Self::zero() && !commitment.is_valid());
-    let invalid_proof = cfg_into_iter!(proofs).any(|proof| !proof*self == Self::zero() && !proof.is_valid());
+        .any(|commitment| *commitment != TG1::zero() && !commitment.is_valid());
+    let invalid_proof = cfg_into_iter!(proofs).any(|proof| *proof != TG1::zero() && !proof.is_valid());
 
     if invalid_commitment {
         return Err("Invalid commitment".to_string());
@@ -900,7 +900,7 @@ fn fr_batch_inv<TFr: Fr + PartialEq + Copy>(
         accumulator = accumulator.mul(&a[i]);
     }
 
-    if accumulator.is_zero() {
+    if accumulator == TFr::zero() {
         return Err(String::from("Zero input"));
     }
 

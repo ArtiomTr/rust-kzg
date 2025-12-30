@@ -24,7 +24,7 @@ pub struct FFTSettings {
 pub fn expand_root_of_unity(root: &BlstFr, width: usize) -> Result<Vec<BlstFr>, String> {
     let mut generated_powers = vec![BlstFr::one(), *root];
 
-    while !(generated_powers.last().unwrap().is_one()) {
+    while *generated_powers.last().unwrap() != ZFr::one() {
         if generated_powers.len() > width {
             return Err(String::from("Root of unity multiplied for too long"));
         }
@@ -75,7 +75,7 @@ pub fn generate_trusted_setup(len: usize, secret: [u8; 32usize]) -> (Vec<ZG1>, V
 pub fn eval_poly(p: &PolyData, x: &ZFr) -> ZFr {
     if p.coeffs.is_empty() {
         return ZFr::zero();
-    } else if x.is_zero() {
+    } else if x == ZFr::zero() {
         return p.coeffs[0];
     }
 

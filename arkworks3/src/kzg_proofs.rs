@@ -28,7 +28,7 @@ pub struct FFTSettings {
 pub fn expand_root_of_unity(root: &ArkFr, width: usize) -> Result<Vec<ArkFr>, String> {
     let mut generated_powers = vec![ArkFr::one(), *root];
 
-    while !(generated_powers.last().unwrap().is_one()) {
+    while *generated_powers.last().unwrap() != ArkFr::one() {
         if generated_powers.len() > width {
             return Err(String::from("Root of unity multiplied for too long"));
         }

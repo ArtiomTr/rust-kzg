@@ -8,7 +8,7 @@ use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 use kzg::eip_4844::BYTES_PER_G2;
 #[cfg(feature = "rand")]
 use kzg::Fr;
-use kzg::{Group, TorsionSubgroup, G2};
+use kzg::{Dbl, DblAssign, Group, TorsionSubgroup, G2};
 
 use crate::consts::{G2_GENERATOR, G2_NEGATIVE_GENERATOR};
 use crate::mcl_methods::mcl_fp;
@@ -95,6 +95,8 @@ impl Group for MclG2 {
 }
 
 impl TorsionSubgroup for MclG2 {
+    type Scalar = MclFr;
+
     fn generator() -> Self {
         try_init_mcl();
 

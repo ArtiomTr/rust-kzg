@@ -90,7 +90,7 @@ impl FFTSettings<CtFr> for CtFFTSettings {
 pub fn expand_root_of_unity(root: &CtFr, width: usize) -> Result<Vec<CtFr>, String> {
     let mut generated_powers = vec![CtFr::one(), *root];
 
-    while !(generated_powers.last().unwrap().is_one()) {
+    while *generated_powers.last().unwrap() != CtFr::one() {
         if generated_powers.len() > width {
             return Err(String::from("Root of unity multiplied for too long"));
         }

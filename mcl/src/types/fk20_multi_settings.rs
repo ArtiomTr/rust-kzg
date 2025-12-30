@@ -161,7 +161,7 @@ impl
                 .toeplitz_part_2(&toeplitz_coeffs, &self.x_ext_fft_files[i]);
 
             for j in 0..k2 {
-                h_ext_fft[j] = h_ext_fft[j].add_or_dbl(&h_ext_fft_file[j]);
+                h_ext_fft[j] = h_ext_fft[j] + h_ext_fft_file[j];
             }
         }
 
