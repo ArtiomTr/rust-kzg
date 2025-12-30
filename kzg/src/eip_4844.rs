@@ -320,7 +320,7 @@ pub fn compute_powers<TFr: Fr>(base: &TFr, num_powers: usize) -> Vec<TFr> {
     }
     powers[0] = TFr::one();
     for i in 1..num_powers {
-        powers[i] = powers[i - 1].mul(base);
+        powers[i] = powers[i - 1].clone() * base;
     }
     powers
 }
@@ -410,11 +410,11 @@ fn verify_kzg_proof_batch<
 
     for i in 0..n {
         // Get [y_i]
-        let ys_encrypted = TG1::generator().mul(&ys_fr[i]);
+        let ys_encrypted = TG1::generator() * &ys_fr[i];
         // Get C_i - [y_i]
-        c_minus_y.push(commitments_g1[i].sub(&ys_encrypted));
+        c_minus_y.push(commitments_g1[i].clone() - &ys_encrypted);
         // Get r^i * z_i
-        r_times_z.push(r_powers[i].mul(&zs_fr[i]));
+        r_times_z.push(r_powers[i].clone() * &zs_fr[i]);
     }
 
     // Get \sum r^i z_i Proof_i

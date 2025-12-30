@@ -9,6 +9,7 @@ use blst::{
     blst_p2_double, blst_p2_from_affine, blst_p2_is_equal, blst_p2_mult, blst_p2_uncompress,
     blst_scalar, blst_scalar_from_fr, BLST_ERROR,
 };
+use core::ops::{Mul, MulAssign, Sub, SubAssign};
 use kzg::eip_4844::BYTES_PER_G2;
 #[cfg(feature = "rand")]
 use kzg::Fr;
@@ -21,22 +22,7 @@ use crate::types::fr::FsFr;
 #[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]
 pub struct FsG2(pub blst_p2);
 
-impl G2Mul<FsFr> for FsG2 {
-    fn mul(&self, b: &FsFr) -> Self {
-        let mut result = blst_p2::default();
-        let mut scalar = blst_scalar::default();
-        unsafe {
-            blst_scalar_from_fr(&mut scalar, &b.0);
-            blst_p2_mult(
-                &mut result,
-                &self.0,
-                scalar.b.as_ptr(),
-                8 * core::mem::size_of::<blst_scalar>(),
-            );
-        }
-        Self(result)
-    }
-}
+impl G2Mul<FsFr> for FsG2 {}
 
 impl G2 for FsG2 {
     fn generator() -> Self {
@@ -95,16 +81,6 @@ impl G2 for FsG2 {
         Self(result)
     }
 
-    fn sub(&self, b: &Self) -> Self {
-        let mut bneg: blst_p2 = b.0;
-        let mut result = blst_p2::default();
-        unsafe {
-            blst_p2_cneg(&mut bneg, true);
-            blst_p2_add_or_double(&mut result, &self.0, &bneg);
-        }
-        Self(result)
-    }
-
     fn equals(&self, b: &Self) -> bool {
         unsafe { blst_p2_is_equal(&self.0, &b.0) }
     }
@@ -118,6 +94,77 @@ impl FsG2 {
     #[cfg(feature = "rand")]
     pub fn rand() -> Self {
         let result: FsG2 = G2_GENERATOR;
-        result.mul(&FsFr::rand())
+        result * &FsFr::rand()
+    }
+}
+
+impl Sub for FsG2 {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        let mut bneg = rhs.0;
+        let mut result = blst_p2::default();
+        unsafe {
+            blst_p2_cneg(&mut bneg, true);
+            blst_p2_add_or_double(&mut result, &self.0, &bneg);
+        }
+        Self(result)
+    }
+}
+
+impl Sub<&FsG2> for FsG2 {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self {
+        let mut bneg = rhs.0;
+        let mut result = blst_p2::default();
+        unsafe {
+            blst_p2_cneg(&mut bneg, true);
+            blst_p2_add_or_double(&mut result, &self.0, &bneg);
+        }
+        Self(result)
+    }
+}
+
+impl SubAssign for FsG2 {
+    fn sub_assign(&mut self, rhs: Self) {
+        let mut bneg = rhs.0;
+        unsafe {
+            blst_p2_cneg(&mut bneg, true);
+            blst_p2_add_or_double(&mut self.0, &self.0, &bneg);
+        }
+    }
+}
+
+impl Mul<FsFr> for FsG2 {
+    type Output = Self;
+
+    fn mul(self, rhs: FsFr) -> Self {
+        self * &rhs
+    }
+}
+
+impl Mul<&FsFr> for FsG2 {
+    type Output = Self;
+
+    fn mul(self, rhs: &FsFr) -> Self {
+        let mut result = blst_p2::default();
+        let mut scalar = blst_scalar::default();
+        unsafe {
+            blst_scalar_from_fr(&mut scalar, &rhs.0);
+            blst_p2_mult(
+                &mut result,
+                &self.0,
+                scalar.b.as_ptr(),
+                8 * core::mem::size_of::<blst_scalar>(),
+            );
+        }
+        Self(result)
+    }
+}
+
+impl MulAssign<FsFr> for FsG2 {
+    fn mul_assign(&mut self, rhs: FsFr) {
+        *self = (*self).clone() * &rhs;
     }
 }

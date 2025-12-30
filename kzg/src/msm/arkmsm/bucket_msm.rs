@@ -318,17 +318,15 @@ impl<
     fn intra_window_reduce(&mut self, window_sums: &[TG1]) -> TG1 {
         // Traverse windows from high to low
         let lowest = window_sums.first().unwrap();
-        lowest.add(
-            &window_sums[1..]
+        lowest.clone() + &window_sums[1..]
                 .iter()
                 .rev()
                 .fold(TG1::zero(), |mut total, sum_i| {
-                    total.add_assign(sum_i);
+                    total.add_assign(sum_i.clone());
                     for _ in 0..self.window_bits {
                         total.dbl_assign();
                     }
                     total
-                }),
-        )
+                })
     }
 }

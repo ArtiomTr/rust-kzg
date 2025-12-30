@@ -9,6 +9,7 @@ use blst::blst_fr_from_uint64;
 use blst::blst_scalar;
 use blst::blst_scalar_from_fr;
 use blst::blst_uint64_from_fr;
+use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
 use crate::mcl_methods::mcl_fr;
 use crate::mcl_methods::try_init_mcl;
@@ -192,30 +193,6 @@ impl Fr for MclFr {
         ret
     }
 
-    fn mul(&self, b: &Self) -> Self {
-        try_init_mcl();
-
-        let mut ret = Self::default();
-        mcl_fr::mul(&mut ret.0, &self.0, &b.0);
-        ret
-    }
-
-    fn add(&self, b: &Self) -> Self {
-        try_init_mcl();
-
-        let mut ret = Self::default();
-        mcl_fr::add(&mut ret.0, &self.0, &b.0);
-        ret
-    }
-
-    fn sub(&self, b: &Self) -> Self {
-        try_init_mcl();
-
-        let mut ret = Self::default();
-        mcl_fr::sub(&mut ret.0, &self.0, &b.0);
-        ret
-    }
-
     fn eucl_inverse(&self) -> Self {
         try_init_mcl();
 
@@ -249,7 +226,7 @@ impl Fr for MclFr {
         let mut n = n;
         loop {
             if (n & 1) == 1 {
-                out = out.mul(&temp);
+                out = out * &temp;
             }
             n >>= 1;
             if n == 0 {
@@ -270,7 +247,7 @@ impl Fr for MclFr {
         }
 
         let tmp = b.eucl_inverse();
-        let out = self.mul(&tmp);
+        let out = self * &tmp;
 
         Ok(out)
     }
@@ -305,5 +282,101 @@ impl MclFr {
         try_init_mcl();
 
         blst_fr { l: self.0.d }
+    }
+}
+
+impl Add for MclFr {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        try_init_mcl();
+
+        let mut ret = Self::default();
+        mcl_fr::add(&mut ret.0, &self.0, &rhs.0);
+        ret
+    }
+}
+
+impl Add<&MclFr> for MclFr {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self {
+        try_init_mcl();
+
+        let mut ret = Self::default();
+        mcl_fr::add(&mut ret.0, &self.0, &rhs.0);
+        ret
+    }
+}
+
+impl Sub for MclFr {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        try_init_mcl();
+
+        let mut ret = Self::default();
+        mcl_fr::sub(&mut ret.0, &self.0, &rhs.0);
+        ret
+    }
+}
+
+impl Sub<&MclFr> for MclFr {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self {
+        try_init_mcl();
+
+        let mut ret = Self::default();
+        mcl_fr::sub(&mut ret.0, &self.0, &rhs.0);
+        ret
+    }
+}
+
+impl Mul for MclFr {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self {
+        try_init_mcl();
+
+        let mut ret = Self::default();
+        mcl_fr::mul(&mut ret.0, &self.0, &rhs.0);
+        ret
+    }
+}
+
+impl Mul<&MclFr> for MclFr {
+    type Output = Self;
+
+    fn mul(self, rhs: &Self) -> Self {
+        try_init_mcl();
+
+        let mut ret = Self::default();
+        mcl_fr::mul(&mut ret.0, &self.0, &rhs.0);
+        ret
+    }
+}
+
+impl AddAssign for MclFr {
+    fn add_assign(&mut self, rhs: Self) {
+        try_init_mcl();
+
+        mcl_fr::add(&mut self.0, &self.0, &rhs.0);
+    }
+}
+
+impl SubAssign for MclFr {
+    fn sub_assign(&mut self, rhs: Self) {
+        try_init_mcl();
+
+        mcl_fr::sub(&mut self.0, &self.0, &rhs.0);
+    }
+}
+
+impl MulAssign for MclFr {
+    fn mul_assign(&mut self, rhs: Self) {
+        try_init_mcl();
+
+        mcl_fr::mul(&mut self.0, &self.0, &rhs.0);
     }
 }

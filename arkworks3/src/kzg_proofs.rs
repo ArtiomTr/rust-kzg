@@ -33,7 +33,7 @@ pub fn expand_root_of_unity(root: &ArkFr, width: usize) -> Result<Vec<ArkFr>, St
             return Err(String::from("Root of unity multiplied for too long"));
         }
 
-        generated_powers.push(generated_powers.last().unwrap().mul(root));
+        generated_powers.push(generated_powers.last().unwrap().clone() * root);
     }
 
     if generated_powers.len() != width + 1 {
@@ -121,10 +121,10 @@ pub fn generate_trusted_setup(
     let mut g2_monomial_values = Vec::with_capacity(n);
 
     for _ in 0..n {
-        g1_monomial_values.push(ArkG1::generator().mul(&s_pow));
-        g2_monomial_values.push(ArkG2::generator().mul(&s_pow));
+        g1_monomial_values.push(ArkG1::generator().clone() * &s_pow);
+        g2_monomial_values.push(ArkG2::generator().clone() * &s_pow);
 
-        s_pow = s_pow.mul(&s);
+        s_pow = s_pow.clone() * &s;
     }
 
     let s = FFTSettings::new(log2_pow2(n)).unwrap();

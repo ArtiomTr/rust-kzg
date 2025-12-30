@@ -273,7 +273,7 @@ pub fn expand_root_of_unity(root: &BlstFr, width: usize) -> Result<Vec<BlstFr>, 
         if generated_powers.len() > width {
             return Err(String::from("Root of unity multiplied for too long"));
         }
-        generated_powers.push(generated_powers.last().unwrap().mul(root));
+        generated_powers.push(*generated_powers.last().unwrap() * root);
     }
     Ok(generated_powers)
 }
@@ -282,8 +282,8 @@ pub fn expand_root_of_unity_mcl(root: &BlstFr) -> Vec<BlstFr> {
     let mut root_z = vec![Fr::one(), *root];
     let mut i = 1;
     while !root_z[i].is_one() {
-        let next = &root_z[i].mul(root);
-        root_z.push(*next);
+        let next = root_z[i] * root;
+        root_z.push(next);
         i += 1;
     }
     root_z

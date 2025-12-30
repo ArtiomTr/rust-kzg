@@ -11,6 +11,7 @@ use blst::{
     blst_fr_sub, blst_scalar, blst_scalar_fr_check, blst_scalar_from_bendian, blst_scalar_from_fr,
     blst_uint64_from_fr,
 };
+use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 use kzg::eip_4844::BYTES_PER_FIELD_ELEMENT;
 use kzg::Fr;
 use kzg::Scalar256;
@@ -175,33 +176,6 @@ impl Fr for FsFr {
         ret
     }
 
-    fn mul(&self, b: &Self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            blst_fr_mul(&mut ret.0, &self.0, &b.0);
-        }
-
-        ret
-    }
-
-    fn add(&self, b: &Self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            blst_fr_add(&mut ret.0, &self.0, &b.0);
-        }
-
-        ret
-    }
-
-    fn sub(&self, b: &Self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            blst_fr_sub(&mut ret.0, &self.0, &b.0);
-        }
-
-        ret
-    }
-
     fn eucl_inverse(&self) -> Self {
         let mut ret = Self::default();
         unsafe {
@@ -236,7 +210,7 @@ impl Fr for FsFr {
         let mut n = n;
         loop {
             if (n & 1) == 1 {
-                out = out.mul(&temp);
+                out = out * &temp;
             }
             n >>= 1;
             if n == 0 {
@@ -251,7 +225,7 @@ impl Fr for FsFr {
 
     fn div(&self, b: &Self) -> Result<Self, String> {
         let tmp = b.eucl_inverse();
-        let out = self.mul(&tmp);
+        let out = self * &tmp;
 
         Ok(out)
     }
@@ -274,5 +248,137 @@ impl Fr for FsFr {
             blst_scalar_from_fr(&mut blst_scalar, &self.0);
         }
         Scalar256::from_u8(&blst_scalar.b)
+    }
+}
+
+impl Add for FsFr {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            blst_fr_add(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
+    }
+}
+
+impl Add<&FsFr> for FsFr {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            blst_fr_add(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
+    }
+}
+
+impl Sub for FsFr {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            blst_fr_sub(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
+    }
+}
+
+impl Sub<&FsFr> for FsFr {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            blst_fr_sub(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
+    }
+}
+
+impl Mul for FsFr {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            blst_fr_mul(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
+    }
+}
+
+impl Mul<&FsFr> for FsFr {
+    type Output = Self;
+
+    fn mul(self, rhs: &Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            blst_fr_mul(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
+    }
+}
+
+impl AddAssign for FsFr {
+    fn add_assign(&mut self, rhs: Self) {
+        unsafe {
+            blst_fr_add(&mut self.0, &self.0, &rhs.0);
+        }
+    }
+}
+
+impl SubAssign for FsFr {
+    fn sub_assign(&mut self, rhs: Self) {
+        unsafe {
+            blst_fr_sub(&mut self.0, &self.0, &rhs.0);
+        }
+    }
+}
+
+impl MulAssign for FsFr {
+    fn mul_assign(&mut self, rhs: Self) {
+        unsafe {
+            blst_fr_mul(&mut self.0, &self.0, &rhs.0);
+        }
+    }
+}
+
+impl Add<&FsFr> for &FsFr {
+    type Output = FsFr;
+
+    fn add(self, rhs: &FsFr) -> FsFr {
+        let mut ret = FsFr::default();
+        unsafe {
+            blst_fr_add(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
+    }
+}
+
+impl Sub<&FsFr> for &FsFr {
+    type Output = FsFr;
+
+    fn sub(self, rhs: &FsFr) -> FsFr {
+        let mut ret = FsFr::default();
+        unsafe {
+            blst_fr_sub(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
+    }
+}
+
+impl Mul<&FsFr> for &FsFr {
+    type Output = FsFr;
+
+    fn mul(self, rhs: &FsFr) -> FsFr {
+        let mut ret = FsFr::default();
+        unsafe {
+            blst_fr_mul(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
     }
 }

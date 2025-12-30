@@ -35,7 +35,7 @@ impl FsFFTSettings {
                 .into_par_iter()
                 .zip(x_ext_fft)
                 .take(poly.len())
-                .map(|(coeff_fft, x_ext_fft)| x_ext_fft.mul(&coeff_fft))
+                .map(|(coeff_fft, x_ext_fft)| x_ext_fft.clone() * &coeff_fft)
                 .collect()
         }
 
@@ -45,7 +45,7 @@ impl FsFFTSettings {
                 .into_iter()
                 .zip(x_ext_fft)
                 .take(poly.len())
-                .map(|(coeff_fft, x_ext_fft)| x_ext_fft.mul(&coeff_fft))
+                .map(|(coeff_fft, x_ext_fft)| x_ext_fft.clone() * &coeff_fft)
                 .collect()
         }
     }

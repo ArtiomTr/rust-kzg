@@ -364,7 +364,7 @@ pub trait DAS<B: EcBackend> {
             settings.get_g1_monomial(),
         )?;
 
-        let final_g1_sum = final_g1_sum.sub(&interpolation_poly_commit);
+        let final_g1_sum = final_g1_sum - &interpolation_poly_commit;
 
         let weighted_sum_of_proofs = computed_weighted_sum_of_proofs::<B>(
             cell_size,
@@ -375,7 +375,7 @@ pub trait DAS<B: EcBackend> {
             ts_size * 2,
         )?;
 
-        let final_g1_sum = final_g1_sum.add(&weighted_sum_of_proofs);
+        let final_g1_sum = final_g1_sum + &weighted_sum_of_proofs;
 
         let power_of_s = &settings.get_g2_monomial()[cell_size];
 
@@ -455,8 +455,8 @@ pub trait DAS<B: EcBackend> {
 fn shift_poly<B: EcBackend>(poly: &mut [B::Fr], shift_factor: &B::Fr) {
     let mut factor_power = B::Fr::one();
     for coeff in poly.iter_mut().skip(1) {
-        factor_power = factor_power.mul(shift_factor);
-        *coeff = coeff.mul(&factor_power);
+        factor_power = factor_power.clone() * shift_factor;
+        *coeff = coeff.clone() * &factor_power;
     }
 }
 
@@ -503,12 +503,12 @@ fn compute_vanishing_polynomial_from_roots<B: EcBackend>(
     for i in 1..roots.len() {
         let neg_root = roots[i].negate();
 
-        poly.push(neg_root.add(&poly[i - 1]));
+        poly.push(neg_root.clone() + &poly[i - 1]);
 
         for j in (1..i).rev() {
-            poly[j] = poly[j].mul(&neg_root).add(&poly[j - 1]);
+            poly[j] = poly[j].clone() * &neg_root + &poly[j - 1];
         }
-        poly[0] = poly[0].mul(&neg_root);
+        poly[0] = poly[0].clone() * &neg_root;
     }
 
     poly.push(B::Fr::one());
@@ -588,7 +588,7 @@ fn recover_cells<B: EcBackend>(
         if cells_brp[i].is_null() {
             extended_evaluation_times_zero.push(B::Fr::zero());
         } else {
-            extended_evaluation_times_zero.push(cells_brp[i].mul(&vanishing_poly_eval[i]));
+            extended_evaluation_times_zero.push(cells_brp[i].clone() * &vanishing_poly_eval[i]);
         }
     }
 
@@ -602,7 +602,7 @@ fn recover_cells<B: EcBackend>(
 
     for i in 0..field_elements_per_ext_blob {
         extended_evaluations_over_coset[i] =
-            extended_evaluations_over_coset[i].mul(&vanishing_poly_over_coset[i]);
+            extended_evaluations_over_coset[i].clone() * &vanishing_poly_over_coset[i];
     }
 
     let reconstructed_poly_coeff = coset_ifft::<B>(&extended_evaluations_over_coset, fft_settings)?;
@@ -713,7 +713,7 @@ fn compute_weighted_sum_of_commitments<B: EcBackend>(
             .map(|(r_chunk, idx_chunk)| {
                 let mut local_weights = vec![B::Fr::zero(); commitments.len()];
                 for (r_power, &index) in r_chunk.iter().zip(idx_chunk.iter()) {
-                    local_weights[index] = local_weights[index].add(r_power);
+                    local_weights[index] = local_weights[index] + r_power;
                 }
                 local_weights
             })
@@ -721,7 +721,7 @@ fn compute_weighted_sum_of_commitments<B: EcBackend>(
 
         for local_weights in intermediate_weights {
             for (i, weight) in local_weights.into_iter().enumerate() {
-                commitment_weights[i] = commitment_weights[i].add(&weight);
+                commitment_weights[i] = commitment_weights[i] + &weight;
             }
         }
     }
@@ -730,7 +730,7 @@ fn compute_weighted_sum_of_commitments<B: EcBackend>(
     {
         for i in 0..r_powers.len() {
             commitment_weights[commitment_indices[i]] =
-                commitment_weights[commitment_indices[i]].add(&r_powers[i]);
+                commitment_weights[commitment_indices[i]].clone() + &r_powers[i];
         }
     }
 
@@ -791,11 +791,11 @@ fn compute_commitment_to_aggregated_interpolation_poly<B: EcBackend>(
         for fr_index in 0..cell_size {
             let original_fr = cells[cell_index * cell_size + fr_index].clone();
 
-            let scaled_fr = original_fr.mul(&r_powers[cell_index]);
+            let scaled_fr = original_fr * &r_powers[cell_index];
 
             let array_index = column_index * cell_size + fr_index;
             aggregated_column_cells[array_index] =
-                aggregated_column_cells[array_index].add(&scaled_fr);
+                aggregated_column_cells[array_index].clone() + &scaled_fr;
         }
     }
 
@@ -825,7 +825,7 @@ fn compute_commitment_to_aggregated_interpolation_poly<B: EcBackend>(
 
         for k in 0..cell_size {
             aggregated_interpolation_poly[k] =
-                aggregated_interpolation_poly[k].add(&column_interpolation_poly[k]);
+                aggregated_interpolation_poly[k].clone() + &column_interpolation_poly[k];
         }
     }
 
@@ -894,7 +894,7 @@ fn computed_weighted_sum_of_proofs<B: EcBackend>(
             field_elements_per_ext_blob,
         )?;
 
-        weighted_powers_of_r.push(r_powers[i].mul(&h_k_pow));
+        weighted_powers_of_r.push(r_powers[i].clone() * &h_k_pow);
     }
 
     Ok(B::G1::g1_lincomb(
@@ -912,7 +912,7 @@ fn batch_inverse<B: EcBackend>(v: &mut [B::Fr]) {
 
     let mut tmp = B::Fr::one();
     for f in v.iter() {
-        tmp = tmp.mul(f);
+        tmp = tmp * f;
         scratch_pad.push(tmp.clone());
     }
 
@@ -923,8 +923,8 @@ fn batch_inverse<B: EcBackend>(v: &mut [B::Fr]) {
         .rev()
         .zip(scratch_pad.iter().rev().skip(1).chain(Some(&B::Fr::one())))
     {
-        let new_tmp = tmp.mul(f);
-        *f = tmp.mul(s);
+        let new_tmp = tmp.clone() * &*f;
+        *f = tmp * s;
         tmp = new_tmp;
     }
 }

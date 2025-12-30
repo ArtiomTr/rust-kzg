@@ -54,7 +54,7 @@ pub fn poly_inverse(b: &PolyData, output_len: usize) -> Result<PolyData, String>
             tmp0.coeffs[i] = tmp0.coeffs[i].negate();
         }
         let fr_two = BlstFr { fr: Fr::from(2) };
-        tmp0.coeffs[0] = tmp0.coeffs[0].add(&fr_two);
+        tmp0.coeffs[0] = tmp0.coeffs[0] + &fr_two;
 
         let len_temp2: usize = d + 1;
 
@@ -181,7 +181,7 @@ pub fn poly_mul_fft(
     let mut ab = b_pad;
 
     for i in 0..length {
-        ab_fft.coeffs[i] = a_fft[i].mul(&b_fft[i]);
+        ab_fft.coeffs[i] = a_fft[i].clone() * &b_fft[i];
     }
 
     ab.coeffs = fs_p.fft_fr(&ab_fft.coeffs, true).unwrap();

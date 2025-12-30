@@ -12,9 +12,9 @@ impl FFTSettings {
                 let halfhalf = half / 2;
 
                 for i in 0..halfhalf {
-                    let tmp1 = ab[i].add(&ab[halfhalf + i]);
-                    let tmp2 = ab[i].sub(&ab[halfhalf + i]);
-                    ab[halfhalf + i] = tmp2.mul(&self.reverse_roots_of_unity[i * 2 * stride]);
+                    let tmp1 = ab[i].clone() + &ab[halfhalf + i];
+                    let tmp2 = ab[i].clone() - &ab[halfhalf + i];
+                    ab[halfhalf + i] = tmp2 * &self.reverse_roots_of_unity[i * 2 * stride];
                     ab[i] = tmp1;
                 }
 
@@ -39,18 +39,18 @@ impl FFTSettings {
                 for i in 0..halfhalf {
                     let x = ab[i];
                     let y = ab[halfhalf + i];
-                    let y_times_root = y.mul(&self.roots_of_unity[(1 + 2 * i) * stride]);
-                    ab[i] = x.add(&y_times_root);
-                    ab[halfhalf + i] = x.sub(&y_times_root);
+                    let y_times_root = y.clone() * &self.roots_of_unity[(1 + 2 * i) * stride];
+                    ab[i] = x.clone() + &y_times_root;
+                    ab[halfhalf + i] = x - &y_times_root;
                 }
             }
             Ordering::Equal => {
-                let x = ab[0].add(&ab[1]);
-                let y = ab[0].sub(&ab[1]);
-                let tmp = y.mul(&self.roots_of_unity[stride]);
+                let x = ab[0].clone() + &ab[1];
+                let y = ab[0].clone() - &ab[1];
+                let tmp = y.clone() * &self.roots_of_unity[stride];
 
-                ab[0] = x.add(&tmp);
-                ab[1] = x.sub(&tmp);
+                ab[0] = x.clone() + &tmp;
+                ab[1] = x - &tmp;
             }
         }
     }

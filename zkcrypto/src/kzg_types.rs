@@ -237,20 +237,6 @@ impl KzgFr for ZFr {
         }
     }
 
-    fn mul(&self, b: &Self) -> Self {
-        Self {
-            fr: Scalar::mul(&to_scalar(self), &to_scalar(b)),
-        }
-    }
-
-    fn add(&self, b: &Self) -> Self {
-        Self { fr: self.fr + b.fr }
-    }
-
-    fn sub(&self, b: &Self) -> Self {
-        Self { fr: self.fr - b.fr }
-    }
-
     fn eucl_inverse(&self) -> Self {
         Self {
             fr: self.fr.invert().unwrap(),
@@ -274,7 +260,7 @@ impl KzgFr for ZFr {
 
         loop {
             if n2 & 1 == 1 {
-                out = out.mul(&tmp);
+                out = out * &tmp;
             }
             n2 >>= 1;
             if n2 == 0 {
@@ -291,7 +277,7 @@ impl KzgFr for ZFr {
             return Err("Cannot divide by zero".to_string());
         }
         let tmp = b.eucl_inverse();
-        let out = self.mul(&tmp);
+        let out = self * &tmp;
         Ok(out)
     }
 
@@ -311,6 +297,102 @@ impl KzgFr for ZFr {
             0,
         );
         Scalar256::from_u64(tmp.0)
+    }
+}
+
+impl Add for ZFr {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        Self { fr: self.fr + rhs.fr }
+    }
+}
+
+impl Add<&ZFr> for ZFr {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self {
+        Self { fr: self.fr + rhs.fr }
+    }
+}
+
+impl Sub for ZFr {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        Self { fr: self.fr - rhs.fr }
+    }
+}
+
+impl Sub<&ZFr> for ZFr {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self {
+        Self { fr: self.fr - rhs.fr }
+    }
+}
+
+impl Mul for ZFr {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self {
+        Self {
+            fr: Scalar::mul(&self.fr, &rhs.fr),
+        }
+    }
+}
+
+impl Mul<&ZFr> for ZFr {
+    type Output = Self;
+
+    fn mul(self, rhs: &Self) -> Self {
+        Self {
+            fr: Scalar::mul(&self.fr, &rhs.fr),
+        }
+    }
+}
+
+impl AddAssign for ZFr {
+    fn add_assign(&mut self, rhs: Self) {
+        self.fr += rhs.fr;
+    }
+}
+
+impl SubAssign for ZFr {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.fr -= rhs.fr;
+    }
+}
+
+impl MulAssign for ZFr {
+    fn mul_assign(&mut self, rhs: Self) {
+        self.fr = Scalar::mul(&self.fr, &rhs.fr);
+    }
+}
+
+impl Add<&ZFr> for &ZFr {
+    type Output = ZFr;
+
+    fn add(self, rhs: &ZFr) -> ZFr {
+        ZFr { fr: self.fr + rhs.fr }
+    }
+}
+
+impl Sub<&ZFr> for &ZFr {
+    type Output = ZFr;
+
+    fn sub(self, rhs: &ZFr) -> ZFr {
+        ZFr { fr: self.fr - rhs.fr }
+    }
+}
+
+impl Mul<&ZFr> for &ZFr {
+    type Output = ZFr;
+
+    fn mul(self, rhs: &ZFr) -> ZFr {
+        ZFr {
+            fr: Scalar::mul(&self.fr, &rhs.fr),
+        }
     }
 }
 
@@ -346,7 +428,7 @@ impl G1Fp for ZFp {
     }
 
     fn double(&self) -> Self {
-        Self(self.0.add(&self.0))
+        Self(&self.0 + &self.0)
     }
 
     fn from_underlying_arr(arr: &[u64; 6]) -> Self {
@@ -500,27 +582,12 @@ impl G1 for ZG1 {
             proj: self.proj.double(),
         }
     }
-    fn add(&self, b: &Self) -> Self {
-        Self {
-            proj: self.proj + b.proj,
-        }
-    }
-
-    fn sub(&self, b: &Self) -> Self {
-        Self {
-            proj: self.proj.sub(&b.proj),
-        }
-    }
 
     fn equals(&self, b: &Self) -> bool {
         self.proj.eq(&b.proj)
     }
 
     fn add_or_dbl_assign(&mut self, b: &Self) {
-        self.proj.add_assign(b.proj);
-    }
-
-    fn add_assign(&mut self, b: &Self) {
         self.proj.add_assign(b.proj);
     }
 
@@ -553,10 +620,102 @@ impl G1 for ZG1 {
     }
 }
 
-impl G1Mul<ZFr> for ZG1 {
-    fn mul(&self, b: &ZFr) -> Self {
+impl G1Mul<ZFr> for ZG1 {}
+
+impl Add for ZG1 {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
         Self {
-            proj: self.proj.mul(b.fr),
+            proj: self.proj + rhs.proj,
+        }
+    }
+}
+
+impl Add<&ZG1> for ZG1 {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self {
+        Self {
+            proj: self.proj + rhs.proj,
+        }
+    }
+}
+
+impl Sub for ZG1 {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        Self {
+            proj: self.proj - rhs.proj,
+        }
+    }
+}
+
+impl Sub<&ZG1> for ZG1 {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self {
+        Self {
+            proj: self.proj - rhs.proj,
+        }
+    }
+}
+
+impl AddAssign for ZG1 {
+    fn add_assign(&mut self, rhs: Self) {
+        self.proj.add_assign(rhs.proj);
+    }
+}
+
+impl SubAssign for ZG1 {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.proj -= rhs.proj;
+    }
+}
+
+impl Mul<ZFr> for ZG1 {
+    type Output = Self;
+
+    fn mul(self, rhs: ZFr) -> Self {
+        Self {
+            proj: self.proj * rhs.fr,
+        }
+    }
+}
+
+impl Mul<&ZFr> for ZG1 {
+    type Output = Self;
+
+    fn mul(self, rhs: &ZFr) -> Self {
+        Self {
+            proj: self.proj * rhs.fr,
+        }
+    }
+}
+
+impl MulAssign<ZFr> for ZG1 {
+    fn mul_assign(&mut self, rhs: ZFr) {
+        self.proj *= rhs.fr;
+    }
+}
+
+impl Add<&ZG1> for &ZG1 {
+    type Output = ZG1;
+
+    fn add(self, rhs: &ZG1) -> ZG1 {
+        ZG1 {
+            proj: self.proj + rhs.proj,
+        }
+    }
+}
+
+impl Sub<&ZG1> for &ZG1 {
+    type Output = ZG1;
+
+    fn sub(self, rhs: &ZG1) -> ZG1 {
+        ZG1 {
+            proj: self.proj - rhs.proj,
         }
     }
 }
@@ -568,7 +727,7 @@ pub struct ZG1Affine(pub G1Affine);
 impl<'a> Arbitrary<'a> for ZG1Affine {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         Ok(ZG1Affine::into_affine(
-            &ZG1::generator().mul(&u.arbitrary()?),
+            &(ZG1::generator() * &u.arbitrary()?),
         ))
     }
 }
@@ -801,21 +960,71 @@ impl G2 for ZG2 {
         }
     }
 
-    fn sub(&self, b: &Self) -> Self {
-        Self {
-            proj: self.proj - b.proj,
-        }
-    }
-
     fn equals(&self, b: &Self) -> bool {
         self.proj.eq(&b.proj)
     }
 }
 
-impl G2Mul<ZFr> for ZG2 {
-    fn mul(&self, b: &ZFr) -> Self {
+impl G2Mul<ZFr> for ZG2 {}
+
+impl Sub for ZG2 {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
         Self {
-            proj: self.proj.mul(b.fr),
+            proj: self.proj - rhs.proj,
+        }
+    }
+}
+
+impl Sub<&ZG2> for ZG2 {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self {
+        Self {
+            proj: self.proj - rhs.proj,
+        }
+    }
+}
+
+impl SubAssign for ZG2 {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.proj -= rhs.proj;
+    }
+}
+
+impl Mul<ZFr> for ZG2 {
+    type Output = Self;
+
+    fn mul(self, rhs: ZFr) -> Self {
+        Self {
+            proj: self.proj * rhs.fr,
+        }
+    }
+}
+
+impl Mul<&ZFr> for ZG2 {
+    type Output = Self;
+
+    fn mul(self, rhs: &ZFr) -> Self {
+        Self {
+            proj: self.proj * rhs.fr,
+        }
+    }
+}
+
+impl MulAssign<ZFr> for ZG2 {
+    fn mul_assign(&mut self, rhs: ZFr) {
+        self.proj *= rhs.fr;
+    }
+}
+
+impl Sub<&ZG2> for &ZG2 {
+    type Output = ZG2;
+
+    fn sub(self, rhs: &ZG2) -> ZG2 {
+        ZG2 {
+            proj: self.proj - rhs.proj,
         }
     }
 }
@@ -857,8 +1066,8 @@ pub fn fft_g1_fast(
         }
 
         for i in 0..half {
-            let y_times_root = ret[i + half].mul(&roots[i * roots_stride]);
-            ret[i + half] = ret[i].sub(&y_times_root);
+            let y_times_root = ret[i + half] * &roots[i * roots_stride];
+            ret[i + half] = ret[i] - &y_times_root;
             ret[i] = ret[i].add_or_dbl(&y_times_root);
         }
     } else {
@@ -1034,8 +1243,8 @@ impl KZGSettings<ZFr, ZG1, ZG2, ZFFTSettings, PolyData, ZFp, ZG1Affine, ZG1ProjA
         // generic implementation)
         let mut out_coeffs = Vec::from(&p.coeffs[1..]);
         for i in (1..out_coeffs.len()).rev() {
-            let tmp = out_coeffs[i].mul(&divisor_0);
-            out_coeffs[i - 1] = out_coeffs[i - 1].sub(&tmp);
+            let tmp = out_coeffs[i] * &divisor_0;
+            out_coeffs[i - 1] = out_coeffs[i - 1] - &tmp;
         }
 
         let q = PolyData { coeffs: out_coeffs };
@@ -1044,10 +1253,10 @@ impl KZGSettings<ZFr, ZG1, ZG2, ZFFTSettings, PolyData, ZFp, ZG1Affine, ZG1ProjA
     }
 
     fn check_proof_single(&self, com: &ZG1, proof: &ZG1, x: &ZFr, y: &ZFr) -> Result<bool, String> {
-        let x_g2 = G2_GENERATOR.mul(x);
-        let s_minus_x: ZG2 = self.g2_values_monomial[1].sub(&x_g2);
-        let y_g1 = G1_GENERATOR.mul(y);
-        let commitment_minus_y: ZG1 = com.sub(&y_g1);
+        let x_g2 = G2_GENERATOR * x;
+        let s_minus_x: ZG2 = self.g2_values_monomial[1].clone() - &x_g2;
+        let y_g1 = G1_GENERATOR * y;
+        let commitment_minus_y: ZG1 = com.clone() - &y_g1;
 
         Ok(pairings_verify(
             &commitment_minus_y,
@@ -1113,23 +1322,23 @@ impl KZGSettings<ZFr, ZG1, ZG2, ZFFTSettings, PolyData, ZFp, ZG1Affine, ZG1ProjA
         let inv_x = x.inverse(); // Not euclidean?
         let mut inv_x_pow = inv_x;
         for i in 1..n {
-            interp.coeffs[i] = interp.coeffs[i].mul(&inv_x_pow);
-            inv_x_pow = inv_x_pow.mul(&inv_x);
+            interp.coeffs[i] = interp.coeffs[i] * &inv_x_pow;
+            inv_x_pow = inv_x_pow * &inv_x;
         }
 
         // [x^n]_2
         let x_pow = inv_x_pow.inverse();
 
-        let xn2 = G2_GENERATOR.mul(&x_pow);
+        let xn2 = G2_GENERATOR * &x_pow;
 
         // [s^n - x^n]_2
-        let xn_minus_yn = self.g2_values_monomial[n].sub(&xn2);
+        let xn_minus_yn = self.g2_values_monomial[n].clone() - &xn2;
 
         // [interpolation_polynomial(s)]_1
         let is1 = self.commit_to_poly(&interp).unwrap();
 
         // [commitment - interpolation_polynomial(s)]_1 = [commit]_1 - [interpolation_polynomial(s)]_1
-        let commit_minus_interp = com.sub(&is1);
+        let commit_minus_interp = com.clone() - &is1;
         let ret = pairings_verify(&commit_minus_interp, &G2_GENERATOR, proof, &xn_minus_yn);
 
         Ok(ret)

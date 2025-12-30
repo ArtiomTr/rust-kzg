@@ -5,6 +5,7 @@ use alloc::string::String;
 use alloc::string::ToString;
 use arbitrary::Arbitrary;
 use constantine::ctt_codec_ecc_status;
+use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 use kzg::eth::c_bindings::blst_fp;
 use kzg::eth::c_bindings::blst_p1;
 use kzg::msm::precompute::PrecomputationTable;
@@ -118,7 +119,7 @@ impl G1 for CtG1 {
     #[cfg(feature = "rand")]
     fn rand() -> Self {
         let result: CtG1 = G1_GENERATOR;
-        result.mul(&kzg::Fr::rand())
+        result * &kzg::Fr::rand()
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
@@ -197,22 +198,6 @@ impl G1 for CtG1 {
         Self(result)
     }
 
-    fn add(&self, b: &Self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            constantine::ctt_bls12_381_g1_jac_sum(&mut ret.0, &self.0, &b.0);
-        }
-        ret
-    }
-
-    fn sub(&self, b: &Self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            constantine::ctt_bls12_381_g1_jac_diff(&mut ret.0, &self.0, &b.0);
-        }
-        ret
-    }
-
     fn equals(&self, b: &Self) -> bool {
         unsafe { constantine::ctt_bls12_381_g1_jac_is_eq(&self.0, &b.0) != 0 }
     }
@@ -249,12 +234,6 @@ impl G1 for CtG1 {
         }
     }
 
-    fn add_assign(&mut self, b: &Self) {
-        unsafe {
-            constantine::ctt_bls12_381_g1_jac_add_in_place(&mut self.0, &b.0);
-        }
-    }
-
     fn dbl_assign(&mut self) {
         unsafe {
             constantine::ctt_bls12_381_g1_jac_double_in_place(&mut self.0);
@@ -262,15 +241,7 @@ impl G1 for CtG1 {
     }
 }
 
-impl G1Mul<CtFr> for CtG1 {
-    fn mul(&self, b: &CtFr) -> Self {
-        let mut result = *self;
-        unsafe {
-            constantine::ctt_bls12_381_g1_jac_scalar_mul_fr_coef(&mut result.0, &b.0);
-        }
-        result
-    }
-}
+impl G1Mul<CtFr> for CtG1 {}
 
 impl G1LinComb<CtFr, CtFp, CtG1Affine, CtG1ProjAddAffine> for CtG1 {
     fn g1_lincomb(
@@ -338,7 +309,7 @@ pub struct CtG1Affine(pub constantine::bls12_381_g1_aff);
 impl<'a> Arbitrary<'a> for CtG1Affine {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         Ok(CtG1Affine::into_affine(
-            &CtG1::generator().mul(&u.arbitrary()?),
+            &(CtG1::generator() * &u.arbitrary()?),
         ))
     }
 }
@@ -474,5 +445,97 @@ impl G1ProjAddAffine<CtG1, CtFp, CtG1Affine> for CtG1ProjAddAffine {
             constantine::ctt_bls12_381_g1_jac_from_affine(&mut g1_jac, &aff.0);
             constantine::ctt_bls12_381_g1_jac_add_in_place(&mut proj.0, &g1_jac);
         }
+    }
+}
+
+impl Add for CtG1 {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            constantine::ctt_bls12_381_g1_jac_sum(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
+    }
+}
+
+impl Add<&CtG1> for CtG1 {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            constantine::ctt_bls12_381_g1_jac_sum(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
+    }
+}
+
+impl Sub for CtG1 {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            constantine::ctt_bls12_381_g1_jac_diff(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
+    }
+}
+
+impl Sub<&CtG1> for CtG1 {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            constantine::ctt_bls12_381_g1_jac_diff(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
+    }
+}
+
+impl AddAssign for CtG1 {
+    fn add_assign(&mut self, rhs: Self) {
+        unsafe {
+            constantine::ctt_bls12_381_g1_jac_add_in_place(&mut self.0, &rhs.0);
+        }
+    }
+}
+
+impl SubAssign for CtG1 {
+    fn sub_assign(&mut self, rhs: Self) {
+        let mut ret = Self::default();
+        unsafe {
+            constantine::ctt_bls12_381_g1_jac_diff(&mut ret.0, &self.0, &rhs.0);
+        }
+        *self = ret;
+    }
+}
+
+impl Mul<CtFr> for CtG1 {
+    type Output = Self;
+
+    fn mul(self, rhs: CtFr) -> Self {
+        &self * &rhs
+    }
+}
+
+impl Mul<&CtFr> for CtG1 {
+    type Output = Self;
+
+    fn mul(self, rhs: &CtFr) -> Self {
+        let mut result = self;
+        unsafe {
+            constantine::ctt_bls12_381_g1_jac_scalar_mul_fr_coef(&mut result.0, &rhs.0);
+        }
+        result
+    }
+}
+
+impl MulAssign<CtFr> for CtG1 {
+    fn mul_assign(&mut self, rhs: CtFr) {
+        *self = &*self * &rhs;
     }
 }

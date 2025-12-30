@@ -9,7 +9,7 @@ use kzg::msm::msm_impls::msm;
 use kzg::msm::precompute::PrecomputationTable;
 use kzg::{Fr as KzgFr, G1Mul};
 use kzg::{FFTG1, G1};
-use std::ops::MulAssign;
+use std::ops::{Mul, MulAssign, Sub};
 
 extern crate alloc;
 
@@ -80,11 +80,11 @@ pub fn fft_g1_slow(
     roots_stride: usize,
 ) {
     for i in 0..data.len() {
-        ret[i] = data[0].mul(&roots[0]);
+        ret[i] = data[0].clone() * &roots[0];
         for j in 1..data.len() {
             let jv = data[j * stride];
             let r = roots[((i * j) % data.len()) * roots_stride];
-            let v = jv.mul(&r);
+            let v = jv.clone() * &r;
             ret[i] = ret[i].add_or_dbl(&v);
         }
     }

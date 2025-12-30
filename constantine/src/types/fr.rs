@@ -8,6 +8,7 @@ use alloc::string::ToString;
 use arbitrary::Arbitrary;
 use constantine::ctt_codec_scalar_status;
 use core::fmt::{Debug, Formatter};
+use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 use kzg::eip_4844::BYTES_PER_FIELD_ELEMENT;
 use kzg::eth::c_bindings::blst_fr;
 use kzg::Fr;
@@ -202,33 +203,6 @@ impl Fr for CtFr {
         ret
     }
 
-    fn mul(&self, b: &Self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            constantine::ctt_bls12_381_fr_prod(&mut ret.0, &self.0, &b.0);
-        }
-
-        ret
-    }
-
-    fn add(&self, b: &Self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            constantine::ctt_bls12_381_fr_sum(&mut ret.0, &self.0, &b.0);
-        }
-
-        ret
-    }
-
-    fn sub(&self, b: &Self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            constantine::ctt_bls12_381_fr_diff(&mut ret.0, &self.0, &b.0);
-        }
-
-        ret
-    }
-
     fn eucl_inverse(&self) -> Self {
         let mut ret = Self::default();
         unsafe {
@@ -263,7 +237,7 @@ impl Fr for CtFr {
         let mut n = n;
         loop {
             if (n & 1) == 1 {
-                out = out.mul(&temp);
+                out = out * &temp;
             }
             n >>= 1;
             if n == 0 {
@@ -278,7 +252,7 @@ impl Fr for CtFr {
 
     fn div(&self, b: &Self) -> Result<Self, String> {
         let tmp = b.eucl_inverse();
-        let out = self.mul(&tmp);
+        let out = self * &tmp;
 
         Ok(out)
     }
@@ -292,6 +266,102 @@ impl Fr for CtFr {
         unsafe {
             constantine::ctt_big255_from_bls12_381_fr(&mut scalar, &self.0);
             Scalar256::from_u64(core::mem::transmute::<[usize; 4], [u64; 4]>(scalar.limbs))
+        }
+    }
+}
+
+impl Add for CtFr {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            constantine::ctt_bls12_381_fr_sum(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
+    }
+}
+
+impl Add<&CtFr> for CtFr {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            constantine::ctt_bls12_381_fr_sum(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
+    }
+}
+
+impl Sub for CtFr {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            constantine::ctt_bls12_381_fr_diff(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
+    }
+}
+
+impl Sub<&CtFr> for CtFr {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            constantine::ctt_bls12_381_fr_diff(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
+    }
+}
+
+impl Mul for CtFr {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            constantine::ctt_bls12_381_fr_prod(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
+    }
+}
+
+impl Mul<&CtFr> for CtFr {
+    type Output = Self;
+
+    fn mul(self, rhs: &Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            constantine::ctt_bls12_381_fr_prod(&mut ret.0, &self.0, &rhs.0);
+        }
+        ret
+    }
+}
+
+impl AddAssign for CtFr {
+    fn add_assign(&mut self, rhs: Self) {
+        unsafe {
+            constantine::ctt_bls12_381_fr_sum(&mut self.0, &self.0, &rhs.0);
+        }
+    }
+}
+
+impl SubAssign for CtFr {
+    fn sub_assign(&mut self, rhs: Self) {
+        unsafe {
+            constantine::ctt_bls12_381_fr_diff(&mut self.0, &self.0, &rhs.0);
+        }
+    }
+}
+
+impl MulAssign for CtFr {
+    fn mul_assign(&mut self, rhs: Self) {
+        unsafe {
+            constantine::ctt_bls12_381_fr_prod(&mut self.0, &self.0, &rhs.0);
         }
     }
 }

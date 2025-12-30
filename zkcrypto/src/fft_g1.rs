@@ -5,7 +5,7 @@ use crate::multiscalar_mul::msm_variable_base;
 use kzg::msm::precompute::PrecomputationTable;
 use kzg::{Fr as KzgFr, G1Mul};
 use kzg::{FFTG1, G1};
-use std::ops::MulAssign;
+use std::ops::{Mul, MulAssign, Sub};
 
 #[warn(unused_variables)]
 pub fn g1_linear_combination(
@@ -68,11 +68,11 @@ pub fn fft_g1_slow(
     roots_stride: usize,
 ) {
     for i in 0..data.len() {
-        ret[i] = data[0].mul(&roots[0]);
+        ret[i] = data[0].clone() * &roots[0];
         for j in 1..data.len() {
             let jv = data[j * stride];
             let r = roots[((i * j) % data.len()) * roots_stride];
-            let v = jv.mul(&r);
+            let v = jv.clone() * &r;
             ret[i] = ret[i].add_or_dbl(&v);
         }
     }
@@ -109,8 +109,8 @@ pub fn fft_g1_fast(
         }
 
         for i in 0..half {
-            let y_times_root = ret[i + half].mul(&roots[i * roots_stride]);
-            ret[i + half] = ret[i].sub(&y_times_root);
+            let y_times_root = ret[i + half].clone() * &roots[i * roots_stride];
+            ret[i + half] = ret[i].clone() - &y_times_root;
             ret[i] = ret[i].add_or_dbl(&y_times_root);
         }
     } else {

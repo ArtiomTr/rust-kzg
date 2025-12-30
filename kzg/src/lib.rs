@@ -5,6 +5,7 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, string::String, vec::Vec};
 use arbitrary::Arbitrary;
 use core::fmt::Debug;
+use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 use msm::precompute::PrecomputationTable;
 
 pub mod common_utils;
@@ -15,7 +16,22 @@ pub mod msm;
 
 pub use das::{EcBackend, DAS};
 
-pub trait Fr: Default + Clone + PartialEq + Sync + for<'a> Arbitrary<'a> {
+pub trait Fr:
+    Default
+    + Clone
+    + PartialEq
+    + Sync
+    + for<'a> Arbitrary<'a>
+    + Add<Output = Self>
+    + Sub<Output = Self>
+    + Mul<Output = Self>
+    + AddAssign
+    + SubAssign
+    + MulAssign
+    + for<'a> Add<&'a Self, Output = Self>
+    + for<'a> Sub<&'a Self, Output = Self>
+    + for<'a> Mul<&'a Self, Output = Self>
+{
     fn null() -> Self;
 
     fn zero() -> Self;
@@ -49,12 +65,6 @@ pub trait Fr: Default + Clone + PartialEq + Sync + for<'a> Arbitrary<'a> {
 
     fn sqr(&self) -> Self;
 
-    fn mul(&self, b: &Self) -> Self;
-
-    fn add(&self, b: &Self) -> Self;
-
-    fn sub(&self, b: &Self) -> Self;
-
     fn eucl_inverse(&self) -> Self;
 
     fn negate(&self) -> Self;
@@ -74,7 +84,20 @@ pub trait Fr: Default + Clone + PartialEq + Sync + for<'a> Arbitrary<'a> {
     fn to_scalar(&self) -> Scalar256;
 }
 
-pub trait G1: Clone + Default + PartialEq + Sync + Debug + Send {
+pub trait G1:
+    Clone
+    + Default
+    + PartialEq
+    + Sync
+    + Debug
+    + Send
+    + Add<Output = Self>
+    + Sub<Output = Self>
+    + AddAssign
+    + SubAssign
+    + for<'a> Add<&'a Self, Output = Self>
+    + for<'a> Sub<&'a Self, Output = Self>
+{
     fn zero() -> Self;
 
     fn identity() -> Self;
@@ -100,10 +123,6 @@ pub trait G1: Clone + Default + PartialEq + Sync + Debug + Send {
 
     fn dbl(&self) -> Self;
 
-    fn add(&self, b: &Self) -> Self;
-
-    fn sub(&self, b: &Self) -> Self;
-
     fn equals(&self, b: &Self) -> bool;
 
     fn eq(&self, other: &Self) -> bool {
@@ -111,7 +130,6 @@ pub trait G1: Clone + Default + PartialEq + Sync + Debug + Send {
     }
 
     fn add_or_dbl_assign(&mut self, b: &Self);
-    fn add_assign(&mut self, b: &Self);
     fn dbl_assign(&mut self);
 }
 
@@ -135,8 +153,9 @@ pub trait G1GetFp<TFp: G1Fp>: G1 + Clone {
     fn z_mut(&mut self) -> &mut TFp;
 }
 
-pub trait G1Mul<TFr: Fr>: G1 + Clone {
-    fn mul(&self, b: &TFr) -> Self;
+pub trait G1Mul<TFr: Fr>:
+    G1 + Clone + Mul<TFr, Output = Self> + for<'a> Mul<&'a TFr, Output = Self> + MulAssign<TFr>
+{
 }
 
 pub trait G1LinComb<
@@ -392,7 +411,9 @@ impl Scalar256 {
     }
 }
 
-pub trait G2: Clone + Default {
+pub trait G2:
+    Clone + Default + Sub<Output = Self> + SubAssign + for<'a> Sub<&'a Self, Output = Self>
+{
     fn generator() -> Self;
 
     fn negative_generator() -> Self;
@@ -405,13 +426,12 @@ pub trait G2: Clone + Default {
 
     fn dbl(&self) -> Self;
 
-    fn sub(&self, b: &Self) -> Self;
-
     fn equals(&self, b: &Self) -> bool;
 }
 
-pub trait G2Mul<Fr>: Clone {
-    fn mul(&self, b: &Fr) -> Self;
+pub trait G2Mul<TFr>:
+    Clone + Mul<TFr, Output = Self> + for<'a> Mul<&'a TFr, Output = Self> + MulAssign<TFr>
+{
 }
 
 pub trait PairingVerify<TG1: G1, TG2: G2> {

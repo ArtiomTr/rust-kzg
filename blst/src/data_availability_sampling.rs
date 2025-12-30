@@ -17,12 +17,12 @@ impl FsFFTSettings {
                 return;
             }
             Ordering::Equal => {
-                let x = evens[0].add(&evens[1]);
-                let y = evens[0].sub(&evens[1]);
-                let y_times_root = y.mul(&self.roots_of_unity[stride]);
+                let x = evens[0].clone() + &evens[1];
+                let y = evens[0].clone() - &evens[1];
+                let y_times_root = y.clone() * &self.roots_of_unity[stride];
 
-                evens[0] = x.add(&y_times_root);
-                evens[1] = x.sub(&y_times_root);
+                evens[0] = x.clone() + &y_times_root;
+                evens[1] = x - &y_times_root;
 
                 return;
             }
@@ -31,9 +31,9 @@ impl FsFFTSettings {
 
         let half: usize = evens.len() / 2;
         for i in 0..half {
-            let tmp1 = evens[i].add(&evens[half + i]);
-            let tmp2 = evens[i].sub(&evens[half + i]);
-            evens[half + i] = tmp2.mul(&self.reverse_roots_of_unity[i * 2 * stride]);
+            let tmp1 = evens[i].clone() + &evens[half + i];
+            let tmp2 = evens[i].clone() - &evens[half + i];
+            evens[half + i] = tmp2 * &self.reverse_roots_of_unity[i * 2 * stride];
 
             evens[i] = tmp1;
         }
@@ -63,10 +63,10 @@ impl FsFFTSettings {
         for i in 0..half {
             let x = evens[i];
             let y = evens[half + i];
-            let y_times_root: FsFr = y.mul(&self.roots_of_unity[(1 + 2 * i) * stride]);
+            let y_times_root: FsFr = y.clone() * &self.roots_of_unity[(1 + 2 * i) * stride];
 
-            evens[i] = x.add(&y_times_root);
-            evens[half + i] = x.sub(&y_times_root);
+            evens[i] = x.clone() + &y_times_root;
+            evens[half + i] = x - &y_times_root;
         }
     }
 }
@@ -94,7 +94,7 @@ impl DASExtension<FsFr> for FsFFTSettings {
         // TODO: explain why each odd member is multiplied by euclidean inverse of length
         let mut inv_len = FsFr::from_u64(odds.len() as u64);
         inv_len = inv_len.eucl_inverse();
-        let odds = odds.iter().map(|f| f.mul(&inv_len)).collect();
+        let odds = odds.iter().map(|f| f.clone() * &inv_len).collect();
 
         Ok(odds)
     }

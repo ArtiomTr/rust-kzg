@@ -126,7 +126,7 @@ pub fn msm<
     if len < 8 {
         let mut out = TG1::zero();
         for i in 0..len {
-            let tmp = points[i].mul(&scalars[i]);
+            let tmp = points[i].clone() * &scalars[i];
             out.add_or_dbl_assign(&tmp);
         }
         return out;

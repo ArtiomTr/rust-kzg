@@ -35,7 +35,7 @@ use kzg::{
     G1GetFp, G1LinComb, G1Mul, G1ProjAddAffine, G2Mul, KZGSettings, PairingVerify, Poly, Scalar256,
     G1, G2,
 };
-use std::ops::{AddAssign, Mul, Neg, Sub};
+use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use kzg::eip_4844::{BYTES_PER_FIELD_ELEMENT, BYTES_PER_G1, BYTES_PER_G2};
 
@@ -207,18 +207,6 @@ impl KzgFr for ArkFr {
         }
     }
 
-    fn mul(&self, b: &Self) -> Self {
-        Self { fr: self.fr * b.fr }
-    }
-
-    fn add(&self, b: &Self) -> Self {
-        Self { fr: self.fr + b.fr }
-    }
-
-    fn sub(&self, b: &Self) -> Self {
-        Self { fr: self.fr - b.fr }
-    }
-
     fn eucl_inverse(&self) -> Self {
         // Inverse and eucl inverse work the same way
         Self {
@@ -257,6 +245,96 @@ impl KzgFr for ArkFr {
 
     fn to_scalar(&self) -> Scalar256 {
         Scalar256::from_u64(BigInteger256::from(self.fr).0)
+    }
+}
+
+impl Add for ArkFr {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        Self { fr: self.fr + rhs.fr }
+    }
+}
+
+impl Add<&ArkFr> for ArkFr {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self {
+        Self { fr: self.fr + rhs.fr }
+    }
+}
+
+impl Sub for ArkFr {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        Self { fr: self.fr - rhs.fr }
+    }
+}
+
+impl Sub<&ArkFr> for ArkFr {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self {
+        Self { fr: self.fr - rhs.fr }
+    }
+}
+
+impl Mul for ArkFr {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self {
+        Self { fr: self.fr * rhs.fr }
+    }
+}
+
+impl Mul<&ArkFr> for ArkFr {
+    type Output = Self;
+
+    fn mul(self, rhs: &Self) -> Self {
+        Self { fr: self.fr * rhs.fr }
+    }
+}
+
+impl AddAssign for ArkFr {
+    fn add_assign(&mut self, rhs: Self) {
+        self.fr += rhs.fr;
+    }
+}
+
+impl SubAssign for ArkFr {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.fr -= rhs.fr;
+    }
+}
+
+impl MulAssign for ArkFr {
+    fn mul_assign(&mut self, rhs: Self) {
+        self.fr *= rhs.fr;
+    }
+}
+
+impl Add<&ArkFr> for &ArkFr {
+    type Output = ArkFr;
+
+    fn add(self, rhs: &ArkFr) -> ArkFr {
+        ArkFr { fr: self.fr + rhs.fr }
+    }
+}
+
+impl Sub<&ArkFr> for &ArkFr {
+    type Output = ArkFr;
+
+    fn sub(self, rhs: &ArkFr) -> ArkFr {
+        ArkFr { fr: self.fr - rhs.fr }
+    }
+}
+
+impl Mul<&ArkFr> for &ArkFr {
+    type Output = ArkFr;
+
+    fn mul(self, rhs: &ArkFr) -> ArkFr {
+        ArkFr { fr: self.fr * rhs.fr }
     }
 }
 
@@ -347,14 +425,6 @@ impl G1 for ArkG1 {
         Self(self.0.double())
     }
 
-    fn add(&self, b: &Self) -> Self {
-        Self(self.0 + b.0)
-    }
-
-    fn sub(&self, b: &Self) -> Self {
-        Self(self.0.sub(&b.0))
-    }
-
     fn equals(&self, b: &Self) -> bool {
         self.0.eq(&b.0)
     }
@@ -391,20 +461,102 @@ impl G1 for ArkG1 {
         self.0 += b.0;
     }
 
-    fn add_assign(&mut self, b: &Self) {
-        self.0.add_assign(b.0);
-    }
-
     fn dbl_assign(&mut self) {
         self.0.double_in_place();
     }
 }
 
-impl G1Mul<ArkFr> for ArkG1 {
-    fn mul(&self, b: &ArkFr) -> Self {
-        Self(self.0.mul(b.fr))
+impl Add for ArkG1 {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        Self(self.0 + rhs.0)
     }
 }
+
+impl Add<&ArkG1> for ArkG1 {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self {
+        Self(self.0 + rhs.0)
+    }
+}
+
+impl Sub for ArkG1 {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        Self(self.0.sub(&rhs.0))
+    }
+}
+
+impl Sub<&ArkG1> for ArkG1 {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self {
+        Self(self.0.sub(&rhs.0))
+    }
+}
+
+impl AddAssign for ArkG1 {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0.add_assign(rhs.0);
+    }
+}
+
+impl SubAssign for ArkG1 {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.0 = self.0.sub(&rhs.0);
+    }
+}
+
+impl Mul<ArkFr> for ArkG1 {
+    type Output = Self;
+
+    fn mul(self, rhs: ArkFr) -> Self {
+        Self(self.0.mul(rhs.fr))
+    }
+}
+
+impl Mul<&ArkFr> for ArkG1 {
+    type Output = Self;
+
+    fn mul(self, rhs: &ArkFr) -> Self {
+        Self(self.0.mul(rhs.fr))
+    }
+}
+
+impl Mul<&ArkFr> for &ArkG1 {
+    type Output = ArkG1;
+
+    fn mul(self, rhs: &ArkFr) -> ArkG1 {
+        ArkG1(self.0.mul(rhs.fr))
+    }
+}
+
+impl MulAssign<ArkFr> for ArkG1 {
+    fn mul_assign(&mut self, rhs: ArkFr) {
+        self.0 = self.0.mul(rhs.fr);
+    }
+}
+
+impl Add<&ArkG1> for &ArkG1 {
+    type Output = ArkG1;
+
+    fn add(self, rhs: &ArkG1) -> ArkG1 {
+        ArkG1(self.0 + rhs.0)
+    }
+}
+
+impl Sub<&ArkG1> for &ArkG1 {
+    type Output = ArkG1;
+
+    fn sub(self, rhs: &ArkG1) -> ArkG1 {
+        ArkG1(self.0.sub(&rhs.0))
+    }
+}
+
+impl G1Mul<ArkFr> for ArkG1 {}
 
 impl G1LinComb<ArkFr, ArkFp, ArkG1Affine, ArkG1ProjAddAffine> for ArkG1 {
     fn g1_lincomb(
@@ -484,20 +636,64 @@ impl G2 for ArkG2 {
         Self(self.0.double())
     }
 
-    fn sub(&self, b: &Self) -> Self {
-        Self(self.0 - b.0)
-    }
-
     fn equals(&self, b: &Self) -> bool {
         self.0.eq(&b.0)
     }
 }
 
-impl G2Mul<ArkFr> for ArkG2 {
-    fn mul(&self, b: &ArkFr) -> Self {
-        Self(self.0.mul(&b.fr))
+impl Sub for ArkG2 {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        Self(self.0 - rhs.0)
     }
 }
+
+impl Sub<&ArkG2> for ArkG2 {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self {
+        Self(self.0 - rhs.0)
+    }
+}
+
+impl SubAssign for ArkG2 {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.0 = self.0 - rhs.0;
+    }
+}
+
+impl Mul<ArkFr> for ArkG2 {
+    type Output = Self;
+
+    fn mul(self, rhs: ArkFr) -> Self {
+        Self(self.0.mul(&rhs.fr))
+    }
+}
+
+impl Mul<&ArkFr> for ArkG2 {
+    type Output = Self;
+
+    fn mul(self, rhs: &ArkFr) -> Self {
+        Self(self.0.mul(&rhs.fr))
+    }
+}
+
+impl MulAssign<ArkFr> for ArkG2 {
+    fn mul_assign(&mut self, rhs: ArkFr) {
+        self.0 = self.0.mul(&rhs.fr);
+    }
+}
+
+impl Sub<&ArkG2> for &ArkG2 {
+    type Output = ArkG2;
+
+    fn sub(self, rhs: &ArkG2) -> ArkG2 {
+        ArkG2(self.0 - rhs.0)
+    }
+}
+
+impl G2Mul<ArkFr> for ArkG2 {}
 
 impl Poly<ArkFr> for PolyData {
     fn new(size: usize) -> PolyData {
@@ -749,8 +945,8 @@ impl
         // generic implementation)
         let mut out_coeffs = Vec::from(&p.coeffs[1..]);
         for i in (1..out_coeffs.len()).rev() {
-            let tmp = out_coeffs[i].mul(&divisor_0);
-            out_coeffs[i - 1] = out_coeffs[i - 1].sub(&tmp);
+            let tmp = out_coeffs[i] * &divisor_0;
+            out_coeffs[i - 1] = out_coeffs[i - 1] - &tmp;
         }
 
         let q = PolyData { coeffs: out_coeffs };
@@ -766,10 +962,10 @@ impl
         x: &ArkFr,
         y: &ArkFr,
     ) -> Result<bool, String> {
-        let x_g2: ArkG2 = G2_GENERATOR.mul(x);
-        let s_minus_x: ArkG2 = self.g2_values_monomial[1].sub(&x_g2);
-        let y_g1 = G1_GENERATOR.mul(y);
-        let commitment_minus_y: ArkG1 = com.sub(&y_g1);
+        let x_g2: ArkG2 = G2_GENERATOR * x;
+        let s_minus_x: ArkG2 = self.g2_values_monomial[1].clone() - &x_g2;
+        let y_g1 = G1_GENERATOR * y;
+        let commitment_minus_y: ArkG1 = com - &y_g1;
 
         Ok(pairings_verify(
             &commitment_minus_y,
@@ -835,23 +1031,23 @@ impl
         let inv_x = x.inverse(); // Not euclidean?
         let mut inv_x_pow = inv_x;
         for i in 1..n {
-            interp.coeffs[i] = interp.coeffs[i].mul(&inv_x_pow);
-            inv_x_pow = inv_x_pow.mul(&inv_x);
+            interp.coeffs[i] = interp.coeffs[i] * &inv_x_pow;
+            inv_x_pow = inv_x_pow * &inv_x;
         }
 
         // [x^n]_2
         let x_pow = inv_x_pow.inverse();
 
-        let xn2 = G2_GENERATOR.mul(&x_pow);
+        let xn2 = G2_GENERATOR * &x_pow;
 
         // [s^n - x^n]_2
-        let xn_minus_yn = self.g2_values_monomial[n].sub(&xn2);
+        let xn_minus_yn = self.g2_values_monomial[n].clone() - &xn2;
 
         // [interpolation_polynomial(s)]_1
         let is1 = self.commit_to_poly(&interp).unwrap();
 
         // [commitment - interpolation_polynomial(s)]_1 = [commit]_1 - [interpolation_polynomial(s)]_1
-        let commit_minus_interp = com.sub(&is1);
+        let commit_minus_interp = com - &is1;
 
         let ret = pairings_verify(&commit_minus_interp, &G2_GENERATOR, proof, &xn_minus_yn);
 

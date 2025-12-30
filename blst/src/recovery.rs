@@ -24,7 +24,7 @@ pub fn scale_poly(p: &mut [FsFr], len_p: usize) {
         let mut temp = Vec::with_capacity(65536);
         temp.push(FsFr::one());
         for i in 1..65536 {
-            temp.push(temp[i - 1].mul(&inv_factor));
+            temp.push(temp[i - 1] * &inv_factor);
         }
         temp
     });
@@ -34,7 +34,7 @@ pub fn scale_poly(p: &mut [FsFr], len_p: usize) {
         .take(len_p)
         .skip(1)
         .for_each(|(p, factor)| {
-            *p = p.mul(factor);
+            *p = (*p).clone() * factor;
         });
 }
 
@@ -44,7 +44,7 @@ pub fn unscale_poly(p: &mut [FsFr], len_p: usize) {
         let mut temp = Vec::with_capacity(65536);
         temp.push(FsFr::one());
         for i in 1..65536 {
-            temp.push(temp[i - 1].mul(&scale_factor));
+            temp.push(temp[i - 1] * &scale_factor);
         }
         temp
     });
@@ -54,7 +54,7 @@ pub fn unscale_poly(p: &mut [FsFr], len_p: usize) {
         .take(len_p)
         .skip(1)
         .for_each(|(p, factor)| {
-            *p = p.mul(factor);
+            *p = (*p).clone() * factor;
         });
 }
 
@@ -96,7 +96,7 @@ impl PolyRecover<FsFr, FsPoly, FsFFTSettings> for FsPoly {
                 debug_assert_eq!(maybe_sample.is_none(), zero_eval.is_zero());
 
                 match maybe_sample {
-                    Some(sample) => sample.mul(&zero_eval),
+                    Some(sample) => sample * &zero_eval,
                     None => FsFr::zero(),
                 }
             })

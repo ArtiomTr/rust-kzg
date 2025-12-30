@@ -24,10 +24,10 @@ pub fn generate_trusted_setup(
     let mut g2_monomial_values = Vec::with_capacity(n);
 
     for _ in 0..n {
-        g1_monomial_values.push(G1_GENERATOR.mul(&s_pow));
-        g2_monomial_values.push(G2_GENERATOR.mul(&s_pow));
+        g1_monomial_values.push(G1_GENERATOR.clone() * &s_pow);
+        g2_monomial_values.push(G2_GENERATOR.clone() * &s_pow);
 
-        s_pow = s_pow.mul(&s);
+        s_pow = s_pow.clone() * &s;
     }
 
     let s = FsFFTSettings::new(log2_pow2(n)).unwrap();

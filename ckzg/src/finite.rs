@@ -3,6 +3,7 @@ use crate::consts::{
     G2_NEGATIVE_GENERATOR,
 };
 
+use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 use kzg::{Fr, G1Mul, G2Mul, G1, G2};
 use rand::{thread_rng, RngCore};
 
@@ -148,30 +149,6 @@ impl Fr for BlstFr {
         ret
     }
 
-    fn mul(&self, b: &Self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            blst_fr_mul(&mut ret, self, b);
-        }
-        ret
-    }
-
-    fn add(&self, b: &Self) -> Self {
-        let mut sum = Self::default();
-        unsafe {
-            blst_fr_add(&mut sum, self, b);
-        }
-        sum
-    }
-
-    fn sub(&self, b: &Self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            blst_fr_sub(&mut ret, self, b);
-        }
-        ret
-    }
-
     fn eucl_inverse(&self) -> Self {
         let mut ret = Self::default();
         unsafe {
@@ -266,34 +243,106 @@ impl G1 for BlstP1 {
         ret
     }
 
-    fn add(&self, b: &Self) -> Self {
-        let mut ret = BlstP1::default();
-        unsafe {
-            g1_add(&mut ret, self, b);
-        }
-        ret
-    }
-
-    fn sub(&self, b: &Self) -> Self {
-        let mut ret = BlstP1::default();
-        unsafe {
-            g1_sub(&mut ret, self, b);
-        }
-        ret
-    }
-
     fn equals(&self, b: &Self) -> bool {
         unsafe { g1_equal(self, b) }
     }
 }
 
-impl G1Mul<BlstFr> for BlstP1 {
-    fn mul(&self, b: &BlstFr) -> Self {
-        let mut ret = BlstP1::default();
+impl G1Mul<BlstFr> for BlstP1 {}
+
+impl Add for BlstFr {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        let mut ret = Self::default();
         unsafe {
-            g1_mul(&mut ret, self, b);
+            blst_fr_add(&mut ret, &self, &rhs);
         }
         ret
+    }
+}
+
+impl Add<&BlstFr> for BlstFr {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            blst_fr_add(&mut ret, &self, rhs);
+        }
+        ret
+    }
+}
+
+impl Sub for BlstFr {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            blst_fr_sub(&mut ret, &self, &rhs);
+        }
+        ret
+    }
+}
+
+impl Sub<&BlstFr> for BlstFr {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            blst_fr_sub(&mut ret, &self, rhs);
+        }
+        ret
+    }
+}
+
+impl Mul for BlstFr {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            blst_fr_mul(&mut ret, &self, &rhs);
+        }
+        ret
+    }
+}
+
+impl Mul<&BlstFr> for BlstFr {
+    type Output = Self;
+
+    fn mul(self, rhs: &Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            blst_fr_mul(&mut ret, &self, rhs);
+        }
+        ret
+    }
+}
+
+impl AddAssign for BlstFr {
+    fn add_assign(&mut self, rhs: Self) {
+        unsafe {
+            blst_fr_add(self, self, &rhs);
+        }
+    }
+}
+
+impl SubAssign for BlstFr {
+    fn sub_assign(&mut self, rhs: Self) {
+        unsafe {
+            blst_fr_sub(self, self, &rhs);
+        }
+    }
+}
+
+impl MulAssign for BlstFr {
+    fn mul_assign(&mut self, rhs: Self) {
+        unsafe {
+            blst_fr_mul(self, self, &rhs);
+        }
     }
 }
 
@@ -322,26 +371,158 @@ impl G2 for BlstP2 {
         ret
     }
 
-    fn sub(&self, b: &Self) -> Self {
-        let mut ret = BlstP2::default();
-        unsafe {
-            g2_sub(&mut ret, self, b);
-        }
-        ret
-    }
-
     fn equals(&self, b: &Self) -> bool {
         unsafe { g2_equal(self, b) }
     }
 }
 
-impl G2Mul<BlstFr> for BlstP2 {
-    fn mul(&self, b: &BlstFr) -> Self {
-        let mut ret = BlstP2::default();
+impl G2Mul<BlstFr> for BlstP2 {}
+
+impl Add for BlstP1 {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        let mut ret = Self::default();
         unsafe {
-            g2_mul(&mut ret, self, b);
+            g1_add(&mut ret, &self, &rhs);
         }
         ret
+    }
+}
+
+impl Add<&BlstP1> for BlstP1 {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            g1_add(&mut ret, &self, rhs);
+        }
+        ret
+    }
+}
+
+impl Sub for BlstP1 {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            g1_sub(&mut ret, &self, &rhs);
+        }
+        ret
+    }
+}
+
+impl Sub<&BlstP1> for BlstP1 {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            g1_sub(&mut ret, &self, rhs);
+        }
+        ret
+    }
+}
+
+impl AddAssign for BlstP1 {
+    fn add_assign(&mut self, rhs: Self) {
+        unsafe {
+            g1_add(self, self, &rhs);
+        }
+    }
+}
+
+impl SubAssign for BlstP1 {
+    fn sub_assign(&mut self, rhs: Self) {
+        unsafe {
+            g1_sub(self, self, &rhs);
+        }
+    }
+}
+
+impl Mul<BlstFr> for BlstP1 {
+    type Output = Self;
+
+    fn mul(self, rhs: BlstFr) -> Self {
+        &self * &rhs
+    }
+}
+
+impl Mul<&BlstFr> for BlstP1 {
+    type Output = Self;
+
+    fn mul(self, rhs: &BlstFr) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            g1_mul(&mut ret, &self, rhs);
+        }
+        ret
+    }
+}
+
+impl MulAssign<BlstFr> for BlstP1 {
+    fn mul_assign(&mut self, rhs: BlstFr) {
+        *self = &*self * &rhs;
+    }
+}
+
+impl Sub for BlstP2 {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            g2_sub(&mut ret, &self, &rhs);
+        }
+        ret
+    }
+}
+
+impl Sub<&BlstP2> for BlstP2 {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            g2_sub(&mut ret, &self, rhs);
+        }
+        ret
+    }
+}
+
+impl SubAssign for BlstP2 {
+    fn sub_assign(&mut self, rhs: Self) {
+        unsafe {
+            g2_sub(self, self, &rhs);
+        }
+    }
+}
+
+impl Mul<BlstFr> for BlstP2 {
+    type Output = Self;
+
+    fn mul(self, rhs: BlstFr) -> Self {
+        &self * &rhs
+    }
+}
+
+impl Mul<&BlstFr> for BlstP2 {
+    type Output = Self;
+
+    fn mul(self, rhs: &BlstFr) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            g2_mul(&mut ret, &self, rhs);
+        }
+        ret
+    }
+}
+
+impl MulAssign<BlstFr> for BlstP2 {
+    fn mul_assign(&mut self, rhs: BlstFr) {
+        *self = &*self * &rhs;
     }
 }
 

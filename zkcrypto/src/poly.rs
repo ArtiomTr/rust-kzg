@@ -47,8 +47,8 @@ impl Poly<ZFr> for PolyData {
         let mut ret = self.coeffs[self.coeffs.len() - 1];
         let mut i = self.coeffs.len() - 2;
         loop {
-            let temp = ret.mul(x);
-            ret = temp.add(&self.coeffs[i]);
+            let temp = ret.clone() * x;
+            ret = temp + &self.coeffs[i];
 
             if i == 0 {
                 break;
@@ -65,8 +65,8 @@ impl Poly<ZFr> for PolyData {
 
         let mut factor_power = ZFr::one();
         for i in 0..self.coeffs.len() {
-            factor_power = factor_power.mul(&inv_factor);
-            self.coeffs[i] = self.coeffs[i].mul(&factor_power);
+            factor_power = factor_power.clone() * &inv_factor;
+            self.coeffs[i] = self.coeffs[i].clone() * &factor_power;
         }
     }
 
@@ -75,8 +75,8 @@ impl Poly<ZFr> for PolyData {
 
         let mut factor_power = ZFr::one();
         for i in 0..self.coeffs.len() {
-            factor_power = factor_power.mul(&scale_factor);
-            self.coeffs[i] = self.coeffs[i].mul(&factor_power);
+            factor_power = factor_power.clone() * &scale_factor;
+            self.coeffs[i] = self.coeffs[i].clone() * &factor_power;
         }
     }
 
@@ -129,7 +129,7 @@ impl Poly<ZFr> for PolyData {
                 tmp0.coeffs[i] = tmp0.coeffs[i].negate();
             }
             let fr_two = Fr::from_u64(2);
-            tmp0.coeffs[0] = tmp0.coeffs[0].add(&fr_two);
+            tmp0.coeffs[0] = tmp0.coeffs[0] + &fr_two;
 
             // c.(2 - b.c) -> tmp1;
             let tmp1 = ret.mul(&tmp0, d + 1).unwrap();
@@ -176,8 +176,8 @@ impl Poly<ZFr> for PolyData {
             for i in (1..out_length).rev() {
                 out_coeffs[i] = out_coeffs[i].div(&divisor_1).unwrap();
 
-                let tmp = out_coeffs[i].mul(&divisor_0);
-                out_coeffs[i - 1] = out_coeffs[i - 1].sub(&tmp);
+                let tmp = out_coeffs[i].clone() * &divisor_0;
+                out_coeffs[i - 1] = out_coeffs[i - 1].clone() - &tmp;
             }
 
             out_coeffs[0] = out_coeffs[0].div(&divisor_1).unwrap();
@@ -198,8 +198,8 @@ impl Poly<ZFr> for PolyData {
                 out.coeffs[diff] = a[a_pos].div(&divisor.coeffs[b_pos]).unwrap();
 
                 for i in 0..(b_pos + 1) {
-                    let tmp = out.coeffs[diff].mul(&divisor.coeffs[i]);
-                    a[diff + i] = a[diff + i].sub(&tmp);
+                    let tmp = out.coeffs[diff].clone() * &divisor.coeffs[i];
+                    a[diff + i] = a[diff + i].clone() - &tmp;
                 }
 
                 diff -= 1;
@@ -263,8 +263,8 @@ impl Poly<ZFr> for PolyData {
         for i in 0..(a_degree + 1) {
             let mut j = 0;
             while (j <= b_degree) && ((i + j) < output_len) {
-                let tmp = self.coeffs[i].mul(&multiplier.coeffs[j]);
-                let tmp = ret.coeffs[i + j].add(&tmp);
+                let tmp = self.coeffs[i].clone() * &multiplier.coeffs[j];
+                let tmp = ret.coeffs[i + j].clone() + &tmp;
                 ret.coeffs[i + j] = tmp;
 
                 j += 1;
@@ -376,7 +376,7 @@ impl PolyData {
         // Multiply two value ranges
         let mut ab_fft = a_fft;
         ab_fft.iter_mut().zip(b_fft).for_each(|(a, b)| {
-            *a = a.mul(&b);
+            *a = a.clone() * &b;
         });
 
         // Convert value range multiplication to a resulting polynomial

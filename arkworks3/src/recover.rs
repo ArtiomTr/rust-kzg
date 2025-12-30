@@ -29,19 +29,19 @@ pub fn scale_poly(p: &mut PolyData) {
                         INVERSE_FACTORS.push(BlstFr::one());
                     }
                     for i in (INVERSE_FACTORS.len())..p.len() {
-                        INVERSE_FACTORS.push(INVERSE_FACTORS[i - 1].mul(&inv_factor));
+                        INVERSE_FACTORS.push(INVERSE_FACTORS[i - 1].clone() * &inv_factor);
                     }
                 }
 
                 for i in 1..p.len() {
-                    p.coeffs[i] = p.coeffs[i].mul(&INVERSE_FACTORS[i]);
+                    p.coeffs[i] = p.coeffs[i].clone() * &INVERSE_FACTORS[i];
                 }
             }
         } else {
             let mut factor_power = BlstFr::one();
             for i in 1..p.len() {
-                factor_power = factor_power.mul(&inv_factor);
-                p.set_coeff_at(i, &p.get_coeff_at(i).mul(&factor_power));
+                factor_power = factor_power.clone() * &inv_factor;
+                p.set_coeff_at(i, &p.get_coeff_at(i).clone() * &factor_power);
             }
         }
     }
@@ -49,8 +49,8 @@ pub fn scale_poly(p: &mut PolyData) {
     {
         let mut factor_power = BlstFr::one();
         for i in 1..p.len() {
-            factor_power = factor_power.mul(&inv_factor);
-            p.set_coeff_at(i, &p.get_coeff_at(i).mul(&factor_power));
+            factor_power = factor_power.clone() * &inv_factor;
+            p.set_coeff_at(i, &(p.get_coeff_at(i).clone() * &factor_power));
         }
     }
 }
@@ -68,12 +68,12 @@ pub fn unscale_poly(p: &mut PolyData) {
                     UNSCALE_FACTOR_POWERS.push(BlstFr::one());
                 }
                 for i in (UNSCALE_FACTOR_POWERS.len())..p.len() {
-                    UNSCALE_FACTOR_POWERS.push(UNSCALE_FACTOR_POWERS[i - 1].mul(&scale_factor));
+                    UNSCALE_FACTOR_POWERS.push(UNSCALE_FACTOR_POWERS[i - 1].clone() * &scale_factor);
                 }
             }
 
             for i in 1..p.len() {
-                p.coeffs[i] = p.coeffs[i].mul(&UNSCALE_FACTOR_POWERS[i]);
+                p.coeffs[i] = p.coeffs[i].clone() * &UNSCALE_FACTOR_POWERS[i];
             }
         }
     }
@@ -81,8 +81,8 @@ pub fn unscale_poly(p: &mut PolyData) {
     {
         let mut factor_power = BlstFr::one();
         for i in 1..p.len() {
-            factor_power = factor_power.mul(&scale_factor);
-            p.set_coeff_at(i, &p.get_coeff_at(i).mul(&factor_power));
+            factor_power = factor_power.clone() * &scale_factor;
+            p.set_coeff_at(i, &(p.get_coeff_at(i).clone() * &factor_power));
         }
     }
 }
@@ -128,7 +128,7 @@ impl PolyRecover<BlstFr, PolyData, FFTSettings> for PolyData {
             if samples[i].is_none() {
                 poly_evaluations_with_zero[i] = BlstFr::zero();
             } else {
-                poly_evaluations_with_zero[i] = samples[i].unwrap().mul(&zero_eval[i]);
+                poly_evaluations_with_zero[i] = samples[i].unwrap().clone() * &zero_eval[i];
             }
         }
 

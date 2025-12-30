@@ -95,7 +95,7 @@ pub fn expand_root_of_unity(root: &FsFr, width: usize) -> Result<Vec<FsFr>, Stri
             return Err(String::from("Root of unity multiplied for too long"));
         }
 
-        generated_powers.push(generated_powers.last().unwrap().mul(root));
+        generated_powers.push(generated_powers.last().unwrap().clone() * root);
     }
 
     if generated_powers.len() != width + 1 {

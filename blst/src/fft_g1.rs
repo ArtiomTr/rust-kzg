@@ -41,8 +41,8 @@ pub fn fft_g1_fast(
         }
 
         for i in 0..half {
-            let y_times_root = ret[i + half].mul(&roots[i * roots_stride]);
-            ret[i + half] = ret[i].sub(&y_times_root);
+            let y_times_root = ret[i + half].clone() * &roots[i * roots_stride];
+            ret[i + half] = ret[i].clone() - &y_times_root;
             ret[i] = ret[i].add_or_dbl(&y_times_root);
         }
     } else {
@@ -75,7 +75,7 @@ impl FFTG1<FsG1> for FsFFTSettings {
             let inv_fr_len = FsFr::from_u64(data.len() as u64).inverse();
             ret[..data.len()]
                 .iter_mut()
-                .for_each(|f| *f = f.mul(&inv_fr_len));
+                .for_each(|f| *f = f.clone() * &inv_fr_len);
         }
 
         Ok(ret)
@@ -92,12 +92,12 @@ pub fn fft_g1_slow(
 ) {
     for i in 0..data.len() {
         // Evaluate first member at 1
-        ret[i] = data[0].mul(&roots[0]);
+        ret[i] = data[0].clone() * &roots[0];
 
         // Evaluate the rest of members using a step of (i * J) % data.len() over the roots
         // This distributes the roots over correct x^n members and saves on multiplication
         for j in 1..data.len() {
-            let v = data[j * stride].mul(&roots[((i * j) % data.len()) * roots_stride]);
+            let v = data[j * stride].clone() * &roots[((i * j) % data.len()) * roots_stride];
             ret[i] = ret[i].add_or_dbl(&v);
         }
     }

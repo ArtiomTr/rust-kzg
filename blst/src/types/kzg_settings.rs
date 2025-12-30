@@ -164,8 +164,8 @@ impl KZGSettings<FsFr, FsG1, FsG2, FsFFTSettings, FsPoly, FsFp, FsG1Affine, FsG1
         // generic implementation)
         let mut out_coeffs = Vec::from(&p.coeffs[1..]);
         for i in (1..out_coeffs.len()).rev() {
-            let tmp = out_coeffs[i].mul(&divisor_0);
-            out_coeffs[i - 1] = out_coeffs[i - 1].sub(&tmp);
+            let tmp = out_coeffs[i].clone() * &divisor_0;
+            out_coeffs[i - 1] = out_coeffs[i - 1].clone() - &tmp;
         }
 
         let q = FsPoly { coeffs: out_coeffs };
@@ -182,10 +182,10 @@ impl KZGSettings<FsFr, FsG1, FsG2, FsFFTSettings, FsPoly, FsFp, FsG1Affine, FsG1
         x: &FsFr,
         y: &FsFr,
     ) -> Result<bool, String> {
-        let x_g2: FsG2 = G2_GENERATOR.mul(x);
-        let s_minus_x: FsG2 = self.g2_values_monomial[1].sub(&x_g2);
-        let y_g1 = G1_GENERATOR.mul(y);
-        let commitment_minus_y: FsG1 = com.sub(&y_g1);
+        let x_g2: FsG2 = G2_GENERATOR.clone() * x;
+        let s_minus_x: FsG2 = self.g2_values_monomial[1].clone() - &x_g2;
+        let y_g1 = G1_GENERATOR.clone() * y;
+        let commitment_minus_y: FsG1 = com.clone() - &y_g1;
 
         Ok(pairings_verify(
             &commitment_minus_y,
@@ -253,23 +253,23 @@ impl KZGSettings<FsFr, FsG1, FsG2, FsFFTSettings, FsPoly, FsFp, FsG1Affine, FsG1
         let inv_x = x.inverse(); // Not euclidean?
         let mut inv_x_pow = inv_x;
         for i in 1..n {
-            interp.coeffs[i] = interp.coeffs[i].mul(&inv_x_pow);
-            inv_x_pow = inv_x_pow.mul(&inv_x);
+            interp.coeffs[i] = interp.coeffs[i].clone() * &inv_x_pow;
+            inv_x_pow = inv_x_pow.clone() * &inv_x;
         }
 
         // [x^n]_2
         let x_pow = inv_x_pow.inverse();
 
-        let xn2 = G2_GENERATOR.mul(&x_pow);
+        let xn2 = G2_GENERATOR.clone() * &x_pow;
 
         // [s^n - x^n]_2
-        let xn_minus_yn = self.g2_values_monomial[n].sub(&xn2);
+        let xn_minus_yn = self.g2_values_monomial[n].clone() - &xn2;
 
         // [interpolation_polynomial(s)]_1
         let is1 = self.commit_to_poly(&interp).unwrap();
 
         // [commitment - interpolation_polynomial(s)]_1 = [commit]_1 - [interpolation_polynomial(s)]_1
-        let commit_minus_interp = com.sub(&is1);
+        let commit_minus_interp = com.clone() - &is1;
 
         let ret = pairings_verify(&commit_minus_interp, &G2_GENERATOR, proof, &xn_minus_yn);
 

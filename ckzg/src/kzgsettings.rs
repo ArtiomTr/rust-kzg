@@ -220,7 +220,7 @@ pub fn generate_trusted_setup(len: usize, secret: [u8; 32usize]) -> (Vec<BlstP1>
         let g2_mul = G2Mul::mul(&G2::generator(), &s_pow);
         s1.push(g1_mul);
         s2.push(g2_mul);
-        s_pow = s_pow.mul(&s);
+        s_pow = s_pow * &s;
     }
 
     (s1, s2)

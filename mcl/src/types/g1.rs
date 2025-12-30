@@ -1,8 +1,7 @@
 extern crate alloc;
 
 use core::hash::Hash;
-use core::ops::Add;
-use core::ops::Sub;
+use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
 use alloc::borrow::ToOwned;
 use alloc::format;
@@ -124,7 +123,7 @@ impl G1 for MclG1 {
         try_init_mcl();
 
         let result: MclG1 = G1_GENERATOR;
-        result.mul(&kzg::Fr::rand())
+        result * &kzg::Fr::rand()
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
@@ -200,18 +199,6 @@ impl G1 for MclG1 {
         Self(out)
     }
 
-    fn add(&self, b: &Self) -> Self {
-        try_init_mcl();
-
-        Self(self.0.add(&b.0))
-    }
-
-    fn sub(&self, b: &Self) -> Self {
-        try_init_mcl();
-
-        Self(self.0.sub(&b.0))
-    }
-
     fn equals(&self, b: &Self) -> bool {
         try_init_mcl();
 
@@ -219,12 +206,6 @@ impl G1 for MclG1 {
     }
 
     fn add_or_dbl_assign(&mut self, b: &Self) {
-        try_init_mcl();
-
-        self.0 = self.0.add(&b.0);
-    }
-
-    fn add_assign(&mut self, b: &Self) {
         try_init_mcl();
 
         self.0 = self.0.add(&b.0);
@@ -295,15 +276,7 @@ impl G1GetFp<MclFp> for MclG1 {
     }
 }
 
-impl G1Mul<MclFr> for MclG1 {
-    fn mul(&self, b: &MclFr) -> Self {
-        try_init_mcl();
-
-        let mut out = MclG1::default();
-        mcl_g1::mul(&mut out.0, &self.0, &b.0);
-        out
-    }
-}
+impl G1Mul<MclFr> for MclG1 {}
 
 impl G1LinComb<MclFr, MclFp, MclG1Affine, MclG1ProjAddAffine> for MclG1 {
     fn g1_lincomb(
@@ -484,5 +457,87 @@ impl G1ProjAddAffine<MclG1, MclFp, MclG1Affine> for MclG1ProjAddAffine {
 
     fn add_or_double_assign_affine(_proj: &mut MclG1, _aff: &MclG1Affine) {
         todo!()
+    }
+}
+
+impl Add for MclG1 {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        try_init_mcl();
+
+        Self(self.0.add(&rhs.0))
+    }
+}
+
+impl Add<&MclG1> for MclG1 {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self {
+        try_init_mcl();
+
+        Self(self.0.add(&rhs.0))
+    }
+}
+
+impl Sub for MclG1 {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        try_init_mcl();
+
+        Self(self.0.sub(&rhs.0))
+    }
+}
+
+impl Sub<&MclG1> for MclG1 {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self {
+        try_init_mcl();
+
+        Self(self.0.sub(&rhs.0))
+    }
+}
+
+impl AddAssign for MclG1 {
+    fn add_assign(&mut self, rhs: Self) {
+        try_init_mcl();
+
+        self.0 = self.0.add(&rhs.0);
+    }
+}
+
+impl SubAssign for MclG1 {
+    fn sub_assign(&mut self, rhs: Self) {
+        try_init_mcl();
+
+        self.0 = self.0.sub(&rhs.0);
+    }
+}
+
+impl Mul<MclFr> for MclG1 {
+    type Output = Self;
+
+    fn mul(self, rhs: MclFr) -> Self {
+        &self * &rhs
+    }
+}
+
+impl Mul<&MclFr> for MclG1 {
+    type Output = Self;
+
+    fn mul(self, rhs: &MclFr) -> Self {
+        try_init_mcl();
+
+        let mut out = MclG1::default();
+        mcl_g1::mul(&mut out.0, &self.0, &rhs.0);
+        out
+    }
+}
+
+impl MulAssign<MclFr> for MclG1 {
+    fn mul_assign(&mut self, rhs: MclFr) {
+        *self = &*self * &rhs;
     }
 }

@@ -57,8 +57,8 @@ pub fn vector_lincomb(vectors: &[Vec<BlstFr>], scalars: &[BlstFr]) -> Vec<BlstFr
     let mut out: Vec<BlstFr> = vec![BlstFr::zero(); vectors[0].len()];
     for (v, s) in vectors.iter().zip(scalars.iter()) {
         for (i, x) in v.iter().enumerate() {
-            tmp = x.mul(s);
-            out[i] = out[i].add(&tmp);
+            tmp = *x * s;
+            out[i] = out[i] + &tmp;
         }
     }
     out
@@ -98,7 +98,7 @@ pub fn compute_powers(base: &BlstFr, num_powers: usize) -> Vec<BlstFr> {
     let mut powers: Vec<BlstFr> = vec![BlstFr::default(); num_powers];
     powers[0] = BlstFr::one();
     for i in 1..num_powers {
-        powers[i] = powers[i - 1].mul(base);
+        powers[i] = powers[i - 1] * base;
     }
     powers
 }

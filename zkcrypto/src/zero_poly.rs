@@ -39,16 +39,16 @@ impl ZeroPoly<BlstFr, PolyData> for FFTSettings {
             let neg_di = (self.roots_of_unity[indices[i] * stride]).negate();
             poly.coeffs[i] = neg_di;
 
-            poly.coeffs[i] = poly.coeffs[i].add(&poly.coeffs[i - 1]);
+            poly.coeffs[i] = poly.coeffs[i].clone() + &poly.coeffs[i - 1];
 
             let mut j = i - 1;
             while j > 0 {
-                poly.coeffs[j] = poly.coeffs[j].mul(&neg_di);
-                poly.coeffs[j] = poly.coeffs[j].add(&poly.coeffs[j - 1]);
+                poly.coeffs[j] = poly.coeffs[j].clone() * &neg_di;
+                poly.coeffs[j] = poly.coeffs[j].clone() + &poly.coeffs[j - 1];
                 j -= 1;
             }
 
-            poly.coeffs[0] = poly.coeffs[0].mul(&neg_di);
+            poly.coeffs[0] = poly.coeffs[0].clone() * &neg_di;
         }
 
         Ok(poly)

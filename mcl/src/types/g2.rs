@@ -3,6 +3,7 @@ extern crate alloc;
 use alloc::format;
 use alloc::string::String;
 use alloc::string::ToString;
+use core::ops::{Mul, MulAssign, Sub, SubAssign};
 
 use kzg::eip_4844::BYTES_PER_G2;
 #[cfg(feature = "rand")]
@@ -68,7 +69,7 @@ impl MclG2 {
         try_init_mcl();
 
         let result: MclG2 = G2_GENERATOR;
-        result.mul(&MclFr::rand())
+        result * &MclFr::rand()
     }
 }
 
@@ -135,14 +136,6 @@ impl G2 for MclG2 {
         Self(out)
     }
 
-    fn sub(&self, b: &Self) -> Self {
-        try_init_mcl();
-
-        let mut out: mcl_g2 = mcl_g2::default();
-        mcl_g2::sub(&mut out, &self.0, &b.0);
-        Self(out)
-    }
-
     fn equals(&self, b: &Self) -> bool {
         try_init_mcl();
 
@@ -150,12 +143,64 @@ impl G2 for MclG2 {
     }
 }
 
-impl G2Mul<MclFr> for MclG2 {
-    fn mul(&self, b: &MclFr) -> Self {
+impl G2Mul<MclFr> for MclG2 {}
+
+impl Sub for MclG2 {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
         try_init_mcl();
 
         let mut out: mcl_g2 = mcl_g2::default();
-        mcl_g2::mul(&mut out, &self.0, &b.0);
+        mcl_g2::sub(&mut out, &self.0, &rhs.0);
         Self(out)
+    }
+}
+
+impl Sub<&MclG2> for MclG2 {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self {
+        try_init_mcl();
+
+        let mut out: mcl_g2 = mcl_g2::default();
+        mcl_g2::sub(&mut out, &self.0, &rhs.0);
+        Self(out)
+    }
+}
+
+impl SubAssign for MclG2 {
+    fn sub_assign(&mut self, rhs: Self) {
+        try_init_mcl();
+
+        let mut out: mcl_g2 = mcl_g2::default();
+        mcl_g2::sub(&mut out, &self.0, &rhs.0);
+        self.0 = out;
+    }
+}
+
+impl Mul<MclFr> for MclG2 {
+    type Output = Self;
+
+    fn mul(self, rhs: MclFr) -> Self {
+        &self * &rhs
+    }
+}
+
+impl Mul<&MclFr> for MclG2 {
+    type Output = Self;
+
+    fn mul(self, rhs: &MclFr) -> Self {
+        try_init_mcl();
+
+        let mut out: mcl_g2 = mcl_g2::default();
+        mcl_g2::mul(&mut out, &self.0, &rhs.0);
+        Self(out)
+    }
+}
+
+impl MulAssign<MclFr> for MclG2 {
+    fn mul_assign(&mut self, rhs: MclFr) {
+        *self = &*self * &rhs;
     }
 }

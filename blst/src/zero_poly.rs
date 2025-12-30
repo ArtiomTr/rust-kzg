@@ -71,16 +71,16 @@ impl FsFFTSettings {
         for (i, idx) in idxs.iter().copied().enumerate().skip(1) {
             // For member (x - w_i) take coefficient as -(w_i + w_{i-1} + ...)
             let neg_di = self.roots_of_unity[idx * stride].negate();
-            coeffs.push(neg_di.add(&coeffs[i - 1]));
+            coeffs.push(neg_di.clone() + &coeffs[i - 1]);
 
             // Multiply all previous members by (x - w_i)
             // It equals multiplying by - w_i and adding x^(i - 1) coefficient (implied multiplication by x)
             for j in (1..i).rev() {
-                coeffs[j] = coeffs[j].mul(&neg_di).add(&coeffs[j - 1]);
+                coeffs[j] = coeffs[j].clone() * &neg_di + &coeffs[j - 1];
             }
 
             // Multiply x^0 member by - w_i
-            coeffs[0] = coeffs[0].mul(&neg_di);
+            coeffs[0] = coeffs[0].clone() * &neg_di;
         }
 
         coeffs.resize(idxs.len() + 1, FsFr::one());
@@ -140,7 +140,7 @@ impl FsFFTSettings {
                 .iter_mut()
                 .zip(evaluated_partial.iter())
                 .for_each(|(eval_result, evaluated_partial)| {
-                    *eval_result = eval_result.mul(evaluated_partial);
+                    *eval_result = eval_result.clone() * evaluated_partial;
                 });
         }
 

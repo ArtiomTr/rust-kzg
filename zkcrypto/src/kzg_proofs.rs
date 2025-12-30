@@ -9,7 +9,7 @@ use kzg::common_utils::log2_pow2;
 use kzg::eip_4844::hash_to_bls_field;
 use kzg::msm::precompute::PrecomputationTable;
 use kzg::{FFTSettings as _, Fr as FrTrait, G1Mul, G2Mul, FFTG1, G1, G2};
-use std::ops::{Add, Neg};
+use std::ops::{Add, Mul, Neg, Sub};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -83,8 +83,8 @@ pub fn eval_poly(p: &PolyData, x: &ZFr) -> ZFr {
     let mut i = p.coeffs.len() - 2;
 
     loop {
-        let temp = out.mul(x);
-        out = temp.add(&p.coeffs[i]);
+        let temp = out.clone() * x;
+        out = temp + &p.coeffs[i];
 
         if i == 0 {
             break;

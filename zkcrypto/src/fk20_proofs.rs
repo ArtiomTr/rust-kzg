@@ -317,7 +317,7 @@ fn toeplitz_part_2(
     {
         let out: Vec<_> = (0..toeplitz_coeffs.len())
             .into_par_iter()
-            .map(|i| x_ext_fft[i].mul(&toeplitz_coeffs_fft[i]))
+            .map(|i| x_ext_fft[i].clone() * &toeplitz_coeffs_fft[i])
             .collect();
         Ok(out)
     }
@@ -326,7 +326,7 @@ fn toeplitz_part_2(
     {
         let mut out = Vec::new();
         for i in 0..toeplitz_coeffs.len() {
-            out.push(x_ext_fft[i].mul(&toeplitz_coeffs_fft[i]));
+            out.push(x_ext_fft[i].clone() * &toeplitz_coeffs_fft[i]);
         }
         Ok(out)
     }

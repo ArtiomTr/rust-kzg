@@ -5,6 +5,7 @@ use alloc::string::String;
 use alloc::string::ToString;
 
 use constantine::ctt_codec_ecc_status;
+use core::ops::{Mul, MulAssign, Sub, SubAssign};
 use kzg::eip_4844::BYTES_PER_G2;
 #[cfg(feature = "rand")]
 use kzg::Fr;
@@ -101,15 +102,7 @@ impl CtG2 {
     }
 }
 
-impl G2Mul<CtFr> for CtG2 {
-    fn mul(&self, b: &CtFr) -> Self {
-        let mut result = *self;
-        unsafe {
-            constantine::ctt_bls12_381_g2_jac_scalar_mul_fr_coef(&mut result.0, &b.0);
-        }
-        result
-    }
-}
+impl G2Mul<CtFr> for CtG2 {}
 
 impl G2 for CtG2 {
     fn generator() -> Self {
@@ -176,16 +169,6 @@ impl G2 for CtG2 {
         Self(result)
     }
 
-    fn sub(&self, b: &Self) -> Self {
-        let mut bneg: bls12_381_g2_jac = b.0;
-        let mut result = self.0;
-        unsafe {
-            constantine::ctt_bls12_381_g2_jac_neg_in_place(&mut bneg);
-            constantine::ctt_bls12_381_g2_jac_add_in_place(&mut result, &bneg);
-        }
-        Self(result)
-    }
-
     fn equals(&self, b: &Self) -> bool {
         unsafe { constantine::ctt_bls12_381_g2_jac_is_eq(&self.0, &b.0) != 0 }
     }
@@ -199,6 +182,70 @@ impl CtG2 {
     #[cfg(feature = "rand")]
     pub fn rand() -> Self {
         let result: CtG2 = G2_GENERATOR;
-        result.mul(&CtFr::rand())
+        result * &CtFr::rand()
+    }
+}
+
+impl Sub for CtG2 {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        let mut bneg: bls12_381_g2_jac = rhs.0;
+        let mut result = self.0;
+        unsafe {
+            constantine::ctt_bls12_381_g2_jac_neg_in_place(&mut bneg);
+            constantine::ctt_bls12_381_g2_jac_add_in_place(&mut result, &bneg);
+        }
+        Self(result)
+    }
+}
+
+impl Sub<&CtG2> for CtG2 {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self {
+        let mut bneg: bls12_381_g2_jac = rhs.0;
+        let mut result = self.0;
+        unsafe {
+            constantine::ctt_bls12_381_g2_jac_neg_in_place(&mut bneg);
+            constantine::ctt_bls12_381_g2_jac_add_in_place(&mut result, &bneg);
+        }
+        Self(result)
+    }
+}
+
+impl SubAssign for CtG2 {
+    fn sub_assign(&mut self, rhs: Self) {
+        let mut bneg: bls12_381_g2_jac = rhs.0;
+        unsafe {
+            constantine::ctt_bls12_381_g2_jac_neg_in_place(&mut bneg);
+            constantine::ctt_bls12_381_g2_jac_add_in_place(&mut self.0, &bneg);
+        }
+    }
+}
+
+impl Mul<CtFr> for CtG2 {
+    type Output = Self;
+
+    fn mul(self, rhs: CtFr) -> Self {
+        &self * &rhs
+    }
+}
+
+impl Mul<&CtFr> for CtG2 {
+    type Output = Self;
+
+    fn mul(self, rhs: &CtFr) -> Self {
+        let mut result = self;
+        unsafe {
+            constantine::ctt_bls12_381_g2_jac_scalar_mul_fr_coef(&mut result.0, &rhs.0);
+        }
+        result
+    }
+}
+
+impl MulAssign<CtFr> for CtG2 {
+    fn mul_assign(&mut self, rhs: CtFr) {
+        *self = &*self * &rhs;
     }
 }

@@ -41,7 +41,7 @@ impl LFFTSettings {
 
         if inverse {
             let inv_fr_len = BlstFr::from_u64(data.len() as u64).inverse();
-            output.iter_mut().for_each(|f| *f = f.mul(&inv_fr_len));
+            output.iter_mut().for_each(|f| *f = f.clone() * &inv_fr_len);
         }
 
         Ok(())
@@ -100,9 +100,9 @@ pub fn fft_fr_fast(
         }
 
         for i in 0..half {
-            let y_times_root = ret[i + half].mul(&roots[i * roots_stride]);
-            ret[i + half] = ret[i].sub(&y_times_root);
-            ret[i] = ret[i].add(&y_times_root);
+            let y_times_root = ret[i + half].clone() * &roots[i * roots_stride];
+            ret[i + half] = ret[i].clone() - &y_times_root;
+            ret[i] = ret[i] + &y_times_root;
         }
     } else {
         ret[0] = data[0];
@@ -121,12 +121,12 @@ pub fn fft_fr_slow(
     let mut r;
 
     for i in 0..data.len() {
-        ret[i] = data[0].mul(&roots[0]);
+        ret[i] = data[0].clone() * &roots[0];
         for j in 1..data.len() {
             jv = data[j * stride];
             r = roots[((i * j) % data.len()) * roots_stride];
-            v = jv.mul(&r);
-            ret[i] = ret[i].add(&v);
+            v = jv.clone() * &r;
+            ret[i] = ret[i].clone() + &v;
         }
     }
 }
