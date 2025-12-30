@@ -8,7 +8,7 @@ use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 use kzg::eip_4844::BYTES_PER_G2;
 #[cfg(feature = "rand")]
 use kzg::Fr;
-use kzg::{G2Mul, Group, TorsionSubgroup, G2};
+use kzg::{Group, TorsionSubgroup, G2};
 
 use crate::consts::{G2_GENERATOR, G2_NEGATIVE_GENERATOR};
 use crate::mcl_methods::mcl_fp;
@@ -79,11 +79,6 @@ impl Group for MclG2 {
         Self::default()
     }
 
-    fn is_zero(&self) -> bool {
-        try_init_mcl();
-        self == &Self::default()
-    }
-
     fn negate(&self) -> Self {
         try_init_mcl();
 
@@ -112,12 +107,6 @@ impl TorsionSubgroup for MclG2 {
         G2_NEGATIVE_GENERATOR
     }
 
-    fn is_inf(&self) -> bool {
-        try_init_mcl();
-
-        mcl_g2::is_zero(&self.0)
-    }
-
     fn is_valid(&self) -> bool {
         try_init_mcl();
 
@@ -132,27 +121,11 @@ impl TorsionSubgroup for MclG2 {
         Self(out)
     }
 
-    fn add_or_dbl(&self, b: &Self) -> Self {
-        try_init_mcl();
-
-        let mut out: mcl_g2 = mcl_g2::default();
-        mcl_g2::add(&mut out, &self.0, &b.0);
-        Self(out)
-    }
-
     fn dbl_assign(&mut self) {
         try_init_mcl();
 
         let mut out = mcl_g2::default();
         mcl_g2::dbl(&mut out, &self.0);
-        self.0 = out;
-    }
-
-    fn add_or_dbl_assign(&mut self, b: &Self) {
-        try_init_mcl();
-
-        let mut out: mcl_g2 = mcl_g2::default();
-        mcl_g2::add(&mut out, &self.0, &b.0);
         self.0 = out;
     }
 }
@@ -191,17 +164,8 @@ impl G2 for MclG2 {
     fn to_bytes(&self) -> [u8; 96] {
         todo!()
     }
-
-    fn add_or_dbl(&mut self, b: &Self) -> Self {
-        try_init_mcl();
-
-        let mut out: mcl_g2 = mcl_g2::default();
-        mcl_g2::add(&mut out, &self.0, &b.0);
-        Self(out)
-    }
 }
 
-impl G2Mul<MclFr> for MclG2 {}
 
 impl Add for MclG2 {
     type Output = Self;
@@ -296,3 +260,7 @@ impl MulAssign<MclFr> for MclG2 {
         *self = &*self * &rhs;
     }
 }
+
+impl Dbl for MclG2 {}
+
+impl DblAssign for MclG2 {}

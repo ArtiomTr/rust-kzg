@@ -1,13 +1,13 @@
 use criterion::Criterion;
 use kzg::{
     msm::precompute::{precompute, PrecomputationTable},
-    Fr, G1Affine, G1Fp, G1GetFp, G1Mul, G1ProjAddAffine, G1,
+    Fr, G1Affine, G1Fp, G1GetFp, G1ProjAddAffine, G1,
 };
 
 #[allow(clippy::type_complexity)]
 pub fn bench_g1_lincomb<
     TFr: Fr + Copy,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + Copy,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp> + Copy,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,

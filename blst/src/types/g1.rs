@@ -17,7 +17,7 @@ use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 use core::{hash::Hash, ptr};
 use kzg::{
     common_utils::log_2_byte, eip_4844::BYTES_PER_G1, msm::precompute::PrecomputationTable,
-    G1Affine, G1GetFp, G1LinComb, G1Mul, G1ProjAddAffine, Group, TorsionSubgroup, G1,
+    G1Affine, G1GetFp, G1LinComb, G1ProjAddAffine, Group, TorsionSubgroup, G1,
 };
 
 use crate::consts::{G1_GENERATOR, G1_IDENTITY, G1_NEGATIVE_GENERATOR};
@@ -73,10 +73,6 @@ impl kzg::Group for FsG1 {
         })
     }
 
-    fn is_zero(&self) -> bool {
-        self.is_inf()
-    }
-
     fn negate(&self) -> Self {
         let mut ret = *self;
         unsafe {
@@ -99,10 +95,6 @@ impl kzg::TorsionSubgroup for FsG1 {
         G1_NEGATIVE_GENERATOR
     }
 
-    fn is_inf(&self) -> bool {
-        unsafe { blst_p1_is_inf(&self.0) }
-    }
-
     fn is_valid(&self) -> bool {
         unsafe {
             // The point must be on the right subgroup
@@ -118,23 +110,9 @@ impl kzg::TorsionSubgroup for FsG1 {
         Self(result)
     }
 
-    fn add_or_dbl(&self, b: &Self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            blst_p1_add_or_double(&mut ret.0, &self.0, &b.0);
-        }
-        ret
-    }
-
     fn dbl_assign(&mut self) {
         unsafe {
             blst::blst_p1_double(&mut self.0, &self.0);
-        }
-    }
-
-    fn add_or_dbl_assign(&mut self, b: &Self) {
-        unsafe {
-            blst::blst_p1_add_or_double(&mut self.0, &self.0, &b.0);
         }
     }
 }
@@ -228,8 +206,6 @@ impl G1GetFp<FsFp> for FsG1 {
     }
 }
 
-impl G1Mul<FsFr> for FsG1 {}
-
 impl G1LinComb<FsFr, FsFp, FsG1Affine, FsG1ProjAddAffine> for FsG1 {
     fn g1_lincomb(
         points: &[Self],
@@ -322,11 +298,7 @@ impl G1Affine<FsG1, FsFp> for FsG1Affine {
             // Transmute safe due to repr(C) on FsFp
             core::mem::transmute(&self.0.y)
         }
-    }
-
-    fn is_infinity(&self) -> bool {
-        unsafe { blst::blst_p1_affine_is_inf(&self.0) }
-    }
+    }    }
 
     fn x_mut(&mut self) -> &mut FsFp {
         unsafe {
@@ -542,3 +514,7 @@ impl Sub<&FsG1> for &FsG1 {
         ret
     }
 }
+
+impl Dbl for FsG1 {}
+
+impl DblAssign for FsG1 {}

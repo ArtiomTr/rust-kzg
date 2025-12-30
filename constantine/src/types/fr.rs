@@ -68,10 +68,6 @@ impl kzg::Group for CtFr {
         Self::from_u64(0)
     }
 
-    fn is_zero(&self) -> bool {
-        unsafe { constantine::ctt_bls12_381_fr_is_zero(&self.0) != 0 }
-    }
-
     fn negate(&self) -> Self {
         let mut ret = *self;
         unsafe {
@@ -89,10 +85,6 @@ impl kzg::Group for CtFr {
 impl kzg::FiniteField for CtFr {
     fn one() -> Self {
         Self::from_u64(1)
-    }
-
-    fn is_one(&self) -> bool {
-        unsafe { constantine::ctt_bls12_381_fr_is_one(&self.0) != 0 }
     }
 
     fn inverse(&self) -> Self {

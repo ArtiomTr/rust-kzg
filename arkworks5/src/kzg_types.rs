@@ -32,7 +32,7 @@ use kzg::common_utils::reverse_bit_order;
 use kzg::msm::precompute::{precompute, PrecomputationTable};
 use kzg::{
     eth, FFTFr, FFTSettings, FFTSettingsPoly, FiniteField, Fr as KzgFr,
-    G1Affine as G1AffineTrait, G1Fp, G1GetFp, G1LinComb, G1Mul, G1ProjAddAffine, G2Mul, Group,
+    G1Affine as G1AffineTrait, G1Fp, G1GetFp, G1LinComb, G1ProjAddAffine, Group,
     KZGSettings, PairingVerify, Poly, Scalar256, TorsionSubgroup, G1, G2,
 };
 use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
@@ -91,10 +91,6 @@ impl kzg::Group for ArkFr {
         Self { fr: Fr::zero() }
     }
 
-    fn is_zero(&self) -> bool {
-        self.fr.is_zero()
-    }
-
     fn negate(&self) -> Self {
         Self { fr: self.fr.neg() }
     }
@@ -108,10 +104,6 @@ impl kzg::FiniteField for ArkFr {
     fn one() -> Self {
         let one = Fr::one();
         Self { fr: one }
-    }
-
-    fn is_one(&self) -> bool {
-        self.fr.is_one()
     }
 
     fn inverse(&self) -> Self {
@@ -388,10 +380,6 @@ impl kzg::Group for ArkG1 {
         })
     }
 
-    fn is_zero(&self) -> bool {
-        self.is_inf()
-    }
-
     fn negate(&self) -> Self {
         Self(-self.0)
     }
@@ -410,11 +398,6 @@ impl kzg::TorsionSubgroup for ArkG1 {
         G1_NEGATIVE_GENERATOR
     }
 
-    fn is_inf(&self) -> bool {
-        let temp = &self.0;
-        temp.z.is_zero()
-    }
-
     fn is_valid(&self) -> bool {
         true
     }
@@ -423,16 +406,8 @@ impl kzg::TorsionSubgroup for ArkG1 {
         Self(self.0.double())
     }
 
-    fn add_or_dbl(&self, b: &Self) -> Self {
-        Self(self.0 + b.0)
-    }
-
     fn dbl_assign(&mut self) {
         self.0.double_in_place();
-    }
-
-    fn add_or_dbl_assign(&mut self, b: &Self) {
-        self.0 += b.0;
     }
 }
 
@@ -565,7 +540,6 @@ impl Sub<&ArkG1> for &ArkG1 {
     }
 }
 
-impl G1Mul<ArkFr> for ArkG1 {}
 
 impl G1LinComb<ArkFr, ArkFp, ArkG1Affine, ArkG1ProjAddAffine> for ArkG1 {
     fn g1_lincomb(
@@ -607,10 +581,6 @@ impl kzg::Group for ArkG2 {
         Self(Projective::<g2::Config>::zero())
     }
 
-    fn is_zero(&self) -> bool {
-        self.0.is_zero()
-    }
-
     fn negate(&self) -> Self {
         Self(-self.0)
     }
@@ -629,11 +599,6 @@ impl kzg::TorsionSubgroup for ArkG2 {
         G2_NEGATIVE_GENERATOR
     }
 
-    fn is_inf(&self) -> bool {
-        let temp = &self.0;
-        temp.z.is_zero()
-    }
-
     fn is_valid(&self) -> bool {
         true
     }
@@ -642,16 +607,8 @@ impl kzg::TorsionSubgroup for ArkG2 {
         Self(self.0.double())
     }
 
-    fn add_or_dbl(&self, b: &Self) -> Self {
-        Self(self.0 + b.0)
-    }
-
     fn dbl_assign(&mut self) {
         self.0.double_in_place();
-    }
-
-    fn add_or_dbl_assign(&mut self, b: &Self) {
-        self.0 += b.0;
     }
 }
 
@@ -680,10 +637,6 @@ impl G2 for ArkG2 {
         let mut buff = [0u8; BYTES_PER_G2];
         self.0.serialize_compressed(&mut &mut buff[..]).unwrap();
         buff
-    }
-
-    fn add_or_dbl(&mut self, b: &Self) -> Self {
-        Self(self.0 + b.0)
     }
 }
 
@@ -761,7 +714,6 @@ impl Sub<&ArkG2> for &ArkG2 {
     }
 }
 
-impl G2Mul<ArkFr> for ArkG2 {}
 
 impl Poly<ArkFr> for PolyData {
     fn new(size: usize) -> PolyData {
@@ -1385,11 +1337,6 @@ impl G1AffineTrait<ArkG1, ArkFp> for ArkG1Affine {
     fn y(&self) -> &ArkFp {
         unsafe { core::mem::transmute(&self.aff.y) }
     }
-
-    fn is_infinity(&self) -> bool {
-        self.aff.infinity
-    }
-
     fn is_zero(&self) -> bool {
         self.aff.is_zero()
     }
@@ -1443,3 +1390,11 @@ impl G1ProjAddAffine<ArkG1, ArkFp, ArkG1Affine> for ArkG1ProjAddAffine {
         proj.0 += aff.aff;
     }
 }
+
+impl Dbl for ArkG1 {}
+
+impl DblAssign for ArkG1 {}
+
+impl Dbl for ArkG2 {}
+
+impl DblAssign for ArkG2 {}

@@ -35,11 +35,6 @@ impl kzg::Group for MclFr {
         Self::from_u64(0)
     }
 
-    fn is_zero(&self) -> bool {
-        try_init_mcl();
-        self.0.is_zero()
-    }
-
     fn negate(&self) -> Self {
         try_init_mcl();
 
@@ -58,11 +53,6 @@ impl kzg::FiniteField for MclFr {
     fn one() -> Self {
         try_init_mcl();
         Self::from_u64(1)
-    }
-
-    fn is_one(&self) -> bool {
-        try_init_mcl();
-        self.0.is_one()
     }
 
     fn inverse(&self) -> Self {

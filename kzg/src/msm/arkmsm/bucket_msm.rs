@@ -290,7 +290,7 @@ impl<
 
     fn inner_window_reduce(&self, running_sums: &[TG1Affine], sum_of_sums: &[TG1Affine]) -> TG1 {
         self.calc_sum_of_sum_total(sum_of_sums)
-            .add_or_dbl(&self.calc_running_sum_total(running_sums))
+             + &self.calc_running_sum_total(running_sums)
     }
 
     fn calc_running_sum_total(&self, running_sums: &[TG1Affine]) -> TG1 {

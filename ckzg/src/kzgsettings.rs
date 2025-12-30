@@ -1,4 +1,4 @@
-use kzg::{FFTSettings, FiniteField, Fr, G1Mul, G2Mul, KZGSettings, TorsionSubgroup, G1, G2};
+use kzg::{FFTSettings, FiniteField, Fr, KZGSettings, TorsionSubgroup, G1, G2};
 
 use crate::consts::{BlstP1, BlstP2, KzgRet};
 use crate::fftsettings::KzgFFTSettings;
@@ -216,8 +216,8 @@ pub fn generate_trusted_setup(len: usize, secret: [u8; 32usize]) -> (Vec<BlstP1>
     let mut s2 = vec![BlstP2::default(); 0];
 
     for _i in 0..len {
-        let g1_mul = G1Mul::mul(&G1::generator(), &s_pow);
-        let g2_mul = G2Mul::mul(&G2::generator(), &s_pow);
+        let g1_mul = G1::generator() * &s_pow;
+        let g2_mul = G2::generator() * &s_pow;
         s1.push(g1_mul);
         s2.push(g2_mul);
         s_pow = s_pow * &s;

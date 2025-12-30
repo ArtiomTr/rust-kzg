@@ -9,7 +9,7 @@ use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 use kzg::eip_4844::BYTES_PER_G2;
 #[cfg(feature = "rand")]
 use kzg::Fr;
-use kzg::{G2Mul, Group, TorsionSubgroup, G2};
+use kzg::{Group, TorsionSubgroup, G2};
 
 use crate::consts::{G2_GENERATOR, G2_NEGATIVE_GENERATOR};
 use crate::types::fr::CtFr;
@@ -102,15 +102,10 @@ impl CtG2 {
     }
 }
 
-impl G2Mul<CtFr> for CtG2 {}
 
 impl Group for CtG2 {
     fn zero() -> Self {
         Self::default()
-    }
-
-    fn is_zero(&self) -> bool {
-        self == &Self::default()
     }
 
     fn negate(&self) -> Self {
@@ -135,10 +130,6 @@ impl TorsionSubgroup for CtG2 {
         G2_NEGATIVE_GENERATOR
     }
 
-    fn is_inf(&self) -> bool {
-        unsafe { constantine::ctt_bls12_381_g2_jac_is_inf(&self.0) != 0 }
-    }
-
     fn is_valid(&self) -> bool {
         unsafe { constantine::ctt_bls12_381_g2_jac_is_on_curve(&self.0) != 0 }
     }
@@ -151,26 +142,12 @@ impl TorsionSubgroup for CtG2 {
         Self(result)
     }
 
-    fn add_or_dbl(&self, b: &Self) -> Self {
-        let mut result = self.0;
-        unsafe {
-            constantine::ctt_bls12_381_g2_jac_add_in_place(&mut result, &b.0);
-        }
-        Self(result)
-    }
-
     fn dbl_assign(&mut self) {
         let mut result = bls12_381_g2_jac::default();
         unsafe {
             constantine::ctt_bls12_381_g2_jac_double(&mut result, &self.0);
         }
         self.0 = result;
-    }
-
-    fn add_or_dbl_assign(&mut self, b: &Self) {
-        unsafe {
-            constantine::ctt_bls12_381_g2_jac_add_in_place(&mut self.0, &b.0);
-        }
     }
 }
 
@@ -213,14 +190,6 @@ impl G2 for CtG2 {
             let _ = constantine::ctt_bls12_381_serialize_g2_compressed(out.as_mut_ptr(), &tmp);
         }
         out
-    }
-
-    fn add_or_dbl(&mut self, b: &Self) -> Self {
-        let mut result = self.0;
-        unsafe {
-            constantine::ctt_bls12_381_g2_jac_add_in_place(&mut result, &b.0);
-        }
-        Self(result)
     }
 }
 
@@ -331,3 +300,7 @@ impl MulAssign<CtFr> for CtG2 {
         *self = &*self * &rhs;
     }
 }
+
+impl Dbl for CtG2 {}
+
+impl DblAssign for CtG2 {}

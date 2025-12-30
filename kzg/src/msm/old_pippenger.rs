@@ -1,4 +1,5 @@
 // Leaving this here commented out as requested by lecturer
+use core::ops::{Mul, MulAssign};
 // use std::sync::mpsc::channel;
 
 // use crate::{
@@ -112,8 +113,8 @@
 
 //             let mut running_sum = TG1::ZERO;
 //             buckets.into_iter().rev().for_each(|b| {
-//                 running_sum.add_or_dbl_assign(&b);
-//                 window_sums.add_or_dbl_assign(&running_sum);
+//                 running_sum+= b;
+//                 window_sums+= running_sum;
 //             });
 //         });
 
@@ -216,8 +217,8 @@
 //             let mut running_sum = TG1::ZERO;
 //             let mut window_sum = TG1::ZERO;
 //             buckets.into_iter().rev().for_each(|b| {
-//                 running_sum.add_or_dbl_assign(&b);
-//                 window_sum.add_or_dbl_assign(&running_sum);
+//                 running_sum+= b;
+//                 window_sum+= running_sum;
 //             });
 //             tx.send(window_sum);
 //         });

@@ -1,4 +1,5 @@
 use core::{
+use core::ops::{Mul, MulAssign};
     num::Wrapping,
     sync::atomic::{AtomicUsize, Ordering},
 };
@@ -167,7 +168,7 @@ pub fn tiling_parallel_pippenger<
         rows[y / window] = true;
         while grid[row].0.y == y {
             while row < total && grid[row].0.y == y {
-                ret.add_or_dbl_assign(grid[row].1.as_mut());
+                ret+= grid[row].1;
                 row += 1;
             }
             if y == 0 {

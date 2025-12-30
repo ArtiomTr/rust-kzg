@@ -1,5 +1,5 @@
 use kzg::{
-    eth, EcBackend, FFTSettings, Fr, G1Affine, G1Fp, G1GetFp, G1LinComb, G1Mul, G1ProjAddAffine,
+    eth, EcBackend, FFTSettings, Fr, G1Affine, G1Fp, G1GetFp, G1LinComb, G1ProjAddAffine,
     KZGSettings, Poly, G1, G2,
 };
 
@@ -101,7 +101,7 @@ pub fn commit_to_nil_poly<B: EcBackend>(
 #[allow(clippy::type_complexity)]
 pub fn commit_to_too_long_poly<
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,

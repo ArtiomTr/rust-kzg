@@ -1,12 +1,13 @@
 use std::ffi::c_void;
+use core::ops::{Mul, MulAssign};
 
-use crate::{Fr, G1Affine, G1Fp, G1GetFp, G1Mul, G1ProjAddAffine, G1};
+use crate::{Fr, G1Affine, G1Fp, G1GetFp, G1ProjAddAffine, G1};
 
 #[derive(Debug)]
 pub struct SpparkPrecomputation<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
 where
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
@@ -25,7 +26,7 @@ unsafe impl<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine> Sync
     for SpparkPrecomputation<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
 where
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
@@ -36,7 +37,7 @@ unsafe impl<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine> Send
     for SpparkPrecomputation<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
 where
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
@@ -47,7 +48,7 @@ impl<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
     SpparkPrecomputation<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
 where
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,

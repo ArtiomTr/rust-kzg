@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use kzg::{FFTFr, Fr, G1Mul, Group, Poly, TorsionSubgroup, FFTG1, G1};
+use kzg::{FFTFr, Fr, Group, Poly, TorsionSubgroup, FFTG1, G1};
 
 use crate::types::fft_settings::FsFFTSettings;
 use crate::types::fr::FsFr;

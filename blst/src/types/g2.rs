@@ -13,7 +13,7 @@ use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 use kzg::eip_4844::BYTES_PER_G2;
 #[cfg(feature = "rand")]
 use kzg::Fr;
-use kzg::{G2Mul, Group, TorsionSubgroup, G2};
+use kzg::{Group, TorsionSubgroup, G2};
 
 use crate::consts::{G2_GENERATOR, G2_NEGATIVE_GENERATOR};
 use crate::types::fr::FsFr;
@@ -22,15 +22,9 @@ use crate::types::fr::FsFr;
 #[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]
 pub struct FsG2(pub blst_p2);
 
-impl G2Mul<FsFr> for FsG2 {}
-
 impl Group for FsG2 {
     fn zero() -> Self {
         Self::default()
-    }
-
-    fn is_zero(&self) -> bool {
-        self == &Self::default()
     }
 
     fn negate(&self) -> Self {
@@ -55,11 +49,6 @@ impl TorsionSubgroup for FsG2 {
         G2_NEGATIVE_GENERATOR
     }
 
-    fn is_inf(&self) -> bool {
-        // In projective coordinates, infinity is when z = 0
-        self.0.z.fp[0].l.iter().all(|&x| x == 0) && self.0.z.fp[1].l.iter().all(|&x| x == 0)
-    }
-
     fn is_valid(&self) -> bool {
         // For blst, we assume points are valid after construction/deserialization
         true
@@ -73,26 +62,10 @@ impl TorsionSubgroup for FsG2 {
         Self(result)
     }
 
-    fn add_or_dbl(&self, b: &Self) -> Self {
-        let mut result = blst_p2::default();
-        unsafe {
-            blst_p2_add_or_double(&mut result, &self.0, &b.0);
-        }
-        Self(result)
-    }
-
     fn dbl_assign(&mut self) {
         let mut result = blst_p2::default();
         unsafe {
             blst_p2_double(&mut result, &self.0);
-        }
-        self.0 = result;
-    }
-
-    fn add_or_dbl_assign(&mut self, b: &Self) {
-        let mut result = blst_p2::default();
-        unsafe {
-            blst_p2_add_or_double(&mut result, &self.0, &b.0);
         }
         self.0 = result;
     }
@@ -129,14 +102,6 @@ impl G2 for FsG2 {
             blst_p2_compress(out.as_mut_ptr(), &self.0);
         }
         out
-    }
-
-    fn add_or_dbl(&mut self, b: &Self) -> Self {
-        let mut result = blst_p2::default();
-        unsafe {
-            blst_p2_add_or_double(&mut result, &self.0, &b.0);
-        }
-        Self(result)
     }
 }
 
@@ -254,3 +219,7 @@ impl MulAssign<FsFr> for FsG2 {
         *self = (*self).clone() * &rhs;
     }
 }
+
+impl Dbl for FsG2 {}
+
+impl DblAssign for FsG2 {}

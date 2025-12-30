@@ -1,4 +1,5 @@
 use crate::msm::pippenger_utils::num_bits;
+use core::ops::{Mul, MulAssign};
 
 pub fn breakdown(window: usize, ncpus: usize) -> (usize, usize, usize) {
     const NBITS: usize = 255;

@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 use kzg::common_utils::log2_pow2;
 use kzg::eip_4844::{hash_to_bls_field, PrecomputationTableManager};
 use kzg::eth::c_bindings::CKZGSettings;
-use kzg::{eth, FFTSettings, FiniteField, Fr, G1Mul, G2Mul, TorsionSubgroup, FFTG1, G1, G2};
+use kzg::{eth, FFTSettings, FiniteField, Fr, TorsionSubgroup, FFTG1, G1, G2};
 
 use crate::types::fft_settings::CtFFTSettings;
 use crate::types::fp::CtFp;

@@ -11,7 +11,8 @@ use crate::G1Fp;
 use crate::G1GetFp;
 use crate::G1LinComb;
 use crate::G1ProjAddAffine;
-use crate::{FFTSettings, Fr, G1Mul, KZGSettings, PairingVerify, Poly, G1, G2};
+use crate::{FFTSettings, Fr, KZGSettings, PairingVerify, Poly, G1, G2};
+use core::ops::{Mul, MulAssign};
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::String;
@@ -64,7 +65,7 @@ pub const RANDOM_CHALLENGE_KZG_BATCH_DOMAIN: [u8; 16] = [
 pub struct PrecomputationTableManager<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
 where
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
@@ -76,7 +77,7 @@ impl<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine> Default
     for PrecomputationTableManager<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
 where
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
@@ -90,7 +91,7 @@ impl<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
     PrecomputationTableManager<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
 where
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
@@ -255,7 +256,7 @@ macro_rules! cfg_into_iter {
 
 fn poly_to_kzg_commitment<
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -277,7 +278,7 @@ fn poly_to_kzg_commitment<
 
 pub fn blob_to_kzg_commitment_rust<
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine> + G1GetFp<TG1Fp>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -296,7 +297,7 @@ pub fn blob_to_kzg_commitment_rust<
 
 pub fn blob_to_kzg_commitment_raw<
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine> + G1GetFp<TG1Fp>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -380,7 +381,7 @@ fn compute_r_powers<TG1: G1, TFr: Fr>(
 fn verify_kzg_proof_batch<
     TFr: Fr,
     TG1: G1
-        + G1Mul<TFr>
+        + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr>
         + G1GetFp<TG1Fp>
         + PairingVerify<TG1, TG2>
         + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
@@ -423,7 +424,7 @@ fn verify_kzg_proof_batch<
     let c_minus_y_lincomb = TG1::g1_lincomb(&c_minus_y, &r_powers, n, None);
 
     // Get C_minus_y_lincomb + proof_z_lincomb
-    let rhs_g1 = c_minus_y_lincomb.add_or_dbl(&proof_z_lincomb);
+    let rhs_g1 = c_minus_y_lincomb + &proof_z_lincomb;
 
     // Do the pairing check!
     Ok(TG1::verify(
@@ -436,7 +437,7 @@ fn verify_kzg_proof_batch<
 
 pub fn compute_kzg_proof_rust<
     TFr: Fr + Copy,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -520,7 +521,7 @@ pub fn compute_kzg_proof_rust<
 
 pub fn compute_kzg_proof_raw<
     TFr: Fr + Copy,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -540,7 +541,7 @@ pub fn compute_kzg_proof_raw<
 
 pub fn compute_blob_kzg_proof_rust<
     TFr: Fr + Copy,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -553,7 +554,7 @@ pub fn compute_blob_kzg_proof_rust<
     commitment: &TG1,
     ts: &TKZGSettings,
 ) -> Result<TG1, String> {
-    if !commitment.is_inf() && !commitment.is_valid() {
+    if !commitment*self == Self::zero() && !commitment.is_valid() {
         return Err("Invalid commitment".to_string());
     }
 
@@ -564,7 +565,7 @@ pub fn compute_blob_kzg_proof_rust<
 
 pub fn compute_blob_kzg_proof_raw<
     TFr: Fr + Copy,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -585,7 +586,7 @@ pub fn compute_blob_kzg_proof_raw<
 
 pub fn verify_kzg_proof_rust<
     TFr: Fr,
-    TG1: G1 + G1GetFp<TG1Fp> + G1Mul<TFr>,
+    TG1: G1 + G1GetFp<TG1Fp> + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -600,10 +601,10 @@ pub fn verify_kzg_proof_rust<
     proof: &TG1,
     s: &TKZGSettings,
 ) -> Result<bool, String> {
-    if !commitment.is_inf() && !commitment.is_valid() {
+    if !commitment*self == Self::zero() && !commitment.is_valid() {
         return Err("Invalid commitment".to_string());
     }
-    if !proof.is_inf() && !proof.is_valid() {
+    if !proof*self == Self::zero() && !proof.is_valid() {
         return Err("Invalid proof".to_string());
     }
 
@@ -612,7 +613,7 @@ pub fn verify_kzg_proof_rust<
 
 pub fn verify_kzg_proof_raw<
     TFr: Fr,
-    TG1: G1 + G1GetFp<TG1Fp> + G1Mul<TFr>,
+    TG1: G1 + G1GetFp<TG1Fp> + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -637,7 +638,7 @@ pub fn verify_kzg_proof_raw<
 
 pub fn verify_blob_kzg_proof_rust<
     TFr: Fr + Copy,
-    TG1: G1 + G1GetFp<TG1Fp> + G1Mul<TFr>,
+    TG1: G1 + G1GetFp<TG1Fp> + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -651,10 +652,10 @@ pub fn verify_blob_kzg_proof_rust<
     proof_g1: &TG1,
     ts: &TKZGSettings,
 ) -> Result<bool, String> {
-    if !commitment_g1.is_inf() && !commitment_g1.is_valid() {
+    if !commitment_g1*self == Self::zero() && !commitment_g1.is_valid() {
         return Err("Invalid commitment".to_string());
     }
-    if !proof_g1.is_inf() && !proof_g1.is_valid() {
+    if !proof_g1*self == Self::zero() && !proof_g1.is_valid() {
         return Err("Invalid proof".to_string());
     }
 
@@ -666,7 +667,7 @@ pub fn verify_blob_kzg_proof_rust<
 
 pub fn verify_blob_kzg_proof_raw<
     TFr: Fr + Copy,
-    TG1: G1 + G1GetFp<TG1Fp> + G1Mul<TFr>,
+    TG1: G1 + G1GetFp<TG1Fp> + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -689,7 +690,7 @@ pub fn verify_blob_kzg_proof_raw<
 
 fn compute_challenges_and_evaluate_polynomial<
     TFr: Fr + Copy,
-    TG1: G1 + G1GetFp<TG1Fp> + G1Mul<TFr>,
+    TG1: G1 + G1GetFp<TG1Fp> + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -720,8 +721,8 @@ fn compute_challenges_and_evaluate_polynomial<
 
 fn validate_batched_input<TG1: G1>(commitments: &[TG1], proofs: &[TG1]) -> Result<(), String> {
     let invalid_commitment = cfg_into_iter!(commitments)
-        .any(|commitment| !commitment.is_inf() && !commitment.is_valid());
-    let invalid_proof = cfg_into_iter!(proofs).any(|proof| !proof.is_inf() && !proof.is_valid());
+        .any(|commitment| !commitment*self == Self::zero() && !commitment.is_valid());
+    let invalid_proof = cfg_into_iter!(proofs).any(|proof| !proof*self == Self::zero() && !proof.is_valid());
 
     if invalid_commitment {
         return Err("Invalid commitment".to_string());
@@ -736,7 +737,7 @@ fn validate_batched_input<TG1: G1>(commitments: &[TG1], proofs: &[TG1]) -> Resul
 pub fn verify_blob_kzg_proof_batch_rust<
     TFr: Fr + Copy,
     TG1: G1
-        + G1Mul<TFr>
+        + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr>
         + PairingVerify<TG1, TG2>
         + G1GetFp<TG1Fp>
         + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
@@ -834,7 +835,7 @@ pub fn verify_blob_kzg_proof_batch_rust<
 pub fn verify_blob_kzg_proof_batch_raw<
     TFr: Fr + Copy + Send,
     TG1: G1
-        + G1Mul<TFr>
+        + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr>
         + PairingVerify<TG1, TG2>
         + G1GetFp<TG1Fp>
         + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
@@ -953,7 +954,7 @@ pub fn blob_to_polynomial<TFr: Fr, TPoly: Poly<TFr>>(blob: &[TFr]) -> Result<TPo
 
 pub fn evaluate_polynomial_in_evaluation_form<
     TFr: Fr + Copy,
-    TG1: G1 + G1GetFp<TG1Fp> + G1Mul<TFr>,
+    TG1: G1 + G1GetFp<TG1Fp> + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr>,
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,
@@ -1021,7 +1022,7 @@ fn is_trusted_setup_in_lagrange_form<TG1: G1 + PairingVerify<TG1, TG2>, TG2: G2>
 
 pub fn load_trusted_setup_rust<
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + PairingVerify<TG1, TG2>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp> + PairingVerify<TG1, TG2>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,

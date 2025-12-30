@@ -36,14 +36,30 @@ pub trait Group:
         Self::zero()
     }
 
-    /// Checks if this element is the identity/zero element
-    fn is_zero(&self) -> bool;
-
     /// Returns the additive inverse (negation) of this element
     fn negate(&self) -> Self;
 
     /// Checks if two elements are equal
     fn equals(&self, other: &Self) -> bool;
+}
+
+/// Trait for point doubling (extends Add with default implementation)
+pub trait Dbl: Add<Output = Self> + Sized + Clone {
+    /// Doubles this element (default implementation uses addition)
+    fn dbl(&self) -> Self {
+        let a = self.clone();
+        let b = self.clone();
+        a + b
+    }
+}
+
+/// Trait for in-place point doubling (extends AddAssign with default implementation)
+pub trait DblAssign: AddAssign + Clone {
+    /// In-place doubling of this element (default implementation uses addition)
+    fn dbl_assign(&mut self) {
+        let temp = self.clone();
+        *self += temp;
+    }
 }
 
 /// Trait for finite fields (extends Group with multiplicative structure)
@@ -56,9 +72,6 @@ pub trait FiniteField:
 {
     /// Returns the multiplicative identity (one)
     fn one() -> Self;
-
-    /// Checks if this element is one
-    fn is_one(&self) -> bool;
 
     /// Returns the multiplicative inverse
     fn inverse(&self) -> Self;
@@ -73,31 +86,16 @@ pub trait FiniteField:
     fn div(&self, b: &Self) -> Result<Self, String>;
 }
 
-/// Trait for torsion subgroups of elliptic curves (extends Group)
-pub trait TorsionSubgroup: Group + Sync + Debug + Send {
+/// Trait for torsion subgroups of elliptic curves (extends Group, Dbl, and DblAssign)
+pub trait TorsionSubgroup: Group + Dbl + DblAssign + Sync + Debug + Send {
     /// Returns a generator of the subgroup
     fn generator() -> Self;
 
     /// Returns the negative of the generator
     fn negative_generator() -> Self;
 
-    /// Checks if this point is at infinity (identity)
-    fn is_inf(&self) -> bool;
-
     /// Checks if this point is on the curve and in the correct subgroup
     fn is_valid(&self) -> bool;
-
-    /// Doubles this point
-    fn dbl(&self) -> Self;
-
-    /// Adds two points, handling the case where they might be equal (doubling)
-    fn add_or_dbl(&self, b: &Self) -> Self;
-
-    /// In-place point doubling
-    fn dbl_assign(&mut self);
-
-    /// In-place addition or doubling
-    fn add_or_dbl_assign(&mut self, b: &Self);
 }
 
 pub trait Fr: FiniteField + for<'a> Arbitrary<'a> {
@@ -171,17 +169,12 @@ pub trait G1GetFp<TFp: G1Fp>: G1 + Clone {
     fn z_mut(&mut self) -> &mut TFp;
 }
 
-pub trait G1Mul<TFr: Fr>:
-    G1 + Clone + Mul<TFr, Output = Self> + for<'a> Mul<&'a TFr, Output = Self> + MulAssign<TFr>
-{
-}
-
 pub trait G1LinComb<
     TFr: Fr,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<Self, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<Self, TG1Fp, TG1Affine>,
->: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + Clone
+>: G1 + G1GetFp<TG1Fp> + Clone + Mul<TFr, Output = Self> + for<'a> Mul<&'a TFr, Output = Self> + MulAssign<TFr>
 {
     fn g1_lincomb(
         points: &[Self],
@@ -315,9 +308,6 @@ pub trait G1Affine<TG1: G1, TG1Fp: G1Fp>:
     // Return field Y of Affine as mutable
     fn y_mut(&mut self) -> &mut TG1Fp;
 
-    // Return whether Affine is at infinity
-    fn is_infinity(&self) -> bool;
-
     // Return whether Affine is zero
     fn is_zero(&self) -> bool {
         *self == Self::zero()
@@ -433,13 +423,6 @@ pub trait G2: TorsionSubgroup {
     fn from_bytes(bytes: &[u8]) -> Result<Self, String>;
 
     fn to_bytes(&self) -> [u8; 96];
-
-    fn add_or_dbl(&mut self, b: &Self) -> Self;
-}
-
-pub trait G2Mul<TFr>:
-    Clone + Mul<TFr, Output = Self> + for<'a> Mul<&'a TFr, Output = Self> + MulAssign<TFr>
-{
 }
 
 pub trait PairingVerify<TG1: G1, TG2: G2> {
@@ -574,7 +557,7 @@ pub trait PolyRecover<Coeff: Fr, Polynomial: Poly<Coeff>, FSettings: FFTSettings
 
 pub trait KZGSettings<
     Coeff1: Fr,
-    Coeff2: G1 + G1Mul<Coeff1> + G1GetFp<TG1Fp>,
+    Coeff2: G1 + G1GetFp<TG1Fp> + Mul<Coeff1, Output = Coeff2> + for<'a> Mul<&'a Coeff1, Output = Coeff2> + MulAssign<Coeff1>,
     Coeff3: G2,
     Fs: FFTSettings<Coeff1>,
     Polynomial: Poly<Coeff1>,
@@ -635,7 +618,7 @@ pub trait KZGSettings<
 
 pub trait FK20SingleSettings<
     Coeff1: Fr,
-    Coeff2: G1 + G1Mul<Coeff1> + G1GetFp<TG1Fp>,
+    Coeff2: G1 + G1GetFp<TG1Fp> + Mul<Coeff1, Output = Coeff2> + for<'a> Mul<&'a Coeff1, Output = Coeff2> + MulAssign<Coeff1>,
     Coeff3: G2,
     Fs: FFTSettings<Coeff1>,
     Polynomial: Poly<Coeff1>,
@@ -654,7 +637,7 @@ pub trait FK20SingleSettings<
 
 pub trait FK20MultiSettings<
     Coeff1: Fr,
-    Coeff2: G1 + G1Mul<Coeff1> + G1GetFp<TG1Fp>,
+    Coeff2: G1 + G1GetFp<TG1Fp> + Mul<Coeff1, Output = Coeff2> + for<'a> Mul<&'a Coeff1, Output = Coeff2> + MulAssign<Coeff1>,
     Coeff3: G2,
     Fs: FFTSettings<Coeff1>,
     Polynomial: Poly<Coeff1>,

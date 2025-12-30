@@ -6,7 +6,7 @@ use ekzg_bls12_381::fixed_base_msm_window::FixedBaseMSMPrecompWindow;
 use human_bytes::human_bytes;
 use kzg::{
     msm::{msm_impls::msm, precompute::precompute},
-    Fr, G1Affine, G1Mul, G1,
+    Fr, G1Affine, G1,
 };
 use rand::Rng;
 use rand_chacha::rand_core::SeedableRng;

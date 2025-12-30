@@ -13,7 +13,7 @@ use kzg::common_utils::log2_pow2;
 use kzg::eip_4844::hash_to_bls_field;
 use kzg::eth::c_bindings::CKZGSettings;
 use kzg::msm::precompute::PrecomputationTable;
-use kzg::{eth, FFTSettings as _, FiniteField, Fr, G1Mul, G2Mul, Group, TorsionSubgroup, FFTG1, G1, G2};
+use kzg::{eth, FFTSettings as _, FiniteField, Fr, Group, TorsionSubgroup, FFTG1, G1, G2};
 use std::ops::Neg;
 
 #[derive(Debug, Clone)]

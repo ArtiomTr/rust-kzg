@@ -1,6 +1,6 @@
 #![no_main]
 
-use kzg::{Fr, G1Mul, G1};
+use kzg::{Fr, G1};
 use libfuzzer_sys::{
     arbitrary::{self, Arbitrary},
     fuzz_target,

@@ -1,4 +1,5 @@
 pub mod arkmsm;
+use core::ops::{Mul, MulAssign};
 pub mod cell;
 pub mod msm_impls;
 pub mod precompute;

@@ -381,7 +381,7 @@ impl Backend {
         writeln!(w, "fn failing_fuzz_case() {{")?;
         writeln!(
             w,
-            "\tuse kzg::{{msm::{{msm_impls::msm, precompute::precompute}}, Fr, G1Mul, G1}};"
+            "\tuse kzg::{{msm::{{msm_impls::msm, precompute::precompute}}, Fr, G1}};"
         )?;
 
         match self {

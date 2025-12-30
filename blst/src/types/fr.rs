@@ -37,15 +37,6 @@ impl kzg::Group for FsFr {
         Self::from_u64(0)
     }
 
-    fn is_zero(&self) -> bool {
-        let mut val: [u64; 4] = [0; 4];
-        unsafe {
-            blst_uint64_from_fr(val.as_mut_ptr(), &self.0);
-        }
-
-        val[0] == 0 && val[1] == 0 && val[2] == 0 && val[3] == 0
-    }
-
     fn negate(&self) -> Self {
         let mut ret = Self::default();
         unsafe {
@@ -71,15 +62,6 @@ impl kzg::Group for FsFr {
 impl kzg::FiniteField for FsFr {
     fn one() -> Self {
         Self::from_u64(1)
-    }
-
-    fn is_one(&self) -> bool {
-        let mut val: [u64; 4] = [0; 4];
-        unsafe {
-            blst_uint64_from_fr(val.as_mut_ptr(), &self.0);
-        }
-
-        val[0] == 1 && val[1] == 0 && val[2] == 0 && val[3] == 0
     }
 
     fn inverse(&self) -> Self {

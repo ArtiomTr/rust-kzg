@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 
 use kzg::common_utils::log2_pow2;
 use kzg::eip_4844::{hash_to_bls_field, PrecomputationTableManager};
-use kzg::{FFTSettings, FiniteField, Fr, G1Mul, G2Mul, FFTG1};
+use kzg::{FFTSettings, FiniteField, Fr, FFTG1};
 
 use crate::consts::{G1_GENERATOR, G2_GENERATOR};
 use crate::types::fft_settings::FsFFTSettings;

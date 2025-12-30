@@ -1,4 +1,5 @@
-use crate::{Fr, G1Affine, G1Fp, G1GetFp, G1Mul, G1ProjAddAffine, G1};
+use crate::{Fr, G1Affine, G1Fp, G1GetFp, G1ProjAddAffine, G1};
+use core::ops::{Mul, MulAssign};
 use alloc::vec::Vec;
 
 #[cfg(all(feature = "arkmsm", not(feature = "parallel")))]
@@ -13,7 +14,7 @@ use super::tiling_parallel_pippenger::{parallel_affine_conv, tiling_parallel_pip
 #[cfg(feature = "parallel")]
 fn msm_parallel<
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
@@ -29,7 +30,7 @@ fn msm_parallel<
             .iter()
             .cloned()
             .zip(scalars.iter())
-            .filter(|(p, _)| !p.is_inf())
+            .filter(|(p, _)| !p*self == Self::zero())
             .collect();
         let points = batch_convert::<TG1, TG1Fp, TG1Affine>(&points);
         let scalars = scalars.iter().map(|s| s.to_scalar()).collect::<Vec<_>>();
@@ -39,7 +40,7 @@ fn msm_parallel<
 
 pub fn pippenger<
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
@@ -51,7 +52,7 @@ pub fn pippenger<
         .iter()
         .cloned()
         .zip(scalars.iter())
-        .filter(|(p, _)| !p.is_inf())
+        .filter(|(p, _)| *p != TG1::zero())
         .collect();
 
     let points = batch_convert::<TG1, TG1Fp, TG1Affine>(&points);
@@ -65,7 +66,7 @@ pub fn pippenger<
 #[allow(unused_variables)]
 fn msm_sequential<
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
@@ -90,7 +91,7 @@ fn msm_sequential<
             .iter()
             .cloned()
             .zip(scalars.iter())
-            .filter(|(p, _)| !p.is_inf())
+            .filter(|(p, _)| !p*self == Self::zero())
             .collect();
         let points = batch_convert::<TG1, TG1Fp, TG1Affine>(&points);
         let scalars = scalars.iter().map(|s| s.to_scalar()).collect::<Vec<_>>();
@@ -112,7 +113,7 @@ pub fn batch_convert<TG1: G1, TFp: G1Fp, TG1Affine: G1Affine<TG1, TFp> + Sized>(
 
 #[allow(clippy::extra_unused_type_parameters)]
 pub fn msm<
-    TG1: G1 + G1GetFp<TG1Fp> + G1Mul<TFr>,
+    TG1: G1 + G1GetFp<TG1Fp> + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr>,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
@@ -127,7 +128,7 @@ pub fn msm<
         let mut out = TG1::zero();
         for i in 0..len {
             let tmp = points[i].clone() * &scalars[i];
-            out.add_or_dbl_assign(&tmp);
+            out+= tmp;
         }
         return out;
     }

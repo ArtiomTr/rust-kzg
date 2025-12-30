@@ -14,7 +14,6 @@ use kzg::common_utils::log2_pow2;
 use kzg::eip_4844::hash_to_bls_field;
 use kzg::msm::precompute::PrecomputationTable;
 use kzg::{FFTSettings as _, FiniteField, Fr as FrTrait, TorsionSubgroup, FFTG1, G1, G2};
-use kzg::{G1Mul, G2Mul};
 use std::ops::Neg;
 
 #[derive(Debug, Clone)]

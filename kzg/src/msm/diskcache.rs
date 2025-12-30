@@ -1,4 +1,5 @@
 use core::marker::PhantomData;
+use core::ops::{Mul, MulAssign};
 use sha2::{Digest, Sha256};
 use std::{
     fs::File,

@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use ark_ec::ProjectiveCurve;
 use ark_ff::PrimeField;
 use kzg::msm::precompute::PrecomputationTable;
-use kzg::{FiniteField, Fr as KzgFr, G1Mul};
+use kzg::{FiniteField, Fr as KzgFr};
 use kzg::{TorsionSubgroup, FFTG1, G1};
 use std::ops::MulAssign;
 
@@ -29,7 +29,7 @@ pub fn g1_linear_combination(
         use ark_bls12_381::{Fr, G1Affine};
         use ark_ec::msm::VariableBaseMSM;
         use ark_ff::BigInteger256;
-        use kzg::{G1Mul, G1};
+        use kzg::{G1};
 
         if len < 8 {
             *out = ArkG1::default();
@@ -63,7 +63,7 @@ pub fn g1_linear_combination(
     {
         use ark_bls12_381::{Fr, G1Affine};
         use ark_ff::BigInteger256;
-        use kzg::{G1Mul, G1};
+        use kzg::{G1};
         use rust_kzg_arkworks3_sppark_wlc::MultiScalarMultContext;
 
         if len < 8 {

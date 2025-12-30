@@ -4,7 +4,7 @@ use crate::consts::{
 };
 
 use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
-use kzg::{Fr, G1Mul, G2Mul, Group, TorsionSubgroup, G1, G2};
+use kzg::{Fr, Group, TorsionSubgroup, G1, G2};
 use rand::{thread_rng, RngCore};
 
 extern "C" {
@@ -86,10 +86,6 @@ impl kzg::Group for BlstFr {
         Fr::from_u64(0)
     }
 
-    fn is_zero(&self) -> bool {
-        unsafe { fr_is_zero(self) }
-    }
-
     fn negate(&self) -> Self {
         let mut ret = Self::default();
         unsafe {
@@ -106,10 +102,6 @@ impl kzg::Group for BlstFr {
 impl kzg::FiniteField for BlstFr {
     fn one() -> Self {
         Fr::from_u64(1)
-    }
-
-    fn is_one(&self) -> bool {
-        unsafe { fr_is_one(self) }
     }
 
     fn inverse(&self) -> Self {
@@ -230,24 +222,8 @@ impl G1 for BlstP1 {
         ret
     }
 
-    fn add_or_dbl(&mut self, b: &Self) -> Self {
-        let mut out = BlstP1::default();
-        unsafe {
-            g1_add_or_dbl(&mut out, b, self);
-        }
-        out
-    }
-
     fn is_inf(&self) -> bool {
         unsafe { g1_is_inf(self) }
-    }
-
-    fn dbl(&self) -> Self {
-        let mut ret = BlstP1::default();
-        unsafe {
-            g1_dbl(&mut ret, self);
-        }
-        ret
     }
 
     fn equals(&self, b: &Self) -> bool {
@@ -255,7 +231,6 @@ impl G1 for BlstP1 {
     }
 }
 
-impl G1Mul<BlstFr> for BlstP1 {}
 
 impl Add for BlstFr {
     type Output = Self;
@@ -358,10 +333,6 @@ impl Group for BlstP2 {
         Self::default()
     }
 
-    fn is_zero(&self) -> bool {
-        unsafe { g2_is_inf(self) }
-    }
-
     fn negate(&self) -> Self {
         let mut ret = BlstP2::default();
         unsafe {
@@ -384,10 +355,6 @@ impl TorsionSubgroup for BlstP2 {
         G2_NEGATIVE_GENERATOR
     }
 
-    fn is_inf(&self) -> bool {
-        unsafe { g2_is_inf(self) }
-    }
-
     fn is_valid(&self) -> bool {
         // For C-KZG, we assume points are valid after construction/deserialization
         true
@@ -401,26 +368,10 @@ impl TorsionSubgroup for BlstP2 {
         ret
     }
 
-    fn add_or_dbl(&self, b: &Self) -> Self {
-        let mut ret = BlstP2::default();
-        unsafe {
-            g2_add_or_dbl(&mut ret, self, b);
-        }
-        ret
-    }
-
     fn dbl_assign(&mut self) {
         let mut ret = BlstP2::default();
         unsafe {
             g2_dbl(&mut ret, self);
-        }
-        *self = ret;
-    }
-
-    fn add_or_dbl_assign(&mut self, b: &Self) {
-        let mut ret = BlstP2::default();
-        unsafe {
-            g2_add_or_dbl(&mut ret, self, b);
         }
         *self = ret;
     }
@@ -462,17 +413,8 @@ impl G2 for BlstP2 {
         }
         out
     }
-
-    fn add_or_dbl(&mut self, b: &Self) -> Self {
-        let mut ret = BlstP2::default();
-        unsafe {
-            g2_add_or_dbl(&mut ret, self, b);
-        }
-        ret
-    }
 }
 
-impl G2Mul<BlstFr> for BlstP2 {}
 
 impl Add for BlstP1 {
     type Output = Self;
@@ -665,3 +607,7 @@ pub fn linear_combination_g1(out: &mut BlstP1, p: &[BlstP1], coeffs: &[BlstFr], 
 pub fn verify_pairings(a1: &BlstP1, a2: &BlstP2, b1: &BlstP1, b2: &BlstP2) -> bool {
     unsafe { pairings_verify(a1, a2, b1, b2) }
 }
+
+impl Dbl for BlstP2 {}
+
+impl DblAssign for BlstP2 {}

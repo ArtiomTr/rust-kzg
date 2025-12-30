@@ -32,7 +32,7 @@ pub fn g1_linear_combination(
     #[cfg(feature = "sppark")]
     {
         use blst::{blst_fr, blst_scalar, blst_scalar_from_fr};
-        use kzg::{G1Mul, G1};
+        use kzg::{G1};
 
         if len < 8 {
             *out = FsG1::default();

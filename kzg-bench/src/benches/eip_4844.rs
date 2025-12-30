@@ -4,14 +4,14 @@ use crate::tests::eip_4844::{generate_random_blob_bytes, generate_random_field_e
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput};
 use kzg::eip_4844::TRUSTED_SETUP_PATH;
 use kzg::{
-    FFTSettings, Fr, G1Affine, G1Fp, G1GetFp, G1Mul, G1ProjAddAffine, KZGSettings, Poly, G1, G2,
+    FFTSettings, Fr, G1Affine, G1Fp, G1GetFp, G1ProjAddAffine, KZGSettings, Poly, G1, G2,
 };
 
 #[allow(clippy::type_complexity)]
 #[allow(clippy::too_many_arguments)]
 pub fn bench_eip_4844<
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,

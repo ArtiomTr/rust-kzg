@@ -7,7 +7,7 @@ use crate::kzg_types::ArkG1ProjAddAffine;
 use kzg::msm::msm_impls::msm;
 
 use kzg::msm::precompute::PrecomputationTable;
-use kzg::{FiniteField, Fr as KzgFr, G1Mul};
+use kzg::{FiniteField, Fr as KzgFr};
 use kzg::{TorsionSubgroup, FFTG1, G1};
 use std::ops::{Mul, MulAssign, Sub};
 

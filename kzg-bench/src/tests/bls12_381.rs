@@ -1,6 +1,6 @@
 use kzg::{
     msm::precompute::{precompute, PrecomputationTable},
-    Fr, G1Affine, G1Fp, G1GetFp, G1Mul, G1ProjAddAffine, G2Mul, G1, G2,
+    Fr, G1Affine, G1Fp, G1GetFp, G1ProjAddAffine, G1, G2,
 };
 use std::convert::TryInto;
 
@@ -114,7 +114,7 @@ pub fn fr_uint64s_roundtrip<TFr: Fr>() {
     assert_eq!(expected[3], actual[3]);
 }
 
-pub fn p1_mul_works<TFr: Fr, TG1: G1 + G1Mul<TFr>>() {
+pub fn p1_mul_works<TFr: Fr, TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr>>() {
     let m1: [u64; 4] = [
         0xffffffff00000000,
         0x53bda402fffe5bfe,
@@ -152,7 +152,7 @@ pub fn p2_add_or_dbl_works<TG2: G2>() {
     assert!(expected.equals(&actual));
 }
 
-pub fn p2_mul_works<TFr: Fr, TG2: G2 + G2Mul<TFr>>() {
+pub fn p2_mul_works<TFr: Fr, TG2: G2 + Mul<TFr, Output = TG2> + for<'a> Mul<&'a TFr, Output = TG2> + MulAssign<TFr>>() {
     let m1: [u64; 4] = [
         0xffffffff00000000,
         0x53bda402fffe5bfe,
@@ -183,7 +183,7 @@ pub fn g1_identity_is_identity<TG1: G1>() {
 #[allow(clippy::type_complexity)]
 pub fn g1_make_linear_combination<
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + Copy,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp> + Copy,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
@@ -221,7 +221,7 @@ pub fn g1_make_linear_combination<
 #[allow(clippy::type_complexity)]
 pub fn g1_random_linear_combination<
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + Copy,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp> + Copy,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
@@ -264,7 +264,7 @@ pub fn g1_random_linear_combination<
 #[allow(clippy::type_complexity)]
 pub fn g1_linear_combination_infinity_points<
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + Copy,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp> + Copy,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
@@ -313,7 +313,7 @@ pub fn g1_linear_combination_infinity_points<
 #[allow(clippy::type_complexity)]
 pub fn g1_small_linear_combination<
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + Copy,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp> + Copy,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
@@ -386,7 +386,7 @@ pub fn g1_small_linear_combination<
     }
 }
 
-pub fn pairings_work<TFr: Fr, TG1: G1 + G1Mul<TFr>, TG2: G2 + G2Mul<TFr>>(
+pub fn pairings_work<TFr: Fr, TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr>, TG2: G2 + Mul<TFr, Output = TG2> + for<'a> Mul<&'a TFr, Output = TG2> + MulAssign<TFr>>(
     pairings_verify: &dyn Fn(&TG1, &TG2, &TG1, &TG2) -> bool,
 ) {
     // // Verify that e([3]g1, [5]g2) = e([5]g1, [3]g2)

@@ -1,4 +1,5 @@
 use core::mem::size_of;
+use core::ops::{Mul, MulAssign};
 
 use crate::{G1Affine, G1Fp, G1GetFp, Scalar256, G1};
 

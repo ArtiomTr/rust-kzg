@@ -1,7 +1,8 @@
 /// This algorithm is taken from https://github.com/crate-crypto/rust-eth-kzg
+use core::ops::{Mul, MulAssign};
 use core::{marker::PhantomData, ops::Neg};
 
-use crate::{Fr, G1Affine, G1Fp, G1GetFp, G1Mul, G1ProjAddAffine, G1};
+use crate::{Fr, G1Affine, G1Fp, G1GetFp, G1ProjAddAffine, G1};
 
 #[cfg(feature = "diskcache")]
 use crate::msm::diskcache::DiskCache;
@@ -10,7 +11,7 @@ use crate::msm::diskcache::DiskCache;
 pub struct WbitsTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
 where
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
@@ -184,7 +185,7 @@ pub fn multi_batch_addition_binary_tree_stride<
 ) -> Vec<TG1> {
     multi_points
         .iter_mut()
-        .for_each(|points| points.retain(|p| !p.is_infinity()));
+        .for_each(|points| points.retain(|p| !p.is_zero()));
     let total_num_points: usize = multi_points.iter().map(|p| p.len()).sum();
     let mut scratchpad = Vec::with_capacity(total_num_points);
 
@@ -295,7 +296,7 @@ pub fn multi_batch_addition_binary_tree_stride<
 impl<
         TFr: Fr,
         TG1Fp: G1Fp,
-        TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+        TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
         TG1Affine: G1Affine<TG1, TG1Fp>,
         TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
     > WbitsTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
@@ -481,7 +482,7 @@ impl<
                 result = result.dbl();
             }
             // Add the accumulated point for this window
-            result.add_or_dbl_assign(&point);
+            result+= point;
         }
 
         result

@@ -24,7 +24,7 @@ use kzg::eip_4844::BYTES_PER_G1;
 use kzg::G1Affine;
 use kzg::G1GetFp;
 use kzg::G1ProjAddAffine;
-use kzg::{G1Mul, Group, TorsionSubgroup, G1};
+use kzg::{Group, TorsionSubgroup, G1};
 
 use crate::consts::{G1_GENERATOR, G1_IDENTITY, G1_NEGATIVE_GENERATOR};
 // use crate::kzg_proofs::g1_linear_combination;
@@ -130,10 +130,6 @@ impl kzg::Group for CtG1 {
         )
     }
 
-    fn is_zero(&self) -> bool {
-        self.is_inf()
-    }
-
     fn negate(&self) -> Self {
         let mut ret = Self::default();
         unsafe {
@@ -156,10 +152,6 @@ impl kzg::TorsionSubgroup for CtG1 {
         G1_NEGATIVE_GENERATOR
     }
 
-    fn is_inf(&self) -> bool {
-        unsafe { constantine::ctt_bls12_381_g1_jac_is_neutral(&self.0) != 0 }
-    }
-
     fn is_valid(&self) -> bool {
         unsafe {
             matches!(
@@ -178,23 +170,9 @@ impl kzg::TorsionSubgroup for CtG1 {
         Self(result)
     }
 
-    fn add_or_dbl(&self, b: &Self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            constantine::ctt_bls12_381_g1_jac_sum(&mut ret.0, &self.0, &b.0);
-        }
-        ret
-    }
-
     fn dbl_assign(&mut self) {
         unsafe {
             constantine::ctt_bls12_381_g1_jac_double_in_place(&mut self.0);
-        }
-    }
-
-    fn add_or_dbl_assign(&mut self, b: &Self) {
-        unsafe {
-            constantine::ctt_bls12_381_g1_jac_add_in_place(&mut self.0, &b.0);
         }
     }
 }
@@ -253,7 +231,6 @@ impl G1 for CtG1 {
     }
 }
 
-impl G1Mul<CtFr> for CtG1 {}
 
 impl G1LinComb<CtFr, CtFp, CtG1Affine, CtG1ProjAddAffine> for CtG1 {
     fn g1_lincomb(
@@ -400,11 +377,7 @@ impl G1Affine<CtG1, CtFp> for CtG1Affine {
             // Transmute safe due to repr(C) on CtFp
             core::mem::transmute(&self.0.y)
         }
-    }
-
-    fn is_infinity(&self) -> bool {
-        unsafe { constantine::ctt_bls12_381_g1_aff_is_neutral(&self.0) != 0 }
-    }
+    }    }
 
     fn x_mut(&mut self) -> &mut CtFp {
         unsafe {
@@ -551,3 +524,7 @@ impl MulAssign<CtFr> for CtG1 {
         *self = &*self * &rhs;
     }
 }
+
+impl Dbl for CtG1 {}
+
+impl DblAssign for CtG1 {}

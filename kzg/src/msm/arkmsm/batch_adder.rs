@@ -184,7 +184,7 @@ where
 
         if delta_x.is_zero() {
             if !delta_y.is_zero() {
-                // p = -q, result should be pt at infinity
+                // p = -q, result should be zero (identity element)
                 p.set_zero();
                 return;
             }

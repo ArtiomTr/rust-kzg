@@ -1,4 +1,5 @@
 // Minimalist core::cell::Cell stand-in, but with Sync marker, which
+use core::ops::{Mul, MulAssign};
 // makes it possible to pass it to multiple threads. It works, because
 // *here* each Cell is written only once and by just one thread.
 #[repr(transparent)]

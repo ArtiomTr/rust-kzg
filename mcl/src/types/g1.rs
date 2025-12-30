@@ -20,7 +20,7 @@ use kzg::G1Affine;
 use kzg::G1GetFp;
 use kzg::G1LinComb;
 use kzg::G1ProjAddAffine;
-use kzg::{G1Mul, Group, TorsionSubgroup, G1};
+use kzg::{Group, TorsionSubgroup, G1};
 
 use crate::consts::{G1_GENERATOR, G1_IDENTITY, G1_NEGATIVE_GENERATOR};
 use crate::kzg_proofs::g1_linear_combination;
@@ -100,10 +100,6 @@ impl kzg::Group for MclG1 {
         })
     }
 
-    fn is_zero(&self) -> bool {
-        self.is_inf()
-    }
-
     fn negate(&self) -> Self {
         try_init_mcl();
 
@@ -132,12 +128,6 @@ impl kzg::TorsionSubgroup for MclG1 {
         G1_NEGATIVE_GENERATOR
     }
 
-    fn is_inf(&self) -> bool {
-        try_init_mcl();
-
-        self.0.get_str(0).eq("0")
-    }
-
     fn is_valid(&self) -> bool {
         try_init_mcl();
 
@@ -154,26 +144,12 @@ impl kzg::TorsionSubgroup for MclG1 {
         Self(out)
     }
 
-    fn add_or_dbl(&self, b: &Self) -> Self {
-        try_init_mcl();
-
-        let mut out = mcl_g1::default();
-        mcl_g1::add(&mut out, &self.0, &b.0);
-        Self(out)
-    }
-
     fn dbl_assign(&mut self) {
         try_init_mcl();
 
         let mut r = mcl_g1::default();
         mcl_g1::dbl(&mut r, &self.0);
         self.0 = r;
-    }
-
-    fn add_or_dbl_assign(&mut self, b: &Self) {
-        try_init_mcl();
-
-        self.0 = self.0.add(&b.0);
     }
 }
 
@@ -286,7 +262,6 @@ impl G1GetFp<MclFp> for MclG1 {
     }
 }
 
-impl G1Mul<MclFr> for MclG1 {}
 
 impl G1LinComb<MclFr, MclFp, MclG1Affine, MclG1ProjAddAffine> for MclG1 {
     fn g1_lincomb(
@@ -411,11 +386,6 @@ impl G1Affine<MclG1, MclFp> for MclG1Affine {
             core::mem::transmute(&mut self.y)
         }
     }
-
-    fn is_infinity(&self) -> bool {
-        todo!()
-    }
-
     fn neg(&self) -> Self {
         try_init_mcl();
 
@@ -551,3 +521,7 @@ impl MulAssign<MclFr> for MclG1 {
         *self = &*self * &rhs;
     }
 }
+
+impl Dbl for MclG1 {}
+
+impl DblAssign for MclG1 {}

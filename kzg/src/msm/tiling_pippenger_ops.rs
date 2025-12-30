@@ -1,4 +1,5 @@
 use crate::{G1Affine, G1Fp, G1GetFp, Scalar256, G1};
+use core::ops::{Mul, MulAssign};
 
 use alloc::vec;
 
@@ -125,7 +126,7 @@ pub fn tiling_pippenger<TG1: G1 + G1GetFp<TG1Fp>, TG1Fp: G1Fp, TG1Affine: G1Affi
 
         p1s_tile_pippenger(&mut tile, points, scalars, &mut buckets, bit0, wbits, cbits);
 
-        ret.add_or_dbl_assign(&tile);
+        ret+= tile.clone();
         for _ in 0..window {
             ret.dbl_assign();
         }
@@ -133,6 +134,6 @@ pub fn tiling_pippenger<TG1: G1 + G1GetFp<TG1Fp>, TG1Fp: G1Fp, TG1Affine: G1Affi
         wbits = window;
     }
     p1s_tile_pippenger(&mut tile, points, scalars, &mut buckets, 0, wbits, cbits);
-    ret.add_or_dbl_assign(&tile);
+    ret+= tile;
     ret
 }

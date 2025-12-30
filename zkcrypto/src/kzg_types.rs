@@ -21,8 +21,8 @@ use kzg::eth::c_bindings::{blst_fr, blst_p1, blst_p2, CKZGSettings};
 use kzg::msm::precompute::{precompute, PrecomputationTable};
 use kzg::{eth, G1Affine as G1AffineTrait};
 use kzg::{
-    FFTFr, FFTSettings, FiniteField, Fr as KzgFr, G1Fp, G1GetFp, G1LinComb, G1Mul,
-    G1ProjAddAffine, G2Mul, Group, KZGSettings, PairingVerify, Poly, Scalar256, TorsionSubgroup,
+    FFTFr, FFTSettings, FiniteField, Fr as KzgFr, G1Fp, G1GetFp, G1LinComb,
+    G1ProjAddAffine, Group, KZGSettings, PairingVerify, Poly, Scalar256, TorsionSubgroup,
     G1, G2,
 };
 use std::hash::Hash;
@@ -583,18 +583,8 @@ impl kzg::TorsionSubgroup for ZG1 {
         }
     }
 
-    fn add_or_dbl(&self, b: &Self) -> Self {
-        Self {
-            proj: self.proj + b.proj,
-        }
-    }
-
     fn dbl_assign(&mut self) {
         self.proj = self.proj.double();
-    }
-
-    fn add_or_dbl_assign(&mut self, b: &Self) {
-        self.proj.add_assign(b.proj);
     }
 }
 
@@ -638,7 +628,6 @@ impl G1 for ZG1 {
     }
 }
 
-impl G1Mul<ZFr> for ZG1 {}
 
 impl Add for ZG1 {
     type Output = Self;
@@ -780,11 +769,6 @@ impl G1AffineTrait<ZG1, ZFp> for ZG1Affine {
     fn y(&self) -> &ZFp {
         unsafe { core::mem::transmute(&self.0.y) }
     }
-
-    fn is_infinity(&self) -> bool {
-        bool::from(self.0.infinity)
-    }
-
     fn is_zero(&self) -> bool {
         bool::from(self.0.infinity)
         // FIXME: definetly wrong
@@ -979,18 +963,8 @@ impl TorsionSubgroup for ZG2 {
         }
     }
 
-    fn add_or_dbl(&self, b: &Self) -> Self {
-        Self {
-            proj: self.proj + b.proj,
-        }
-    }
-
     fn dbl_assign(&mut self) {
         self.proj = self.proj.double();
-    }
-
-    fn add_or_dbl_assign(&mut self, b: &Self) {
-        self.proj += b.proj;
     }
 }
 
@@ -1016,15 +990,8 @@ impl G2 for ZG2 {
         let g2_affine = G2Affine::from(self.proj);
         g2_affine.to_compressed()
     }
-
-    fn add_or_dbl(&mut self, b: &Self) -> Self {
-        Self {
-            proj: self.proj + b.proj,
-        }
-    }
 }
 
-impl G2Mul<ZFr> for ZG2 {}
 
 impl Add for ZG2 {
     type Output = Self;
@@ -1517,3 +1484,11 @@ impl<'a> TryFrom<&'a CKZGSettings> for ZKZGSettings {
         })
     }
 }
+
+impl Dbl for ZG1 {}
+
+impl DblAssign for ZG1 {}
+
+impl Dbl for ZG2 {}
+
+impl DblAssign for ZG2 {}

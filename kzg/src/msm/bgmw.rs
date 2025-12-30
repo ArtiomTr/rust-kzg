@@ -1,7 +1,8 @@
 use core::marker::PhantomData;
+use core::ops::{Mul, MulAssign};
 
 use crate::{
-    msm::tiling_pippenger_ops::p1_integrate_buckets, Fr, G1Affine, G1Fp, G1GetFp, G1Mul,
+    msm::tiling_pippenger_ops::p1_integrate_buckets, Fr, G1Affine, G1Fp, G1GetFp,
     G1ProjAddAffine, Scalar256, G1,
 };
 
@@ -13,7 +14,7 @@ use super::pippenger_utils::{
 pub struct BgmwTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
 where
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
@@ -198,7 +199,7 @@ fn bgmw_parallel_window_size(npoints: usize, ncpus: usize) -> (usize, usize, usi
 impl<
         TFr: Fr,
         TG1Fp: G1Fp,
-        TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+        TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
         TG1Affine: G1Affine<TG1, TG1Fp>,
         TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
     > BgmwTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
@@ -558,7 +559,7 @@ impl<
         for _ in 0..n_workers {
             let idx = rx.recv().unwrap();
 
-            ret.add_or_dbl_assign(results[idx].as_mut());
+            ret+= results[idx];
         }
         ret
     }

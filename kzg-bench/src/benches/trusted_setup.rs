@@ -1,6 +1,6 @@
 use criterion::Criterion;
 use kzg::{
-    eip_4844::TRUSTED_SETUP_PATH, FFTSettings, Fr, G1Affine, G1Fp, G1GetFp, G1Mul, G1ProjAddAffine,
+    eip_4844::TRUSTED_SETUP_PATH, FFTSettings, Fr, G1Affine, G1Fp, G1GetFp, G1ProjAddAffine,
     KZGSettings, Poly, G1, G2,
 };
 use std::{fs::File, io::Read, path::PathBuf};
@@ -8,7 +8,7 @@ use std::{fs::File, io::Read, path::PathBuf};
 #[allow(clippy::type_complexity)]
 pub fn bench_load_trusted_setup<
     TFr: Fr + std::fmt::Debug,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
     TG2: G2,
     TPoly: Poly<TFr>,
     TFFTSettings: FFTSettings<TFr>,

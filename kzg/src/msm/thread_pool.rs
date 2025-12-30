@@ -1,4 +1,5 @@
 pub trait ThreadPoolExt {
+use core::ops::{Mul, MulAssign};
     fn joined_execute<'any, F>(&self, job: F)
     where
         F: FnOnce() + Send + 'any;

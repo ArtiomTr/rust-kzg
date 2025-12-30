@@ -30,7 +30,7 @@ use kzg::eth::c_bindings::{blst_fp, blst_fp2, blst_fr, blst_p1, blst_p2};
 use kzg::msm::precompute::{precompute, PrecomputationTable};
 use kzg::{
     FFTFr, FFTSettings, FFTSettingsPoly, FiniteField, Fr as KzgFr, G1Affine as G1AffineTrait,
-    G1Fp, G1GetFp, G1LinComb, G1Mul, G1ProjAddAffine, G2Mul, Group, KZGSettings, PairingVerify,
+    G1Fp, G1GetFp, G1LinComb, G1ProjAddAffine, Group, KZGSettings, PairingVerify,
     Poly, Scalar256, TorsionSubgroup, G1, G2,
 };
 use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
@@ -79,10 +79,6 @@ impl kzg::Group for ArkFr {
         Self { fr: Fr::zero() }
     }
 
-    fn is_zero(&self) -> bool {
-        self.fr.is_zero()
-    }
-
     fn negate(&self) -> Self {
         Self { fr: self.fr.neg() }
     }
@@ -95,10 +91,6 @@ impl kzg::Group for ArkFr {
 impl kzg::FiniteField for ArkFr {
     fn one() -> Self {
         Self::from_u64(1)
-    }
-
-    fn is_one(&self) -> bool {
-        self.fr.is_one()
     }
 
     fn inverse(&self) -> Self {
@@ -374,10 +366,6 @@ impl kzg::Group for ArkG1 {
         })
     }
 
-    fn is_zero(&self) -> bool {
-        self.is_inf()
-    }
-
     fn negate(&self) -> Self {
         Self(-self.0)
     }
@@ -458,10 +446,6 @@ impl kzg::TorsionSubgroup for ArkG1 {
         })
     }
 
-    fn is_inf(&self) -> bool {
-        self.0.is_zero()
-    }
-
     fn is_valid(&self) -> bool {
         let affine = self.0.into_affine();
 
@@ -472,16 +456,8 @@ impl kzg::TorsionSubgroup for ArkG1 {
         Self(self.0.double())
     }
 
-    fn add_or_dbl(&self, b: &Self) -> Self {
-        Self(self.0 + b.0)
-    }
-
     fn dbl_assign(&mut self) {
         self.0.double_in_place();
-    }
-
-    fn add_or_dbl_assign(&mut self, b: &Self) {
-        self.0 += b.0;
     }
 }
 
@@ -634,7 +610,6 @@ impl Sub<&ArkG1> for &ArkG1 {
     }
 }
 
-impl G1Mul<ArkFr> for ArkG1 {}
 
 impl G1LinComb<ArkFr, ArkFp, ArkG1Affine, ArkG1ProjAddAffine> for ArkG1 {
     fn g1_lincomb(
@@ -658,7 +633,7 @@ impl PairingVerify<ArkG1, ArkG2> for ArkG1 {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
 pub struct ArkG2(pub GroupProjective<g2::Parameters>);
 
 impl ArkG2 {
@@ -676,11 +651,7 @@ impl Group for ArkG2 {
         Self(GroupProjective::<g2::Parameters>::zero())
     }
 
-    fn is_zero(&self) -> bool {
-        self.0.is_zero()
-    }
-
-    fn negate(&self) -> Self {
+    fn negate(&self) -> Self{
         Self(-self.0)
     }
 
@@ -844,10 +815,6 @@ impl TorsionSubgroup for ArkG2 {
         })
     }
 
-    fn is_inf(&self) -> bool {
-        self.0.is_zero()
-    }
-
     fn is_valid(&self) -> bool {
         // For arkworks, points are always valid after construction
         true
@@ -857,16 +824,8 @@ impl TorsionSubgroup for ArkG2 {
         Self(self.0.double())
     }
 
-    fn add_or_dbl(&self, b: &Self) -> Self {
-        Self(self.0 + b.0)
-    }
-
     fn dbl_assign(&mut self) {
         self.0 = self.0.double();
-    }
-
-    fn add_or_dbl_assign(&mut self, b: &Self) {
-        self.0 += b.0;
     }
 }
 
@@ -930,10 +889,6 @@ impl G2 for ArkG2 {
 
     fn to_bytes(&self) -> [u8; 96] {
         <[u8; 96]>::try_from(self.0.x.c0.0.to_bytes_le()).unwrap()
-    }
-
-    fn add_or_dbl(&mut self, b: &Self) -> Self {
-        Self(self.0 + b.0)
     }
 }
 
@@ -1011,7 +966,6 @@ impl Sub<&ArkG2> for &ArkG2 {
     }
 }
 
-impl G2Mul<ArkFr> for ArkG2 {}
 
 impl Poly<ArkFr> for PolyData {
     fn new(size: usize) -> PolyData {
@@ -1618,11 +1572,6 @@ impl G1AffineTrait<ArkG1, ArkFp> for ArkG1Affine {
     fn y(&self) -> &ArkFp {
         unsafe { core::mem::transmute(&self.aff.y) }
     }
-
-    fn is_infinity(&self) -> bool {
-        self.aff.infinity
-    }
-
     fn is_zero(&self) -> bool {
         self.aff.is_zero()
     }
@@ -1679,3 +1628,11 @@ impl G1ProjAddAffine<ArkG1, ArkFp, ArkG1Affine> for ArkG1ProjAddAffine {
         proj.0.add_assign_mixed(&aff.aff);
     }
 }
+
+impl Dbl for ArkG1 {}
+
+impl DblAssign for ArkG1 {}
+
+impl Dbl for ArkG2 {}
+
+impl DblAssign for ArkG2 {}

@@ -1,8 +1,9 @@
 extern crate alloc;
+use core::ops::{Mul, MulAssign};
 
 use alloc::{string::String, vec::Vec};
 
-use crate::{Fr, G1Affine, G1Fp, G1GetFp, G1Mul, G1ProjAddAffine, G1};
+use crate::{Fr, G1Affine, G1Fp, G1GetFp, G1ProjAddAffine, G1};
 
 #[cfg(any(
     all(feature = "arkmsm", feature = "bgmw"),
@@ -33,7 +34,7 @@ pub type PrecomputationTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine> =
 pub struct EmptyTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
 where
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
@@ -50,7 +51,7 @@ impl<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
     EmptyTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
 where
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
@@ -84,7 +85,7 @@ pub fn precompute<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>(
 ) -> Result<Option<PrecomputationTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>>, String>
 where
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1: G1 + Mul<TFr, Output = TG1> + for<'a> Mul<&'a TFr, Output = TG1> + MulAssign<TFr> + G1GetFp<TG1Fp>,
     TG1Fp: G1Fp,
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
