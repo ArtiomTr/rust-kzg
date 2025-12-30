@@ -9,54 +9,17 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      # Check kzg clippy for default msm backend
-      - name: "kzg clippy"
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --manifest-path kzg/Cargo.toml --all-targets --no-default-features --features=parallel,std,rand -- -D warnings
+      # Check kzg and kzg-bench with all feature combinations
+      - name: "kzg lint (all features)"
+        run: make lint-kzg
 
-      # Check kzg clippy for BGMW msm backend
-      - name: "kzg clippy (bgmw)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --manifest-path kzg/Cargo.toml --all-targets --features=parallel,std,rand,bgmw -- -D warnings
+      # Check kzg-bench with all features
+      - name: "kzg-bench lint"
+        run: make lint-kzg-bench
 
-      # Check kzg clippy for arkmsm backend
-      - name: "kzg clippy (arkmsm)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --manifest-path kzg/Cargo.toml --all-targets --features=parallel,std,rand,arkmsm -- -D warnings
-
-      # Check kzg clippy for sppark backend
-      - name: "kzg clippy (sppark)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --manifest-path kzg/Cargo.toml --all-targets --features=parallel,std,rand,sppark -- -D warnings
-
-      # Check kzg formatting
-      - name: "kzg format"
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --manifest-path kzg/Cargo.toml -- --check
-
-      # Check kzg-bench clippy
-      - name: "kzg-bench clippy"
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --manifest-path kzg-bench/Cargo.toml --all-targets --all-features -- -D warnings
-
-      # Check kzg-bench formatting
-      - name: "kzg-bench format"
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --manifest-path kzg-bench/Cargo.toml -- --check
+      # Check formatting
+      - name: "format check"
+        run: make format-check
 
   backend_ci:
     runs-on: ${{ matrix.os }}
@@ -67,8 +30,6 @@ jobs:
         backend:
           [blst, zkcrypto, arkworks5, arkworks4, arkworks3, constantine, mcl]
         include:
-          # Set default clippy flag
-          - clippy-flag: --features=default,std,rand,parallel
           # Setup exec_once_per_backend flag
           - os: ubuntu-latest
             exec_once_per_backend: true
@@ -79,7 +40,6 @@ jobs:
           - backend: zkcrypto
             support_wasm: true
             support_ckzg: true
-            clippy-flag: --all-features
           - backend: arkworks4
             support_wasm: true
             support_ckzg: true
@@ -151,60 +111,30 @@ jobs:
             libgmp-dev \
             llvm
 
-      # Check backend clippy
-      - name: "${{ matrix.backend }} clippy"
+      # Check backend clippy and format
+      - name: "${{ matrix.backend }} lint"
         if: matrix.exec_once_per_backend
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --manifest-path ${{ matrix.backend }}/Cargo.toml --all-targets ${{ matrix.clippy-flag }} -- -D warnings
+        run: make lint-${{ matrix.backend }}
 
-      # Check backend formatting
-      - name: "${{ matrix.backend }} format"
-        if: matrix.exec_once_per_backend
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --manifest-path ${{ matrix.backend }}/Cargo.toml -- --check
-
-      # Check wasm32 target clippy for backend
-      - name: "[wasm32] ${{ matrix.backend }} clippy"
+      # Check wasm32 target for backend
+      - name: "[wasm32] ${{ matrix.backend }}"
         if: matrix.exec_once_per_backend && matrix.support_wasm
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --manifest-path ${{ matrix.backend }}/Cargo.toml --target wasm32-unknown-unknown --no-default-features
+        run: make build-wasm-${{ matrix.backend }}
 
-      # Check wasm32 target backend build
-      - name: "[wasm32] ${{ matrix.backend }} build"
-        if: matrix.exec_once_per_backend && matrix.support_wasm
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --manifest-path ${{ matrix.backend }}/Cargo.toml --target wasm32-unknown-unknown --no-default-features
+      # Run backend tests
+      - name: "${{ matrix.backend }} tests"
+        run: make test-${{ matrix.backend }}
 
-      # Check non-parallel backend tests
-      - name: "${{ matrix.backend }} Tests"
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --manifest-path ${{ matrix.backend }}/Cargo.toml --no-fail-fast --release --features c_bindings
+      # Run parallel backend tests
+      - name: "${{ matrix.backend }} tests (parallel)"
+        run: make test-parallel-${{ matrix.backend }}
 
-      # Check parallel backend tests
-      - name: "${{ matrix.backend }} Tests (parallel)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --manifest-path ${{ matrix.backend }}/Cargo.toml --no-fail-fast --release --features c_bindings,parallel
-
-      # Check ckzg backend tests
-      - name: "${{ matrix.backend }} Tests (c-kzg-4844)"
+      # Run c-kzg-4844 integration tests
+      - name: "${{ matrix.backend }} tests (c-kzg-4844)"
         if: matrix.exec_once_per_backend && matrix.support_ckzg
-        run: |
-          bash run-c-kzg-4844-tests.sh ${{ matrix.backend }}
+        run: make test-c-kzg-${{ matrix.backend }}
 
-      # Check parallel ckzg backend tests
-      - name: "${{ matrix.backend }} Tests (c-kzg-4844 parallel)"
+      # Run c-kzg-4844 parallel tests
+      - name: "${{ matrix.backend }} tests (c-kzg-4844 parallel)"
         if: matrix.exec_once_per_backend && matrix.support_ckzg
-        run: |
-          bash run-c-kzg-4844-tests.sh --parallel ${{ matrix.backend }}
+        run: make test-c-kzg-parallel-${{ matrix.backend }}

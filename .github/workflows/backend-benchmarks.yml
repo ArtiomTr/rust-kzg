@@ -68,24 +68,16 @@ jobs:
         with:
           dotnet-version: '8.x.x'
 
-      - name: "${{ matrix.backend }} Benchmark"
-        uses: actions-rs/cargo@v1
-        with:
-          command: bench
-          args: --manifest-path ${{ matrix.backend }}/Cargo.toml
+      - name: "${{ matrix.backend }} benchmark"
+        run: make bench-${{ matrix.backend }}
 
-      - name: "${{ matrix.backend }} Benchmark (parallel)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: bench
-          args: --manifest-path ${{ matrix.backend }}/Cargo.toml --features parallel
+      - name: "${{ matrix.backend }} benchmark (parallel)"
+        run: make bench-parallel-${{ matrix.backend }}
 
-      - name: "${{ matrix.backend }} Benchmark (c-kzg-4844)"
+      - name: "${{ matrix.backend }} benchmark (c-kzg-4844)"
         if: matrix.exec_once_per_backend && matrix.support_ckzg
-        run: |
-          bash run-c-kzg-4844-benches.sh ${{ matrix.backend }}
+        run: make bench-c-kzg-${{ matrix.backend }}
 
-      - name: "${{ matrix.backend }} Benchmark (c-kzg-4844 parallel)"
+      - name: "${{ matrix.backend }} benchmark (c-kzg-4844 parallel)"
         if: matrix.exec_once_per_backend && matrix.support_ckzg
-        run: |
-          bash run-c-kzg-4844-benches.sh --parallel ${{ matrix.backend }}
+        run: make bench-c-kzg-parallel-${{ matrix.backend }}
