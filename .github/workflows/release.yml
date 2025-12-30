@@ -15,17 +15,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        backend: [blst, zkcrypto, arkworks5, arkworks4, arkworks3, constantine, mcl]
+        backend: [blst, zkcrypto, arkworks5, arkworks4, arkworks3, constantine]
         target: [windows, linux]
-        include:
-          # Set target-name for target builds
-          - target: linux
-            target-name: x86_64-unknown-linux-gnu
-          - target: windows
-            target-name: x86_64-pc-windows-gnu
-        exclude:
-          - target: windows
-            backend: mcl
     env:
       matrix-name: "[${{ matrix.backend }}, ${{ matrix.target }}]"
       staging-dir: staging/${{ matrix.backend }}/${{ matrix.target }}
@@ -54,26 +45,8 @@ jobs:
         run: |
           sudo apt install -y mingw-w64
 
-      - name: "${{ env.matrix-name }} Prepare artifact folders"
-        run: |
-          mkdir -p ${{ env.staging-dir }}/parallel
-          mkdir -p ${{ env.staging-dir }}/non-parallel
-
-      - name: "${{ env.matrix-name }} Build"
-        run: |
-          # Non-parallel build
-          cargo rustc --manifest-path ${{ matrix.backend }}/Cargo.toml --release --target ${{ matrix.target-name }} --crate-type=staticlib
-          mv target/${{ matrix.target-name }}/release/librust_kzg_${{ matrix.backend}}.a ${{ env.staging-dir }}/non-parallel/rust_kzg_${{ matrix.backend}}.a
-          # Parallel build
-          cargo rustc --manifest-path ${{ matrix.backend }}/Cargo.toml --release --target ${{ matrix.target-name }} --crate-type=staticlib --features=parallel
-          mv target/${{ matrix.target-name }}/release/librust_kzg_${{ matrix.backend}}.a ${{ env.staging-dir }}/parallel/rust_kzg_${{ matrix.backend}}.a
-
-      - name: "${{ env.matrix-name }} Compress artifacts"
-        run: |
-          cp LICENSE ${{ env.staging-dir }}/
-          cp ${{ matrix.backend }}/*.patch ${{ env.staging-dir }}/
-          cd ${{ env.staging-dir }}
-          zip -rz ${{ env.archive-name }} * <<< "Compatible with c-kzg-4844 git hash: $C_KZG_4844_GIT_HASH."
+      - name: "${{ env.matrix-name }} Build and archive"
+        run: make archive-${{ matrix.backend }}-${{ matrix.target }}
 
       - name: "${{ env.matrix-name }} Upload"
         uses: actions/upload-artifact@v4
