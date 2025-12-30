@@ -5,7 +5,7 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use kzg::{FFTFr, Fr};
+use kzg::{FFTFr, FiniteField, Fr};
 
 use crate::types::fft_settings::CtFFTSettings;
 use crate::types::fr::CtFr;

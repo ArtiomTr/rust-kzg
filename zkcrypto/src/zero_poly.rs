@@ -3,7 +3,7 @@ use crate::kzg_types::ZFr as BlstFr;
 use crate::poly::PolyData;
 
 use kzg::common_utils::next_pow_of_2;
-use kzg::{FFTFr, Fr, ZeroPoly};
+use kzg::{FFTFr, FiniteField, Fr, Group, ZeroPoly};
 use std::cmp::{min, Ordering};
 
 pub(crate) fn pad_poly(poly: &PolyData, new_length: usize) -> Result<Vec<BlstFr>, String> {

@@ -9,11 +9,11 @@ use blst::{
     blst_p2_double, blst_p2_from_affine, blst_p2_is_equal, blst_p2_mult, blst_p2_uncompress,
     blst_scalar, blst_scalar_from_fr, BLST_ERROR,
 };
-use core::ops::{Mul, MulAssign, Sub, SubAssign};
+use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 use kzg::eip_4844::BYTES_PER_G2;
 #[cfg(feature = "rand")]
 use kzg::Fr;
-use kzg::{G2Mul, G2};
+use kzg::{G2Mul, Group, TorsionSubgroup, G2};
 
 use crate::consts::{G2_GENERATOR, G2_NEGATIVE_GENERATOR};
 use crate::types::fr::FsFr;
@@ -24,7 +24,29 @@ pub struct FsG2(pub blst_p2);
 
 impl G2Mul<FsFr> for FsG2 {}
 
-impl G2 for FsG2 {
+impl Group for FsG2 {
+    fn zero() -> Self {
+        Self::default()
+    }
+
+    fn is_zero(&self) -> bool {
+        self == &Self::default()
+    }
+
+    fn negate(&self) -> Self {
+        let mut result = self.0;
+        unsafe {
+            blst_p2_cneg(&mut result, true);
+        }
+        Self(result)
+    }
+
+    fn equals(&self, other: &Self) -> bool {
+        unsafe { blst_p2_is_equal(&self.0, &other.0) }
+    }
+}
+
+impl TorsionSubgroup for FsG2 {
     fn generator() -> Self {
         G2_GENERATOR
     }
@@ -33,6 +55,50 @@ impl G2 for FsG2 {
         G2_NEGATIVE_GENERATOR
     }
 
+    fn is_inf(&self) -> bool {
+        // In projective coordinates, infinity is when z = 0
+        self.0.z.fp[0].l.iter().all(|&x| x == 0) && self.0.z.fp[1].l.iter().all(|&x| x == 0)
+    }
+
+    fn is_valid(&self) -> bool {
+        // For blst, we assume points are valid after construction/deserialization
+        true
+    }
+
+    fn dbl(&self) -> Self {
+        let mut result = blst_p2::default();
+        unsafe {
+            blst_p2_double(&mut result, &self.0);
+        }
+        Self(result)
+    }
+
+    fn add_or_dbl(&self, b: &Self) -> Self {
+        let mut result = blst_p2::default();
+        unsafe {
+            blst_p2_add_or_double(&mut result, &self.0, &b.0);
+        }
+        Self(result)
+    }
+
+    fn dbl_assign(&mut self) {
+        let mut result = blst_p2::default();
+        unsafe {
+            blst_p2_double(&mut result, &self.0);
+        }
+        self.0 = result;
+    }
+
+    fn add_or_dbl_assign(&mut self, b: &Self) {
+        let mut result = blst_p2::default();
+        unsafe {
+            blst_p2_add_or_double(&mut result, &self.0, &b.0);
+        }
+        self.0 = result;
+    }
+}
+
+impl G2 for FsG2 {
     fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
         bytes
             .try_into()
@@ -72,18 +138,6 @@ impl G2 for FsG2 {
         }
         Self(result)
     }
-
-    fn dbl(&self) -> Self {
-        let mut result = blst_p2::default();
-        unsafe {
-            blst_p2_double(&mut result, &self.0);
-        }
-        Self(result)
-    }
-
-    fn equals(&self, b: &Self) -> bool {
-        unsafe { blst_p2_is_equal(&self.0, &b.0) }
-    }
 }
 
 impl FsG2 {
@@ -95,6 +149,38 @@ impl FsG2 {
     pub fn rand() -> Self {
         let result: FsG2 = G2_GENERATOR;
         result * &FsFr::rand()
+    }
+}
+
+impl Add for FsG2 {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        let mut result = blst_p2::default();
+        unsafe {
+            blst_p2_add_or_double(&mut result, &self.0, &rhs.0);
+        }
+        Self(result)
+    }
+}
+
+impl Add<&FsG2> for FsG2 {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self {
+        let mut result = blst_p2::default();
+        unsafe {
+            blst_p2_add_or_double(&mut result, &self.0, &rhs.0);
+        }
+        Self(result)
+    }
+}
+
+impl AddAssign for FsG2 {
+    fn add_assign(&mut self, rhs: Self) {
+        unsafe {
+            blst_p2_add_or_double(&mut self.0, &self.0, &rhs.0);
+        }
     }
 }
 

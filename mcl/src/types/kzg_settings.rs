@@ -7,7 +7,7 @@ use alloc::{vec, vec::Vec};
 use kzg::eth::c_bindings::CKZGSettings;
 use kzg::eth::{self, FIELD_ELEMENTS_PER_EXT_BLOB};
 use kzg::msm::precompute::{precompute, PrecomputationTable};
-use kzg::{FFTFr, FFTSettings, Fr, G1Mul, G2Mul, KZGSettings, Poly, G1, G2};
+use kzg::{FFTFr, FFTSettings, FiniteField, Fr, G1Mul, G2Mul, Group, KZGSettings, Poly, TorsionSubgroup, G1, G2};
 
 use crate::consts::{G1_GENERATOR, G2_GENERATOR};
 use crate::fft_g1::fft_g1_fast;

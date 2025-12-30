@@ -11,8 +11,7 @@ use core::fmt::{Debug, Formatter};
 use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 use kzg::eip_4844::BYTES_PER_FIELD_ELEMENT;
 use kzg::eth::c_bindings::blst_fr;
-use kzg::Fr;
-use kzg::Scalar256;
+use kzg::{FiniteField, Fr, Group, Scalar256};
 
 use constantine_sys as constantine;
 
@@ -64,17 +63,85 @@ impl CtFr {
     }
 }
 
-impl Fr for CtFr {
-    fn null() -> Self {
-        Self::from_u64_arr(&[u64::MAX, u64::MAX, u64::MAX, u64::MAX])
-    }
-
+impl kzg::Group for CtFr {
     fn zero() -> Self {
         Self::from_u64(0)
     }
 
+    fn is_zero(&self) -> bool {
+        unsafe { constantine::ctt_bls12_381_fr_is_zero(&self.0) != 0 }
+    }
+
+    fn negate(&self) -> Self {
+        let mut ret = *self;
+        unsafe {
+            constantine::ctt_bls12_381_fr_neg_in_place(&mut ret.0);
+        }
+
+        ret
+    }
+
+    fn equals(&self, b: &Self) -> bool {
+        unsafe { constantine::ctt_bls12_381_fr_is_eq(&self.0, &b.0) != 0 }
+    }
+}
+
+impl kzg::FiniteField for CtFr {
     fn one() -> Self {
         Self::from_u64(1)
+    }
+
+    fn is_one(&self) -> bool {
+        unsafe { constantine::ctt_bls12_381_fr_is_one(&self.0) != 0 }
+    }
+
+    fn inverse(&self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            constantine::ctt_bls12_381_fr_inv(&mut ret.0, &self.0);
+        }
+
+        ret
+    }
+
+    fn sqr(&self) -> Self {
+        let mut ret = Self::default();
+        unsafe { constantine::ctt_bls12_381_fr_square(&mut ret.0, &self.0) }
+
+        ret
+    }
+
+    fn pow(&self, n: usize) -> Self {
+        let mut out = Self::one();
+
+        let mut temp = *self;
+        let mut n = n;
+        loop {
+            if (n & 1) == 1 {
+                out = out * &temp;
+            }
+            n >>= 1;
+            if n == 0 {
+                break;
+            }
+
+            temp = temp.sqr();
+        }
+
+        out
+    }
+
+    fn div(&self, b: &Self) -> Result<Self, String> {
+        let tmp = b.eucl_inverse();
+        let out = self * &tmp;
+
+        Ok(out)
+    }
+}
+
+impl Fr for CtFr {
+    fn null() -> Self {
+        Self::from_u64_arr(&[u64::MAX, u64::MAX, u64::MAX, u64::MAX])
     }
 
     #[cfg(feature = "rand")]
@@ -184,23 +251,8 @@ impl Fr for CtFr {
         val
     }
 
-    fn is_one(&self) -> bool {
-        unsafe { constantine::ctt_bls12_381_fr_is_one(&self.0) != 0 }
-    }
-
-    fn is_zero(&self) -> bool {
-        unsafe { constantine::ctt_bls12_381_fr_is_zero(&self.0) != 0 }
-    }
-
     fn is_null(&self) -> bool {
         self.equals(&Self::null())
-    }
-
-    fn sqr(&self) -> Self {
-        let mut ret = Self::default();
-        unsafe { constantine::ctt_bls12_381_fr_square(&mut ret.0, &self.0) }
-
-        ret
     }
 
     fn eucl_inverse(&self) -> Self {
@@ -210,55 +262,6 @@ impl Fr for CtFr {
         }
 
         ret
-    }
-
-    fn negate(&self) -> Self {
-        let mut ret = *self;
-        unsafe {
-            constantine::ctt_bls12_381_fr_neg_in_place(&mut ret.0);
-        }
-
-        ret
-    }
-
-    fn inverse(&self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            constantine::ctt_bls12_381_fr_inv(&mut ret.0, &self.0);
-        }
-
-        ret
-    }
-
-    fn pow(&self, n: usize) -> Self {
-        let mut out = Self::one();
-
-        let mut temp = *self;
-        let mut n = n;
-        loop {
-            if (n & 1) == 1 {
-                out = out * &temp;
-            }
-            n >>= 1;
-            if n == 0 {
-                break;
-            }
-
-            temp = temp.sqr();
-        }
-
-        out
-    }
-
-    fn div(&self, b: &Self) -> Result<Self, String> {
-        let tmp = b.eucl_inverse();
-        let out = self * &tmp;
-
-        Ok(out)
-    }
-
-    fn equals(&self, b: &Self) -> bool {
-        unsafe { constantine::ctt_bls12_381_fr_is_eq(&self.0, &b.0) != 0 }
     }
 
     fn to_scalar(&self) -> kzg::Scalar256 {

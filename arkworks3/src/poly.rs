@@ -8,7 +8,7 @@ use ark_poly::univariate::DensePolynomial;
 use ark_poly::UVPolynomial;
 use ark_std::{log2, Zero};
 use kzg::common_utils::{log2_pow2, next_pow_of_2};
-use kzg::{FFTFr, FFTSettings as FFTSettingsT, Fr as FrTrait, Poly};
+use kzg::{FFTFr, FFTSettings as FFTSettingsT, FiniteField, Fr as FrTrait, Group, Poly};
 use std::cmp::min;
 
 pub fn poly_inverse(b: &PolyData, output_len: usize) -> Result<PolyData, String> {

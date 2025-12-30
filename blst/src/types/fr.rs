@@ -13,8 +13,7 @@ use blst::{
 };
 use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 use kzg::eip_4844::BYTES_PER_FIELD_ELEMENT;
-use kzg::Fr;
-use kzg::Scalar256;
+use kzg::{FiniteField, Fr, Group, Scalar256};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Default)]
@@ -33,17 +32,118 @@ impl<'a> Arbitrary<'a> for FsFr {
     }
 }
 
+impl kzg::Group for FsFr {
+    fn zero() -> Self {
+        Self::from_u64(0)
+    }
+
+    fn is_zero(&self) -> bool {
+        let mut val: [u64; 4] = [0; 4];
+        unsafe {
+            blst_uint64_from_fr(val.as_mut_ptr(), &self.0);
+        }
+
+        val[0] == 0 && val[1] == 0 && val[2] == 0 && val[3] == 0
+    }
+
+    fn negate(&self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            blst_fr_cneg(&mut ret.0, &self.0, true);
+        }
+
+        ret
+    }
+
+    fn equals(&self, b: &Self) -> bool {
+        let mut val_a: [u64; 4] = [0; 4];
+        let mut val_b: [u64; 4] = [0; 4];
+
+        unsafe {
+            blst_uint64_from_fr(val_a.as_mut_ptr(), &self.0);
+            blst_uint64_from_fr(val_b.as_mut_ptr(), &b.0);
+        }
+
+        val_a[0] == val_b[0] && val_a[1] == val_b[1] && val_a[2] == val_b[2] && val_a[3] == val_b[3]
+    }
+}
+
+impl kzg::FiniteField for FsFr {
+    fn one() -> Self {
+        Self::from_u64(1)
+    }
+
+    fn is_one(&self) -> bool {
+        let mut val: [u64; 4] = [0; 4];
+        unsafe {
+            blst_uint64_from_fr(val.as_mut_ptr(), &self.0);
+        }
+
+        val[0] == 1 && val[1] == 0 && val[2] == 0 && val[3] == 0
+    }
+
+    fn inverse(&self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            blst_fr_inverse(&mut ret.0, &self.0);
+        }
+
+        ret
+    }
+
+    fn sqr(&self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            blst_fr_sqr(&mut ret.0, &self.0);
+        }
+
+        ret
+    }
+
+    fn pow(&self, n: usize) -> Self {
+        let mut out = Self::one();
+
+        let mut temp = *self;
+        let mut n = n;
+        loop {
+            if (n & 1) == 1 {
+                out = out * &temp;
+            }
+            n >>= 1;
+            if n == 0 {
+                break;
+            }
+
+            temp = temp.sqr();
+        }
+
+        out
+    }
+
+    fn div(&self, b: &Self) -> Result<Self, String> {
+        let tmp = b.eucl_inverse();
+        let out = self * &tmp;
+
+        Ok(out)
+    }
+}
+
 impl Fr for FsFr {
     fn null() -> Self {
         Self::from_u64_arr(&[u64::MAX, u64::MAX, u64::MAX, u64::MAX])
     }
 
-    fn zero() -> Self {
-        Self::from_u64(0)
+    fn is_null(&self) -> bool {
+        self.equals(&Self::null())
     }
 
-    fn one() -> Self {
-        Self::from_u64(1)
+    fn eucl_inverse(&self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            blst_fr_eucl_inverse(&mut ret.0, &self.0);
+        }
+
+        ret
     }
 
     #[cfg(feature = "rand")]
@@ -143,103 +243,6 @@ impl Fr for FsFr {
         }
 
         val
-    }
-
-    fn is_one(&self) -> bool {
-        let mut val: [u64; 4] = [0; 4];
-        unsafe {
-            blst_uint64_from_fr(val.as_mut_ptr(), &self.0);
-        }
-
-        val[0] == 1 && val[1] == 0 && val[2] == 0 && val[3] == 0
-    }
-
-    fn is_zero(&self) -> bool {
-        let mut val: [u64; 4] = [0; 4];
-        unsafe {
-            blst_uint64_from_fr(val.as_mut_ptr(), &self.0);
-        }
-
-        val[0] == 0 && val[1] == 0 && val[2] == 0 && val[3] == 0
-    }
-
-    fn is_null(&self) -> bool {
-        self.equals(&Self::null())
-    }
-
-    fn sqr(&self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            blst_fr_sqr(&mut ret.0, &self.0);
-        }
-
-        ret
-    }
-
-    fn eucl_inverse(&self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            blst_fr_eucl_inverse(&mut ret.0, &self.0);
-        }
-
-        ret
-    }
-
-    fn negate(&self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            blst_fr_cneg(&mut ret.0, &self.0, true);
-        }
-
-        ret
-    }
-
-    fn inverse(&self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            blst_fr_inverse(&mut ret.0, &self.0);
-        }
-
-        ret
-    }
-
-    fn pow(&self, n: usize) -> Self {
-        let mut out = Self::one();
-
-        let mut temp = *self;
-        let mut n = n;
-        loop {
-            if (n & 1) == 1 {
-                out = out * &temp;
-            }
-            n >>= 1;
-            if n == 0 {
-                break;
-            }
-
-            temp = temp.sqr();
-        }
-
-        out
-    }
-
-    fn div(&self, b: &Self) -> Result<Self, String> {
-        let tmp = b.eucl_inverse();
-        let out = self * &tmp;
-
-        Ok(out)
-    }
-
-    fn equals(&self, b: &Self) -> bool {
-        let mut val_a: [u64; 4] = [0; 4];
-        let mut val_b: [u64; 4] = [0; 4];
-
-        unsafe {
-            blst_uint64_from_fr(val_a.as_mut_ptr(), &self.0);
-            blst_uint64_from_fr(val_b.as_mut_ptr(), &b.0);
-        }
-
-        val_a[0] == val_b[0] && val_a[1] == val_b[1] && val_a[2] == val_b[2] && val_a[3] == val_b[3]
     }
 
     fn to_scalar(&self) -> Scalar256 {

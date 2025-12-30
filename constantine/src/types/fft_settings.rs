@@ -5,7 +5,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 use kzg::common_utils::reverse_bit_order;
-use kzg::{FFTSettings, Fr};
+use kzg::{FFTSettings, FiniteField, Fr};
 
 use crate::consts::SCALE2_ROOT_OF_UNITY;
 use crate::types::fr::CtFr;

@@ -8,7 +8,7 @@ use crate::consts::SCALE_FACTOR;
 use crate::kzg_proofs::FFTSettings as ZFFTSettings;
 use crate::kzg_types::ZFr;
 use kzg::common_utils::{log2_pow2, log2_u64, next_pow_of_2};
-use kzg::{FFTFr, FFTSettings, FFTSettingsPoly, Fr, Poly};
+use kzg::{FFTFr, FFTSettings, FFTSettingsPoly, FiniteField, Fr, Group, Poly};
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct PolyData {
@@ -256,7 +256,7 @@ impl Poly<ZFr> for PolyData {
         let b_degree = multiplier.len() - 1;
 
         let mut ret = PolyData {
-            coeffs: vec![Fr::zero(); output_len],
+            coeffs: vec![ZFr::zero(); output_len],
         };
 
         // Truncate the output to the length of the output polynomial

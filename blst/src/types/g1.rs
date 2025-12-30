@@ -17,7 +17,7 @@ use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 use core::{hash::Hash, ptr};
 use kzg::{
     common_utils::log_2_byte, eip_4844::BYTES_PER_G1, msm::precompute::PrecomputationTable,
-    G1Affine, G1GetFp, G1LinComb, G1Mul, G1ProjAddAffine, G1,
+    G1Affine, G1GetFp, G1LinComb, G1Mul, G1ProjAddAffine, Group, TorsionSubgroup, G1,
 };
 
 use crate::consts::{G1_GENERATOR, G1_IDENTITY, G1_NEGATIVE_GENERATOR};
@@ -44,11 +44,53 @@ impl FsG1 {
     }
 }
 
-impl G1 for FsG1 {
-    fn identity() -> Self {
-        G1_IDENTITY
+impl kzg::Group for FsG1 {
+    fn zero() -> Self {
+        Self(blst_p1 {
+            x: blst_fp {
+                l: [
+                    8505329371266088957,
+                    17002214543764226050,
+                    6865905132761471162,
+                    8632934651105793861,
+                    6631298214892334189,
+                    1582556514881692819,
+                ],
+            },
+            y: blst_fp {
+                l: [
+                    8505329371266088957,
+                    17002214543764226050,
+                    6865905132761471162,
+                    8632934651105793861,
+                    6631298214892334189,
+                    1582556514881692819,
+                ],
+            },
+            z: blst_fp {
+                l: [0, 0, 0, 0, 0, 0],
+            },
+        })
     }
 
+    fn is_zero(&self) -> bool {
+        self.is_inf()
+    }
+
+    fn negate(&self) -> Self {
+        let mut ret = *self;
+        unsafe {
+            blst_p1_cneg(&mut ret.0, true);
+        }
+        ret
+    }
+
+    fn equals(&self, b: &Self) -> bool {
+        unsafe { blst_p1_is_equal(&self.0, &b.0) }
+    }
+}
+
+impl kzg::TorsionSubgroup for FsG1 {
     fn generator() -> Self {
         G1_GENERATOR
     }
@@ -57,6 +99,47 @@ impl G1 for FsG1 {
         G1_NEGATIVE_GENERATOR
     }
 
+    fn is_inf(&self) -> bool {
+        unsafe { blst_p1_is_inf(&self.0) }
+    }
+
+    fn is_valid(&self) -> bool {
+        unsafe {
+            // The point must be on the right subgroup
+            blst_p1_in_g1(&self.0)
+        }
+    }
+
+    fn dbl(&self) -> Self {
+        let mut result = blst_p1::default();
+        unsafe {
+            blst_p1_double(&mut result, &self.0);
+        }
+        Self(result)
+    }
+
+    fn add_or_dbl(&self, b: &Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            blst_p1_add_or_double(&mut ret.0, &self.0, &b.0);
+        }
+        ret
+    }
+
+    fn dbl_assign(&mut self) {
+        unsafe {
+            blst::blst_p1_double(&mut self.0, &self.0);
+        }
+    }
+
+    fn add_or_dbl_assign(&mut self, b: &Self) {
+        unsafe {
+            blst::blst_p1_add_or_double(&mut self.0, &self.0, &b.0);
+        }
+    }
+}
+
+impl G1 for FsG1 {
     #[cfg(feature = "rand")]
     fn rand() -> Self {
         let result: FsG1 = G1_GENERATOR;
@@ -98,77 +181,6 @@ impl G1 for FsG1 {
             blst_p1_compress(out.as_mut_ptr(), &self.0);
         }
         out
-    }
-
-    fn add_or_dbl(&self, b: &Self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            blst_p1_add_or_double(&mut ret.0, &self.0, &b.0);
-        }
-        ret
-    }
-
-    fn is_inf(&self) -> bool {
-        unsafe { blst_p1_is_inf(&self.0) }
-    }
-
-    fn is_valid(&self) -> bool {
-        unsafe {
-            // The point must be on the right subgroup
-            blst_p1_in_g1(&self.0)
-        }
-    }
-
-    fn dbl(&self) -> Self {
-        let mut result = blst_p1::default();
-        unsafe {
-            blst_p1_double(&mut result, &self.0);
-        }
-        Self(result)
-    }
-
-    fn equals(&self, b: &Self) -> bool {
-        unsafe { blst_p1_is_equal(&self.0, &b.0) }
-    }
-
-    fn zero() -> Self {
-        Self(blst_p1 {
-            x: blst_fp {
-                l: [
-                    8505329371266088957,
-                    17002214543764226050,
-                    6865905132761471162,
-                    8632934651105793861,
-                    6631298214892334189,
-                    1582556514881692819,
-                ],
-            },
-            y: blst_fp {
-                l: [
-                    8505329371266088957,
-                    17002214543764226050,
-                    6865905132761471162,
-                    8632934651105793861,
-                    6631298214892334189,
-                    1582556514881692819,
-                ],
-            },
-            z: blst_fp {
-                l: [0, 0, 0, 0, 0, 0],
-            },
-        })
-    }
-
-    fn add_or_dbl_assign(&mut self, b: &Self) {
-        unsafe {
-            blst::blst_p1_add_or_double(&mut self.0, &self.0, &b.0);
-        }
-    }
-
-    fn dbl_assign(&mut self) {
-        unsafe {
-            blst::blst_p1_double(&mut self.0, &self.0);
-        }
     }
 }
 

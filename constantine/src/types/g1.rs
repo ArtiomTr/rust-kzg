@@ -24,7 +24,7 @@ use kzg::eip_4844::BYTES_PER_G1;
 use kzg::G1Affine;
 use kzg::G1GetFp;
 use kzg::G1ProjAddAffine;
-use kzg::{G1Mul, G1};
+use kzg::{G1Mul, Group, TorsionSubgroup, G1};
 
 use crate::consts::{G1_GENERATOR, G1_IDENTITY, G1_NEGATIVE_GENERATOR};
 // use crate::kzg_proofs::g1_linear_combination;
@@ -80,7 +80,7 @@ impl CtG1 {
                     limbs: core::mem::transmute::<[u64; 6], [usize; 6]>(p1.y.l),
                 },
                 z: bls12_381_fp {
-                    limbs: core::mem::transmute::<[u64; 6], [usize; 6]>(p1.z.l),
+                    limbs: core::mem::transmute::<[usize; 6], [u64; 6]>(p1.z.l),
                 },
             })
         }
@@ -103,11 +103,51 @@ impl CtG1 {
     }
 }
 
-impl G1 for CtG1 {
-    fn identity() -> Self {
-        G1_IDENTITY
+impl kzg::Group for CtG1 {
+    fn zero() -> Self {
+        CtG1::from_xyz(
+            bls12_381_fp {
+                limbs: [
+                    8505329371266088957,
+                    17002214543764226050,
+                    6865905132761471162,
+                    8632934651105793861,
+                    6631298214892334189,
+                    1582556514881692819,
+                ],
+            },
+            bls12_381_fp {
+                limbs: [
+                    8505329371266088957,
+                    17002214543764226050,
+                    6865905132761471162,
+                    8632934651105793861,
+                    6631298214892334189,
+                    1582556514881692819,
+                ],
+            },
+            bls12_381_fp { limbs: [0; 6] },
+        )
     }
 
+    fn is_zero(&self) -> bool {
+        self.is_inf()
+    }
+
+    fn negate(&self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            constantine::ctt_bls12_381_g1_jac_neg(&mut ret.0, &self.0);
+        }
+        ret
+    }
+
+    fn equals(&self, b: &Self) -> bool {
+        unsafe { constantine::ctt_bls12_381_g1_jac_is_eq(&self.0, &b.0) != 0 }
+    }
+}
+
+impl kzg::TorsionSubgroup for CtG1 {
     fn generator() -> Self {
         G1_GENERATOR
     }
@@ -116,6 +156,50 @@ impl G1 for CtG1 {
         G1_NEGATIVE_GENERATOR
     }
 
+    fn is_inf(&self) -> bool {
+        unsafe { constantine::ctt_bls12_381_g1_jac_is_neutral(&self.0) != 0 }
+    }
+
+    fn is_valid(&self) -> bool {
+        unsafe {
+            matches!(
+                constantine::ctt_bls12_381_validate_g1(&CtG1Affine::into_affine(self).0),
+                ctt_codec_ecc_status::cttCodecEcc_Success
+                    | ctt_codec_ecc_status::cttCodecEcc_PointAtInfinity
+            )
+        }
+    }
+
+    fn dbl(&self) -> Self {
+        let mut result = bls12_381_g1_jac::default();
+        unsafe {
+            constantine::ctt_bls12_381_g1_jac_double(&mut result, &self.0);
+        }
+        Self(result)
+    }
+
+    fn add_or_dbl(&self, b: &Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            constantine::ctt_bls12_381_g1_jac_sum(&mut ret.0, &self.0, &b.0);
+        }
+        ret
+    }
+
+    fn dbl_assign(&mut self) {
+        unsafe {
+            constantine::ctt_bls12_381_g1_jac_double_in_place(&mut self.0);
+        }
+    }
+
+    fn add_or_dbl_assign(&mut self, b: &Self) {
+        unsafe {
+            constantine::ctt_bls12_381_g1_jac_add_in_place(&mut self.0, &b.0);
+        }
+    }
+}
+
+impl G1 for CtG1 {
     #[cfg(feature = "rand")]
     fn rand() -> Self {
         let result: CtG1 = G1_GENERATOR;
@@ -166,78 +250,6 @@ impl G1 for CtG1 {
             );
         }
         out
-    }
-
-    fn add_or_dbl(&self, b: &Self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            constantine::ctt_bls12_381_g1_jac_sum(&mut ret.0, &self.0, &b.0);
-        }
-        ret
-    }
-
-    fn is_inf(&self) -> bool {
-        unsafe { constantine::ctt_bls12_381_g1_jac_is_neutral(&self.0) != 0 }
-    }
-
-    fn is_valid(&self) -> bool {
-        unsafe {
-            matches!(
-                constantine::ctt_bls12_381_validate_g1(&CtG1Affine::into_affine(self).0),
-                ctt_codec_ecc_status::cttCodecEcc_Success
-                    | ctt_codec_ecc_status::cttCodecEcc_PointAtInfinity
-            )
-        }
-    }
-
-    fn dbl(&self) -> Self {
-        let mut result = bls12_381_g1_jac::default();
-        unsafe {
-            constantine::ctt_bls12_381_g1_jac_double(&mut result, &self.0);
-        }
-        Self(result)
-    }
-
-    fn equals(&self, b: &Self) -> bool {
-        unsafe { constantine::ctt_bls12_381_g1_jac_is_eq(&self.0, &b.0) != 0 }
-    }
-
-    fn zero() -> Self {
-        CtG1::from_xyz(
-            bls12_381_fp {
-                limbs: [
-                    8505329371266088957,
-                    17002214543764226050,
-                    6865905132761471162,
-                    8632934651105793861,
-                    6631298214892334189,
-                    1582556514881692819,
-                ],
-            },
-            bls12_381_fp {
-                limbs: [
-                    8505329371266088957,
-                    17002214543764226050,
-                    6865905132761471162,
-                    8632934651105793861,
-                    6631298214892334189,
-                    1582556514881692819,
-                ],
-            },
-            bls12_381_fp { limbs: [0; 6] },
-        )
-    }
-
-    fn add_or_dbl_assign(&mut self, b: &Self) {
-        unsafe {
-            constantine::ctt_bls12_381_g1_jac_add_in_place(&mut self.0, &b.0);
-        }
-    }
-
-    fn dbl_assign(&mut self) {
-        unsafe {
-            constantine::ctt_bls12_381_g1_jac_double_in_place(&mut self.0);
-        }
     }
 }
 

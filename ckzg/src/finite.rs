@@ -4,7 +4,7 @@ use crate::consts::{
 };
 
 use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
-use kzg::{Fr, G1Mul, G2Mul, G1, G2};
+use kzg::{Fr, G1Mul, G2Mul, Group, TorsionSubgroup, G1, G2};
 use rand::{thread_rng, RngCore};
 
 extern "C" {
@@ -51,11 +51,15 @@ extern "C" {
     fn blst_p2_generator() -> *const BlstP2;
     fn g2_mul(out: *mut BlstP2, a: *const BlstP2, b: *const BlstFr);
     fn g2_dbl(out: *mut BlstP2, a: *const BlstP2);
+    fn g2_add(out: *mut BlstP2, a: *const BlstP2, b: *const BlstP2);
     fn g2_add_or_dbl(out: *mut BlstP2, a: *const BlstP2, b: *const BlstP2);
     fn g2_equal(a: *const BlstP2, b: *const BlstP2) -> bool;
     fn g2_sub(out: *mut BlstP2, a: *const BlstP2, b: *const BlstP2);
+    fn g2_is_inf(a: *const BlstP2) -> bool;
+    fn g2_negate(out: *mut BlstP2, a: *const BlstP2);
     pub fn blst_p2_from_affine(out: *mut BlstP2, inp: *const BlstP2Affine);
     pub fn blst_p2_uncompress(out: *mut BlstP2Affine, byte: *const u8) -> BLST_ERROR;
+    pub fn blst_p2_compress(out: *mut u8, inp: *const BlstP2);
     // Regular functions
     pub fn g1_linear_combination(
         out: *mut BlstP1,
@@ -77,17 +81,74 @@ pub struct BlstFr {
     pub l: [u64; 4],
 }
 
-impl Fr for BlstFr {
-    fn null() -> Self {
-        Self { l: [u64::MAX; 4] }
-    }
-
+impl kzg::Group for BlstFr {
     fn zero() -> Self {
         Fr::from_u64(0)
     }
 
+    fn is_zero(&self) -> bool {
+        unsafe { fr_is_zero(self) }
+    }
+
+    fn negate(&self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            fr_negate(&mut ret, self);
+        }
+        ret
+    }
+
+    fn equals(&self, b: &Self) -> bool {
+        unsafe { fr_equal(self, b) }
+    }
+}
+
+impl kzg::FiniteField for BlstFr {
     fn one() -> Self {
         Fr::from_u64(1)
+    }
+
+    fn is_one(&self) -> bool {
+        unsafe { fr_is_one(self) }
+    }
+
+    fn inverse(&self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            blst_fr_inverse(&mut ret, self);
+        }
+
+        ret
+    }
+
+    fn sqr(&self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            blst_fr_sqr(&mut ret, self);
+        }
+        ret
+    }
+
+    fn pow(&self, n: usize) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            fr_pow(&mut ret, self, n as u64);
+        }
+        ret
+    }
+
+    fn div(&self, b: &Self) -> Result<Self, String> {
+        let mut ret = Self::default();
+        unsafe {
+            fr_div(&mut ret, self, b);
+        }
+        Ok(ret)
+    }
+}
+
+impl Fr for BlstFr {
+    fn null() -> Self {
+        Self { l: [u64::MAX; 4] }
     }
 
     fn rand() -> Self {
@@ -129,24 +190,8 @@ impl Fr for BlstFr {
         arr
     }
 
-    fn is_one(&self) -> bool {
-        unsafe { fr_is_one(self) }
-    }
-
-    fn is_zero(&self) -> bool {
-        unsafe { fr_is_zero(self) }
-    }
-
     fn is_null(&self) -> bool {
         unsafe { fr_is_null(self) }
-    }
-
-    fn sqr(&self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            blst_fr_sqr(&mut ret, self);
-        }
-        ret
     }
 
     fn eucl_inverse(&self) -> Self {
@@ -156,44 +201,6 @@ impl Fr for BlstFr {
         }
 
         ret
-    }
-
-    fn negate(&self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            // man rodos, kad tokios nera
-            fr_negate(&mut ret, self);
-        }
-        ret
-    }
-
-    fn inverse(&self) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            blst_fr_inverse(&mut ret, self);
-        }
-
-        ret
-    }
-
-    fn pow(&self, n: usize) -> Self {
-        let mut ret = Self::default();
-        unsafe {
-            fr_pow(&mut ret, self, n as u64);
-        }
-        ret
-    }
-
-    fn div(&self, b: &Self) -> Result<Self, String> {
-        let mut ret = Self::default();
-        unsafe {
-            fr_div(&mut ret, self, b);
-        }
-        Ok(ret)
-    }
-
-    fn equals(&self, b: &Self) -> bool {
-        unsafe { fr_equal(self, b) }
     }
 }
 
@@ -346,7 +353,29 @@ impl MulAssign for BlstFr {
     }
 }
 
-impl G2 for BlstP2 {
+impl Group for BlstP2 {
+    fn zero() -> Self {
+        Self::default()
+    }
+
+    fn is_zero(&self) -> bool {
+        unsafe { g2_is_inf(self) }
+    }
+
+    fn negate(&self) -> Self {
+        let mut ret = BlstP2::default();
+        unsafe {
+            g2_negate(&mut ret, self);
+        }
+        ret
+    }
+
+    fn equals(&self, b: &Self) -> bool {
+        unsafe { g2_equal(self, b) }
+    }
+}
+
+impl TorsionSubgroup for BlstP2 {
     fn generator() -> Self {
         unsafe { *blst_p2_generator() }
     }
@@ -355,12 +384,13 @@ impl G2 for BlstP2 {
         G2_NEGATIVE_GENERATOR
     }
 
-    fn add_or_dbl(&mut self, b: &Self) -> Self {
-        let mut ret = BlstP2::default();
-        unsafe {
-            g2_add_or_dbl(&mut ret, self, b);
-        }
-        ret
+    fn is_inf(&self) -> bool {
+        unsafe { g2_is_inf(self) }
+    }
+
+    fn is_valid(&self) -> bool {
+        // For C-KZG, we assume points are valid after construction/deserialization
+        true
     }
 
     fn dbl(&self) -> Self {
@@ -371,8 +401,74 @@ impl G2 for BlstP2 {
         ret
     }
 
-    fn equals(&self, b: &Self) -> bool {
-        unsafe { g2_equal(self, b) }
+    fn add_or_dbl(&self, b: &Self) -> Self {
+        let mut ret = BlstP2::default();
+        unsafe {
+            g2_add_or_dbl(&mut ret, self, b);
+        }
+        ret
+    }
+
+    fn dbl_assign(&mut self) {
+        let mut ret = BlstP2::default();
+        unsafe {
+            g2_dbl(&mut ret, self);
+        }
+        *self = ret;
+    }
+
+    fn add_or_dbl_assign(&mut self, b: &Self) {
+        let mut ret = BlstP2::default();
+        unsafe {
+            g2_add_or_dbl(&mut ret, self, b);
+        }
+        *self = ret;
+    }
+}
+
+impl G2 for BlstP2 {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        use kzg::eip_4844::BYTES_PER_G2;
+
+        bytes
+            .try_into()
+            .map_err(|_| {
+                format!(
+                    "Invalid byte length. Expected {}, got {}",
+                    BYTES_PER_G2,
+                    bytes.len()
+                )
+            })
+            .and_then(|bytes: &[u8; BYTES_PER_G2]| {
+                let mut tmp = BlstP2Affine::default();
+                let mut g2 = BlstP2::default();
+                unsafe {
+                    // The uncompress routine also checks that the point is on the curve
+                    if blst_p2_uncompress(&mut tmp, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+                        return Err("Failed to uncompress".to_string());
+                    }
+                    blst_p2_from_affine(&mut g2, &tmp);
+                }
+                Ok(g2)
+            })
+    }
+
+    fn to_bytes(&self) -> [u8; 96] {
+        use kzg::eip_4844::BYTES_PER_G2;
+
+        let mut out = [0u8; BYTES_PER_G2];
+        unsafe {
+            blst_p2_compress(out.as_mut_ptr(), self);
+        }
+        out
+    }
+
+    fn add_or_dbl(&mut self, b: &Self) -> Self {
+        let mut ret = BlstP2::default();
+        unsafe {
+            g2_add_or_dbl(&mut ret, self, b);
+        }
+        ret
     }
 }
 
@@ -465,6 +561,40 @@ impl Mul<&BlstFr> for BlstP1 {
 impl MulAssign<BlstFr> for BlstP1 {
     fn mul_assign(&mut self, rhs: BlstFr) {
         *self = &*self * &rhs;
+    }
+}
+
+impl Add for BlstP2 {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            g2_add(&mut ret, &self, &rhs);
+        }
+        ret
+    }
+}
+
+impl Add<&BlstP2> for BlstP2 {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self {
+        let mut ret = Self::default();
+        unsafe {
+            g2_add(&mut ret, &self, rhs);
+        }
+        ret
+    }
+}
+
+impl AddAssign for BlstP2 {
+    fn add_assign(&mut self, rhs: Self) {
+        let mut ret = Self::default();
+        unsafe {
+            g2_add(&mut ret, self, &rhs);
+        }
+        *self = ret;
     }
 }
 

@@ -3,7 +3,7 @@ use crate::finite::BlstFr;
 use crate::poly::KzgPoly;
 use crate::utils::{log_2, next_pow_of_2};
 use crate::RUN_PARALLEL;
-use kzg::{FFTFr, FFTSettings, FFTSettingsPoly, Poly, ZeroPoly, DAS, FFTG1, G1};
+use kzg::{FFTFr, FFTSettings, FFTSettingsPoly, Poly, TorsionSubgroup, ZeroPoly, DAS, FFTG1, G1};
 use std::{cmp::min, slice};
 
 #[repr(C)]

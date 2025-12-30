@@ -1,6 +1,6 @@
 use crate::kzg_proofs::FFTSettings;
 use crate::kzg_types::ZFr as BlstFr;
-use kzg::{DASExtension, Fr};
+use kzg::{DASExtension, FiniteField, Fr};
 use std::cmp::Ordering;
 
 impl FFTSettings {

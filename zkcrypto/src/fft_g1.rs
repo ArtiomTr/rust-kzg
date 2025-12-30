@@ -3,7 +3,7 @@ use crate::kzg_proofs::FFTSettings;
 use crate::kzg_types::{ZFp, ZFr, ZG1Affine, ZG1ProjAddAffine, ZG1};
 use crate::multiscalar_mul::msm_variable_base;
 use kzg::msm::precompute::PrecomputationTable;
-use kzg::{Fr as KzgFr, G1Mul};
+use kzg::{FiniteField, Fr as KzgFr, G1Mul, TorsionSubgroup};
 use kzg::{FFTG1, G1};
 use std::ops::{Mul, MulAssign, Sub};
 

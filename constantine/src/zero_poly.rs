@@ -5,7 +5,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 use core::cmp::{min, Ordering};
 
-use kzg::{common_utils::next_pow_of_2, FFTFr, Fr, ZeroPoly};
+use kzg::{common_utils::next_pow_of_2, FFTFr, FiniteField, Fr, Group, ZeroPoly};
 
 use crate::types::fft_settings::CtFFTSettings;
 use crate::types::fr::CtFr;

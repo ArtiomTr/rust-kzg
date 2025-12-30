@@ -2,7 +2,7 @@ use super::kzg_proofs::FFTSettings;
 use super::utils::{blst_poly_into_pc_poly, pc_poly_into_blst_poly, PolyData};
 use crate::kzg_types::ArkFr as BlstFr;
 use kzg::common_utils::next_pow_of_2;
-use kzg::{FFTFr, Fr as FrTrait, ZeroPoly};
+use kzg::{FFTFr, FiniteField, Fr as FrTrait, Group, ZeroPoly};
 use std::cmp::{min, Ordering};
 use std::ops::Neg;
 

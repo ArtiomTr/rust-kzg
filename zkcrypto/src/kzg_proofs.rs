@@ -8,7 +8,7 @@ use bls12_381::{
 use kzg::common_utils::log2_pow2;
 use kzg::eip_4844::hash_to_bls_field;
 use kzg::msm::precompute::PrecomputationTable;
-use kzg::{FFTSettings as _, Fr as FrTrait, G1Mul, G2Mul, FFTG1, G1, G2};
+use kzg::{FFTSettings as _, FiniteField, Fr as FrTrait, G1Mul, G2Mul, Group, TorsionSubgroup, FFTG1, G1, G2};
 use std::ops::{Add, Mul, Neg, Sub};
 use std::sync::Arc;
 

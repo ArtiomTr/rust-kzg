@@ -4,7 +4,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use kzg::common_utils::reverse_bit_order;
-use kzg::{FK20SingleSettings, Poly, FFTG1, G1};
+use kzg::{FK20SingleSettings, Poly, TorsionSubgroup, FFTG1, G1};
 
 use crate::types::fft_settings::CtFFTSettings;
 use crate::types::fr::CtFr;

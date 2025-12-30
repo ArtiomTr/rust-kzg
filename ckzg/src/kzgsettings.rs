@@ -1,4 +1,4 @@
-use kzg::{FFTSettings, Fr, G1Mul, G2Mul, KZGSettings, G1, G2};
+use kzg::{FFTSettings, FiniteField, Fr, G1Mul, G2Mul, KZGSettings, TorsionSubgroup, G1, G2};
 
 use crate::consts::{BlstP1, BlstP2, KzgRet};
 use crate::fftsettings::KzgFFTSettings;

@@ -8,8 +8,8 @@ use rayon::prelude::*;
 use ark_ec::ProjectiveCurve;
 use ark_ff::PrimeField;
 use kzg::msm::precompute::PrecomputationTable;
-use kzg::{Fr as KzgFr, G1Mul};
-use kzg::{FFTG1, G1};
+use kzg::{FiniteField, Fr as KzgFr, G1Mul};
+use kzg::{TorsionSubgroup, FFTG1, G1};
 use std::ops::MulAssign;
 
 extern crate alloc;

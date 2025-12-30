@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 
 use kzg::common_utils::log2_pow2;
 use kzg::eip_4844::{hash_to_bls_field, PrecomputationTableManager};
-use kzg::{FFTSettings, Fr, G1Mul, G2Mul, FFTG1};
+use kzg::{FFTSettings, FiniteField, Fr, G1Mul, G2Mul, FFTG1};
 
 use crate::consts::{G1_GENERATOR, G2_GENERATOR};
 use crate::types::fft_settings::FsFFTSettings;
@@ -18,7 +18,7 @@ pub fn generate_trusted_setup(
     secret: [u8; 32usize],
 ) -> (Vec<FsG1>, Vec<FsG1>, Vec<FsG2>) {
     let s = hash_to_bls_field(&secret);
-    let mut s_pow = Fr::one();
+    let mut s_pow = FsFr::one();
 
     let mut g1_monomial_values = Vec::with_capacity(n);
     let mut g2_monomial_values = Vec::with_capacity(n);

@@ -14,7 +14,7 @@ use blst::{
     blst_p2_to_affine, Pairing,
 };
 
-use kzg::PairingVerify;
+use kzg::{Group, PairingVerify, TorsionSubgroup};
 
 impl PairingVerify<FsG1, FsG2> for FsG1 {
     fn verify(a1: &FsG1, a2: &FsG2, b1: &FsG1, b2: &FsG2) -> bool {

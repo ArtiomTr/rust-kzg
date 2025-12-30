@@ -13,7 +13,7 @@ use kzg::common_utils::log2_pow2;
 use kzg::eip_4844::hash_to_bls_field;
 use kzg::eth::c_bindings::CKZGSettings;
 use kzg::msm::precompute::PrecomputationTable;
-use kzg::{eth, FFTSettings as _, Fr, G1Mul, G2Mul, FFTG1, G1, G2};
+use kzg::{eth, FFTSettings as _, FiniteField, Fr, G1Mul, G2Mul, Group, TorsionSubgroup, FFTG1, G1, G2};
 use std::ops::Neg;
 
 #[derive(Debug, Clone)]
@@ -115,7 +115,7 @@ pub fn generate_trusted_setup(
     secret: [u8; 32usize],
 ) -> (Vec<ArkG1>, Vec<ArkG1>, Vec<ArkG2>) {
     let s = hash_to_bls_field(&secret);
-    let mut s_pow = Fr::one();
+    let mut s_pow = ArkFr::one();
 
     let mut g1_monomial_values = Vec::with_capacity(n);
     let mut g2_monomial_values = Vec::with_capacity(n);

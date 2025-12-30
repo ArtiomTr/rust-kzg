@@ -7,7 +7,7 @@ use alloc::{vec, vec::Vec};
 use kzg::eth::c_bindings::CKZGSettings;
 use kzg::eth::{self, FIELD_ELEMENTS_PER_EXT_BLOB};
 use kzg::msm::precompute::{precompute, PrecomputationTable};
-use kzg::{FFTFr, FFTSettings, Fr, G1Mul, G2Mul, KZGSettings, Poly, G1, G2};
+use kzg::{FFTFr, FFTSettings, FiniteField, Fr, G1Mul, G2Mul, Group, KZGSettings, Poly, TorsionSubgroup, G1, G2};
 
 use crate::consts::{G1_GENERATOR, G2_GENERATOR};
 use crate::fft_g1::fft_g1_fast;
@@ -216,11 +216,11 @@ impl KZGSettings<FsFr, FsG1, FsG2, FsFFTSettings, FsPoly, FsFp, FsG1Affine, FsG1
 
         // Zeros
         for _ in 1..n {
-            divisor.coeffs.push(Fr::zero());
+            divisor.coeffs.push(FsFr::zero());
         }
 
         // x^n
-        divisor.coeffs.push(Fr::one());
+        divisor.coeffs.push(FsFr::one());
 
         let mut new_polina = p.clone();
 

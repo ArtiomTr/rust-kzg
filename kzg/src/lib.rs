@@ -16,27 +16,99 @@ pub mod msm;
 
 pub use das::{EcBackend, DAS};
 
-pub trait Fr:
+/// Trait for abelian groups with standard Rust operators
+pub trait Group:
     Default
     + Clone
     + PartialEq
-    + Sync
-    + for<'a> Arbitrary<'a>
     + Add<Output = Self>
     + Sub<Output = Self>
-    + Mul<Output = Self>
     + AddAssign
     + SubAssign
-    + MulAssign
     + for<'a> Add<&'a Self, Output = Self>
     + for<'a> Sub<&'a Self, Output = Self>
-    + for<'a> Mul<&'a Self, Output = Self>
 {
-    fn null() -> Self;
-
+    /// Returns the identity element (zero) of the group
     fn zero() -> Self;
 
+    /// Returns the identity element (alias for zero)
+    fn identity() -> Self {
+        Self::zero()
+    }
+
+    /// Checks if this element is the identity/zero element
+    fn is_zero(&self) -> bool;
+
+    /// Returns the additive inverse (negation) of this element
+    fn negate(&self) -> Self;
+
+    /// Checks if two elements are equal
+    fn equals(&self, other: &Self) -> bool;
+}
+
+/// Trait for finite fields (extends Group with multiplicative structure)
+pub trait FiniteField:
+    Group
+    + Sync
+    + Mul<Output = Self>
+    + MulAssign
+    + for<'a> Mul<&'a Self, Output = Self>
+{
+    /// Returns the multiplicative identity (one)
     fn one() -> Self;
+
+    /// Checks if this element is one
+    fn is_one(&self) -> bool;
+
+    /// Returns the multiplicative inverse
+    fn inverse(&self) -> Self;
+
+    /// Returns the square of this element
+    fn sqr(&self) -> Self;
+
+    /// Raises this element to the power n
+    fn pow(&self, n: usize) -> Self;
+
+    /// Divides this element by another
+    fn div(&self, b: &Self) -> Result<Self, String>;
+}
+
+/// Trait for torsion subgroups of elliptic curves (extends Group)
+pub trait TorsionSubgroup: Group + Sync + Debug + Send {
+    /// Returns a generator of the subgroup
+    fn generator() -> Self;
+
+    /// Returns the negative of the generator
+    fn negative_generator() -> Self;
+
+    /// Checks if this point is at infinity (identity)
+    fn is_inf(&self) -> bool;
+
+    /// Checks if this point is on the curve and in the correct subgroup
+    fn is_valid(&self) -> bool;
+
+    /// Doubles this point
+    fn dbl(&self) -> Self;
+
+    /// Adds two points, handling the case where they might be equal (doubling)
+    fn add_or_dbl(&self, b: &Self) -> Self;
+
+    /// In-place point doubling
+    fn dbl_assign(&mut self);
+
+    /// In-place addition or doubling
+    fn add_or_dbl_assign(&mut self, b: &Self);
+}
+
+pub trait Fr: FiniteField + for<'a> Arbitrary<'a> {
+    /// Returns a null/invalid field element (used for sentinel values)
+    fn null() -> Self;
+
+    /// Checks if this element is the null value
+    fn is_null(&self) -> bool;
+
+    /// Returns the Euclidean inverse (same as multiplicative inverse for fields)
+    fn eucl_inverse(&self) -> Self;
 
     #[cfg(feature = "rand")]
     fn rand() -> Self;
@@ -57,26 +129,6 @@ pub trait Fr:
 
     fn to_u64_arr(&self) -> [u64; 4];
 
-    fn is_one(&self) -> bool;
-
-    fn is_zero(&self) -> bool;
-
-    fn is_null(&self) -> bool;
-
-    fn sqr(&self) -> Self;
-
-    fn eucl_inverse(&self) -> Self;
-
-    fn negate(&self) -> Self;
-
-    fn inverse(&self) -> Self;
-
-    fn pow(&self, n: usize) -> Self;
-
-    fn div(&self, b: &Self) -> Result<Self, String>;
-
-    fn equals(&self, b: &Self) -> bool;
-
     fn eq(&self, other: &Self) -> bool {
         self.equals(other)
     }
@@ -84,28 +136,7 @@ pub trait Fr:
     fn to_scalar(&self) -> Scalar256;
 }
 
-pub trait G1:
-    Clone
-    + Default
-    + PartialEq
-    + Sync
-    + Debug
-    + Send
-    + Add<Output = Self>
-    + Sub<Output = Self>
-    + AddAssign
-    + SubAssign
-    + for<'a> Add<&'a Self, Output = Self>
-    + for<'a> Sub<&'a Self, Output = Self>
-{
-    fn zero() -> Self;
-
-    fn identity() -> Self;
-
-    fn generator() -> Self;
-
-    fn negative_generator() -> Self;
-
+pub trait G1: TorsionSubgroup {
     #[cfg(feature = "rand")]
     fn rand() -> Self;
 
@@ -115,22 +146,9 @@ pub trait G1:
 
     fn to_bytes(&self) -> [u8; 48];
 
-    fn add_or_dbl(&self, b: &Self) -> Self;
-
-    fn is_inf(&self) -> bool;
-
-    fn is_valid(&self) -> bool;
-
-    fn dbl(&self) -> Self;
-
-    fn equals(&self, b: &Self) -> bool;
-
     fn eq(&self, other: &Self) -> bool {
         self.equals(other)
     }
-
-    fn add_or_dbl_assign(&mut self, b: &Self);
-    fn dbl_assign(&mut self);
 }
 
 pub trait G1GetFp<TFp: G1Fp>: G1 + Clone {
@@ -411,22 +429,12 @@ impl Scalar256 {
     }
 }
 
-pub trait G2:
-    Clone + Default + Sub<Output = Self> + SubAssign + for<'a> Sub<&'a Self, Output = Self>
-{
-    fn generator() -> Self;
-
-    fn negative_generator() -> Self;
-
+pub trait G2: TorsionSubgroup {
     fn from_bytes(bytes: &[u8]) -> Result<Self, String>;
 
     fn to_bytes(&self) -> [u8; 96];
 
     fn add_or_dbl(&mut self, b: &Self) -> Self;
-
-    fn dbl(&self) -> Self;
-
-    fn equals(&self, b: &Self) -> bool;
 }
 
 pub trait G2Mul<TFr>:

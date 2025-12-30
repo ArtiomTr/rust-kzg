@@ -3,12 +3,12 @@ extern crate alloc;
 use alloc::format;
 use alloc::string::String;
 use alloc::string::ToString;
-use core::ops::{Mul, MulAssign, Sub, SubAssign};
+use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
 use kzg::eip_4844::BYTES_PER_G2;
 #[cfg(feature = "rand")]
 use kzg::Fr;
-use kzg::{G2Mul, G2};
+use kzg::{G2Mul, Group, TorsionSubgroup, G2};
 
 use crate::consts::{G2_GENERATOR, G2_NEGATIVE_GENERATOR};
 use crate::mcl_methods::mcl_fp;
@@ -73,7 +73,33 @@ impl MclG2 {
     }
 }
 
-impl G2 for MclG2 {
+impl Group for MclG2 {
+    fn zero() -> Self {
+        try_init_mcl();
+        Self::default()
+    }
+
+    fn is_zero(&self) -> bool {
+        try_init_mcl();
+        self == &Self::default()
+    }
+
+    fn negate(&self) -> Self {
+        try_init_mcl();
+
+        let mut out: mcl_g2 = mcl_g2::default();
+        mcl_g2::neg(&mut out, &self.0);
+        Self(out)
+    }
+
+    fn equals(&self, other: &Self) -> bool {
+        try_init_mcl();
+
+        mcl_g2::eq(&self.0, &other.0)
+    }
+}
+
+impl TorsionSubgroup for MclG2 {
     fn generator() -> Self {
         try_init_mcl();
 
@@ -86,6 +112,52 @@ impl G2 for MclG2 {
         G2_NEGATIVE_GENERATOR
     }
 
+    fn is_inf(&self) -> bool {
+        try_init_mcl();
+
+        mcl_g2::is_zero(&self.0)
+    }
+
+    fn is_valid(&self) -> bool {
+        try_init_mcl();
+
+        mcl_g2::is_valid(&self.0)
+    }
+
+    fn dbl(&self) -> Self {
+        try_init_mcl();
+
+        let mut out = mcl_g2::default();
+        mcl_g2::dbl(&mut out, &self.0);
+        Self(out)
+    }
+
+    fn add_or_dbl(&self, b: &Self) -> Self {
+        try_init_mcl();
+
+        let mut out: mcl_g2 = mcl_g2::default();
+        mcl_g2::add(&mut out, &self.0, &b.0);
+        Self(out)
+    }
+
+    fn dbl_assign(&mut self) {
+        try_init_mcl();
+
+        let mut out = mcl_g2::default();
+        mcl_g2::dbl(&mut out, &self.0);
+        self.0 = out;
+    }
+
+    fn add_or_dbl_assign(&mut self, b: &Self) {
+        try_init_mcl();
+
+        let mut out: mcl_g2 = mcl_g2::default();
+        mcl_g2::add(&mut out, &self.0, &b.0);
+        self.0 = out;
+    }
+}
+
+impl G2 for MclG2 {
     fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
         try_init_mcl();
 
@@ -127,23 +199,43 @@ impl G2 for MclG2 {
         mcl_g2::add(&mut out, &self.0, &b.0);
         Self(out)
     }
-
-    fn dbl(&self) -> Self {
-        try_init_mcl();
-
-        let mut out = mcl_g2::default();
-        mcl_g2::dbl(&mut out, &self.0);
-        Self(out)
-    }
-
-    fn equals(&self, b: &Self) -> bool {
-        try_init_mcl();
-
-        mcl_g2::eq(&self.0, &b.0)
-    }
 }
 
 impl G2Mul<MclFr> for MclG2 {}
+
+impl Add for MclG2 {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        try_init_mcl();
+
+        let mut out: mcl_g2 = mcl_g2::default();
+        mcl_g2::add(&mut out, &self.0, &rhs.0);
+        Self(out)
+    }
+}
+
+impl Add<&MclG2> for MclG2 {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self {
+        try_init_mcl();
+
+        let mut out: mcl_g2 = mcl_g2::default();
+        mcl_g2::add(&mut out, &self.0, &rhs.0);
+        Self(out)
+    }
+}
+
+impl AddAssign for MclG2 {
+    fn add_assign(&mut self, rhs: Self) {
+        try_init_mcl();
+
+        let mut out: mcl_g2 = mcl_g2::default();
+        mcl_g2::add(&mut out, &self.0, &rhs.0);
+        self.0 = out;
+    }
+}
 
 impl Sub for MclG2 {
     type Output = Self;

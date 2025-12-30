@@ -5,7 +5,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 use kzg::common_utils::reverse_bit_order;
-use kzg::{FK20MultiSettings, Poly, FFTG1, G1};
+use kzg::{FK20MultiSettings, Poly, TorsionSubgroup, FFTG1, G1};
 
 use crate::types::fft_settings::MclFFTSettings;
 use crate::types::fr::MclFr;

@@ -1,6 +1,6 @@
 use crate::kzg_proofs::FFTSettings as LFFTSettings;
 use crate::kzg_types::ArkFr as BlstFr;
-use kzg::{FFTFr, Fr as FFr};
+use kzg::{FFTFr, FiniteField, Fr as FFr};
 
 impl LFFTSettings {
     /// Fast Fourier Transform for finite field elements, `output` must be zeroes

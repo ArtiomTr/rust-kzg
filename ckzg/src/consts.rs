@@ -1,5 +1,5 @@
 use crate::finite::BlstFr;
-use kzg::Fr;
+use kzg::{FiniteField, Fr};
 
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]

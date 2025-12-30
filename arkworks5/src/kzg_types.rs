@@ -31,9 +31,9 @@ use crate::fft_g1::fft_g1_fast;
 use kzg::common_utils::reverse_bit_order;
 use kzg::msm::precompute::{precompute, PrecomputationTable};
 use kzg::{
-    eth, FFTFr, FFTSettings, FFTSettingsPoly, Fr as KzgFr, G1Affine as G1AffineTrait, G1Fp,
-    G1GetFp, G1LinComb, G1Mul, G1ProjAddAffine, G2Mul, KZGSettings, PairingVerify, Poly, Scalar256,
-    G1, G2,
+    eth, FFTFr, FFTSettings, FFTSettingsPoly, FiniteField, Fr as KzgFr,
+    G1Affine as G1AffineTrait, G1Fp, G1GetFp, G1LinComb, G1Mul, G1ProjAddAffine, G2Mul, Group,
+    KZGSettings, PairingVerify, Poly, Scalar256, TorsionSubgroup, G1, G2,
 };
 use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
@@ -86,23 +86,67 @@ fn bigint_check_mod_256(a: &[u64; 4]) -> bool {
     overflow
 }
 
+impl kzg::Group for ArkFr {
+    fn zero() -> Self {
+        Self { fr: Fr::zero() }
+    }
+
+    fn is_zero(&self) -> bool {
+        self.fr.is_zero()
+    }
+
+    fn negate(&self) -> Self {
+        Self { fr: self.fr.neg() }
+    }
+
+    fn equals(&self, b: &Self) -> bool {
+        self.fr == b.fr
+    }
+}
+
+impl kzg::FiniteField for ArkFr {
+    fn one() -> Self {
+        let one = Fr::one();
+        Self { fr: one }
+    }
+
+    fn is_one(&self) -> bool {
+        self.fr.is_one()
+    }
+
+    fn inverse(&self) -> Self {
+        Self {
+            fr: self.fr.inverse().unwrap(),
+        }
+    }
+
+    fn sqr(&self) -> Self {
+        Self {
+            fr: self.fr.square(),
+        }
+    }
+
+    fn pow(&self, n: usize) -> Self {
+        Self {
+            fr: self.fr.pow([n as u64]),
+        }
+    }
+
+    fn div(&self, b: &Self) -> Result<Self, String> {
+        let div = self.fr / b.fr;
+        if div.0 .0.is_empty() {
+            Ok(Self { fr: Fr::zero() })
+        } else {
+            Ok(Self { fr: div })
+        }
+    }
+}
+
 impl KzgFr for ArkFr {
     fn null() -> Self {
         Self {
             fr: Fr::new_unchecked(BigInteger256::new([u64::MAX; 4])),
         }
-    }
-
-    fn zero() -> Self {
-        // Self::from_u64(0)
-        Self { fr: Fr::zero() }
-    }
-
-    fn one() -> Self {
-        let one = Fr::one();
-        // assert_eq!(one.0.0, [0, 1, 1, 1], "must be eq");
-        Self { fr: one }
-        // Self::from_u64(1)
     }
 
     #[cfg(feature = "rand")]
@@ -189,22 +233,8 @@ impl KzgFr for ArkFr {
         b.0
     }
 
-    fn is_one(&self) -> bool {
-        self.fr.is_one()
-    }
-
-    fn is_zero(&self) -> bool {
-        self.fr.is_zero()
-    }
-
     fn is_null(&self) -> bool {
         self.equals(&ArkFr::null())
-    }
-
-    fn sqr(&self) -> Self {
-        Self {
-            fr: self.fr.square(),
-        }
     }
 
     fn eucl_inverse(&self) -> Self {
@@ -212,35 +242,6 @@ impl KzgFr for ArkFr {
         Self {
             fr: self.fr.inverse().unwrap(),
         }
-    }
-
-    fn negate(&self) -> Self {
-        Self { fr: self.fr.neg() }
-    }
-
-    fn inverse(&self) -> Self {
-        Self {
-            fr: self.fr.inverse().unwrap(),
-        }
-    }
-
-    fn pow(&self, n: usize) -> Self {
-        Self {
-            fr: self.fr.pow([n as u64]),
-        }
-    }
-
-    fn div(&self, b: &Self) -> Result<Self, String> {
-        let div = self.fr / b.fr;
-        if div.0 .0.is_empty() {
-            Ok(Self { fr: Fr::zero() })
-        } else {
-            Ok(Self { fr: div })
-        }
-    }
-
-    fn equals(&self, b: &Self) -> bool {
-        self.fr == b.fr
     }
 
     fn to_scalar(&self) -> Scalar256 {
@@ -358,11 +359,49 @@ impl From<blst_p1> for ArkG1 {
     }
 }
 
-impl G1 for ArkG1 {
-    fn identity() -> Self {
-        G1_IDENTITY
+impl kzg::Group for ArkG1 {
+    fn zero() -> ArkG1 {
+        ArkG1::from_blst_p1(blst_p1 {
+            x: blst_fp {
+                l: [
+                    8505329371266088957,
+                    17002214543764226050,
+                    6865905132761471162,
+                    8632934651105793861,
+                    6631298214892334189,
+                    1582556514881692819,
+                ],
+            },
+            y: blst_fp {
+                l: [
+                    8505329371266088957,
+                    17002214543764226050,
+                    6865905132761471162,
+                    8632934651105793861,
+                    6631298214892334189,
+                    1582556514881692819,
+                ],
+            },
+            z: blst_fp {
+                l: [0, 0, 0, 0, 0, 0],
+            },
+        })
     }
 
+    fn is_zero(&self) -> bool {
+        self.is_inf()
+    }
+
+    fn negate(&self) -> Self {
+        Self(-self.0)
+    }
+
+    fn equals(&self, b: &Self) -> bool {
+        self.0.eq(&b.0)
+    }
+}
+
+impl kzg::TorsionSubgroup for ArkG1 {
     fn generator() -> Self {
         G1_GENERATOR
     }
@@ -371,6 +410,33 @@ impl G1 for ArkG1 {
         G1_NEGATIVE_GENERATOR
     }
 
+    fn is_inf(&self) -> bool {
+        let temp = &self.0;
+        temp.z.is_zero()
+    }
+
+    fn is_valid(&self) -> bool {
+        true
+    }
+
+    fn dbl(&self) -> Self {
+        Self(self.0.double())
+    }
+
+    fn add_or_dbl(&self, b: &Self) -> Self {
+        Self(self.0 + b.0)
+    }
+
+    fn dbl_assign(&mut self) {
+        self.0.double_in_place();
+    }
+
+    fn add_or_dbl_assign(&mut self, b: &Self) {
+        self.0 += b.0;
+    }
+}
+
+impl G1 for ArkG1 {
     #[cfg(feature = "rand")]
     fn rand() -> Self {
         let mut rng = rand::thread_rng();
@@ -406,63 +472,6 @@ impl G1 for ArkG1 {
         let mut buff = [0u8; BYTES_PER_G1];
         self.0.serialize_compressed(&mut &mut buff[..]).unwrap();
         buff
-    }
-
-    fn add_or_dbl(&self, b: &Self) -> Self {
-        Self(self.0 + b.0)
-    }
-
-    fn is_inf(&self) -> bool {
-        let temp = &self.0;
-        temp.z.is_zero()
-    }
-
-    fn is_valid(&self) -> bool {
-        true
-    }
-
-    fn dbl(&self) -> Self {
-        Self(self.0.double())
-    }
-
-    fn equals(&self, b: &Self) -> bool {
-        self.0.eq(&b.0)
-    }
-
-    fn zero() -> ArkG1 {
-        ArkG1::from_blst_p1(blst_p1 {
-            x: blst_fp {
-                l: [
-                    8505329371266088957,
-                    17002214543764226050,
-                    6865905132761471162,
-                    8632934651105793861,
-                    6631298214892334189,
-                    1582556514881692819,
-                ],
-            },
-            y: blst_fp {
-                l: [
-                    8505329371266088957,
-                    17002214543764226050,
-                    6865905132761471162,
-                    8632934651105793861,
-                    6631298214892334189,
-                    1582556514881692819,
-                ],
-            },
-            z: blst_fp {
-                l: [0, 0, 0, 0, 0, 0],
-            },
-        })
-    }
-
-    fn add_or_dbl_assign(&mut self, b: &Self) {
-        self.0 += b.0;
-    }
-
-    fn dbl_assign(&mut self) {
-        self.0.double_in_place();
     }
 }
 
@@ -593,7 +602,25 @@ impl ArkG2 {
     }
 }
 
-impl G2 for ArkG2 {
+impl kzg::Group for ArkG2 {
+    fn zero() -> Self {
+        Self(Projective::<g2::Config>::zero())
+    }
+
+    fn is_zero(&self) -> bool {
+        self.0.is_zero()
+    }
+
+    fn negate(&self) -> Self {
+        Self(-self.0)
+    }
+
+    fn equals(&self, other: &Self) -> bool {
+        self.0.eq(&other.0)
+    }
+}
+
+impl kzg::TorsionSubgroup for ArkG2 {
     fn generator() -> Self {
         G2_GENERATOR
     }
@@ -602,6 +629,33 @@ impl G2 for ArkG2 {
         G2_NEGATIVE_GENERATOR
     }
 
+    fn is_inf(&self) -> bool {
+        let temp = &self.0;
+        temp.z.is_zero()
+    }
+
+    fn is_valid(&self) -> bool {
+        true
+    }
+
+    fn dbl(&self) -> Self {
+        Self(self.0.double())
+    }
+
+    fn add_or_dbl(&self, b: &Self) -> Self {
+        Self(self.0 + b.0)
+    }
+
+    fn dbl_assign(&mut self) {
+        self.0.double_in_place();
+    }
+
+    fn add_or_dbl_assign(&mut self, b: &Self) {
+        self.0 += b.0;
+    }
+}
+
+impl G2 for ArkG2 {
     #[allow(clippy::bind_instead_of_map)]
     fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
         bytes
@@ -631,13 +685,27 @@ impl G2 for ArkG2 {
     fn add_or_dbl(&mut self, b: &Self) -> Self {
         Self(self.0 + b.0)
     }
+}
 
-    fn dbl(&self) -> Self {
-        Self(self.0.double())
+impl Add for ArkG2 {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        Self(self.0 + rhs.0)
     }
+}
 
-    fn equals(&self, b: &Self) -> bool {
-        self.0.eq(&b.0)
+impl Add<&ArkG2> for ArkG2 {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self {
+        Self(self.0 + rhs.0)
+    }
+}
+
+impl AddAssign for ArkG2 {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 += rhs.0;
     }
 }
 

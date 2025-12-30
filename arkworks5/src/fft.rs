@@ -1,6 +1,6 @@
 use crate::kzg_proofs::FFTSettings;
 use crate::kzg_types::ArkFr as BlstFr;
-use kzg::{FFTFr, Fr as FFr};
+use kzg::{FFTFr, FiniteField, Fr as FFr};
 use std::ops::{Mul, Sub};
 
 impl FFTFr<BlstFr> for FFTSettings {

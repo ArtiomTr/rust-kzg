@@ -21,8 +21,9 @@ use kzg::eth::c_bindings::{blst_fr, blst_p1, blst_p2, CKZGSettings};
 use kzg::msm::precompute::{precompute, PrecomputationTable};
 use kzg::{eth, G1Affine as G1AffineTrait};
 use kzg::{
-    FFTFr, FFTSettings, Fr as KzgFr, G1Fp, G1GetFp, G1LinComb, G1Mul, G1ProjAddAffine, G2Mul,
-    KZGSettings, PairingVerify, Poly, Scalar256, G1, G2,
+    FFTFr, FFTSettings, FiniteField, Fr as KzgFr, G1Fp, G1GetFp, G1LinComb, G1Mul,
+    G1ProjAddAffine, G2Mul, Group, KZGSettings, PairingVerify, Poly, Scalar256, TorsionSubgroup,
+    G1, G2,
 };
 use std::hash::Hash;
 use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
@@ -76,18 +77,79 @@ impl<'a> Arbitrary<'a> for ZFr {
     }
 }
 
+impl kzg::Group for ZFr {
+    fn zero() -> Self {
+        Self::from_u64(0)
+    }
+
+    fn is_zero(&self) -> bool {
+        self.fr.is_zero().unwrap_u8() == 1
+    }
+
+    fn negate(&self) -> Self {
+        Self { fr: self.fr.neg() }
+    }
+
+    fn equals(&self, b: &Self) -> bool {
+        self.fr == b.fr
+    }
+}
+
+impl kzg::FiniteField for ZFr {
+    fn one() -> Self {
+        Self::from_u64(1)
+    }
+
+    fn is_one(&self) -> bool {
+        self.fr.ct_eq(&ZFr::one().fr).unwrap_u8() == 1
+    }
+
+    fn inverse(&self) -> Self {
+        Self {
+            fr: self.fr.invert().unwrap(),
+        }
+    }
+
+    fn sqr(&self) -> Self {
+        Self {
+            fr: self.fr.square(),
+        }
+    }
+
+    fn pow(&self, n: usize) -> Self {
+        let mut tmp = *self;
+        let mut out = Self::one();
+        let mut n2 = n;
+
+        loop {
+            if n2 & 1 == 1 {
+                out = out * &tmp;
+            }
+            n2 >>= 1;
+            if n2 == 0 {
+                break;
+            }
+            tmp = tmp.sqr();
+        }
+
+        out
+    }
+
+    fn div(&self, b: &Self) -> Result<Self, String> {
+        if <ZFr>::is_zero(b) {
+            return Err("Cannot divide by zero".to_string());
+        }
+        let tmp = b.eucl_inverse();
+        let out = self * &tmp;
+        Ok(out)
+    }
+}
+
 impl KzgFr for ZFr {
     fn null() -> Self {
         Self {
             fr: Scalar([u64::MAX, u64::MAX, u64::MAX, u64::MAX]),
         }
-    }
-    fn zero() -> Self {
-        Self::from_u64(0)
-    }
-
-    fn one() -> Self {
-        Self::from_u64(1)
     }
 
     #[cfg(feature = "rand")]
@@ -219,70 +281,14 @@ impl KzgFr for ZFr {
         ]
     }
 
-    fn is_one(&self) -> bool {
-        self.fr.ct_eq(&ZFr::one().fr).unwrap_u8() == 1
-    }
-
-    fn is_zero(&self) -> bool {
-        self.fr.is_zero().unwrap_u8() == 1
-    }
-
     fn is_null(&self) -> bool {
         self.fr.ct_eq(&ZFr::null().fr).unwrap_u8() == 1
-    }
-
-    fn sqr(&self) -> Self {
-        Self {
-            fr: self.fr.square(),
-        }
     }
 
     fn eucl_inverse(&self) -> Self {
         Self {
             fr: self.fr.invert().unwrap(),
         }
-    }
-
-    fn negate(&self) -> Self {
-        Self { fr: self.fr.neg() }
-    }
-
-    fn inverse(&self) -> Self {
-        Self {
-            fr: self.fr.invert().unwrap(),
-        }
-    }
-
-    fn pow(&self, n: usize) -> Self {
-        let mut tmp = *self;
-        let mut out = Self::one();
-        let mut n2 = n;
-
-        loop {
-            if n2 & 1 == 1 {
-                out = out * &tmp;
-            }
-            n2 >>= 1;
-            if n2 == 0 {
-                break;
-            }
-            tmp = tmp.sqr();
-        }
-
-        out
-    }
-
-    fn div(&self, b: &Self) -> Result<Self, String> {
-        if <ZFr>::is_zero(b) {
-            return Err("Cannot divide by zero".to_string());
-        }
-        let tmp = b.eucl_inverse();
-        let out = self * &tmp;
-        Ok(out)
-    }
-
-    fn equals(&self, b: &Self) -> bool {
-        self.fr == b.fr
     }
 
     fn to_scalar(&self) -> Scalar256 {
@@ -514,11 +520,47 @@ impl From<blst_p1> for ZG1 {
     }
 }
 
-impl G1 for ZG1 {
-    fn identity() -> Self {
-        G1_IDENTITY
+impl kzg::Group for ZG1 {
+    fn zero() -> Self {
+        Self {
+            proj: G1Projective {
+                x: Fp([
+                    8505329371266088957,
+                    17002214543764226050,
+                    6865905132761471162,
+                    8632934651105793861,
+                    6631298214892334189,
+                    1582556514881692819,
+                ]),
+                y: Fp([
+                    8505329371266088957,
+                    17002214543764226050,
+                    6865905132761471162,
+                    8632934651105793861,
+                    6631298214892334189,
+                    1582556514881692819,
+                ]),
+                z: Fp([0, 0, 0, 0, 0, 0]),
+            },
+        }
     }
 
+    fn is_zero(&self) -> bool {
+        self.is_inf()
+    }
+
+    fn negate(&self) -> Self {
+        Self {
+            proj: -self.proj,
+        }
+    }
+
+    fn equals(&self, b: &Self) -> bool {
+        self.proj.eq(&b.proj)
+    }
+}
+
+impl kzg::TorsionSubgroup for ZG1 {
     fn generator() -> Self {
         G1_GENERATOR
     }
@@ -527,6 +569,36 @@ impl G1 for ZG1 {
         G1_NEGATIVE_GENERATOR
     }
 
+    fn is_inf(&self) -> bool {
+        bool::from(self.proj.is_identity())
+    }
+
+    fn is_valid(&self) -> bool {
+        bool::from(self.proj.is_on_curve())
+    }
+
+    fn dbl(&self) -> Self {
+        Self {
+            proj: self.proj.double(),
+        }
+    }
+
+    fn add_or_dbl(&self, b: &Self) -> Self {
+        Self {
+            proj: self.proj + b.proj,
+        }
+    }
+
+    fn dbl_assign(&mut self) {
+        self.proj = self.proj.double();
+    }
+
+    fn add_or_dbl_assign(&mut self, b: &Self) {
+        self.proj.add_assign(b.proj);
+    }
+}
+
+impl G1 for ZG1 {
     #[cfg(feature = "rand")]
     fn rand() -> Self {
         let mut rng = rand::thread_rng();
@@ -563,60 +635,6 @@ impl G1 for ZG1 {
     fn to_bytes(&self) -> [u8; 48] {
         let g1_affine = G1Affine::from(self.proj);
         g1_affine.to_compressed()
-    }
-
-    fn add_or_dbl(&self, b: &Self) -> Self {
-        Self {
-            proj: self.proj + b.proj,
-        }
-    }
-    fn is_inf(&self) -> bool {
-        bool::from(self.proj.is_identity())
-    }
-    fn is_valid(&self) -> bool {
-        bool::from(self.proj.is_on_curve())
-    }
-
-    fn dbl(&self) -> Self {
-        Self {
-            proj: self.proj.double(),
-        }
-    }
-
-    fn equals(&self, b: &Self) -> bool {
-        self.proj.eq(&b.proj)
-    }
-
-    fn add_or_dbl_assign(&mut self, b: &Self) {
-        self.proj.add_assign(b.proj);
-    }
-
-    fn dbl_assign(&mut self) {
-        self.proj = self.proj.double();
-    }
-
-    fn zero() -> Self {
-        Self {
-            proj: G1Projective {
-                x: Fp([
-                    8505329371266088957,
-                    17002214543764226050,
-                    6865905132761471162,
-                    8632934651105793861,
-                    6631298214892334189,
-                    1582556514881692819,
-                ]),
-                y: Fp([
-                    8505329371266088957,
-                    17002214543764226050,
-                    6865905132761471162,
-                    8632934651105793861,
-                    6631298214892334189,
-                    1582556514881692819,
-                ]),
-                z: Fp([0, 0, 0, 0, 0, 0]),
-            },
-        }
     }
 }
 
@@ -917,7 +935,27 @@ impl ZG2 {
     }
 }
 
-impl G2 for ZG2 {
+impl Group for ZG2 {
+    fn zero() -> Self {
+        Self {
+            proj: G2Projective::identity(),
+        }
+    }
+
+    fn is_zero(&self) -> bool {
+        bool::from(self.proj.is_identity())
+    }
+
+    fn negate(&self) -> Self {
+        Self { proj: -self.proj }
+    }
+
+    fn equals(&self, other: &Self) -> bool {
+        self.proj.eq(&other.proj)
+    }
+}
+
+impl TorsionSubgroup for ZG2 {
     fn generator() -> Self {
         G2_GENERATOR
     }
@@ -926,6 +964,37 @@ impl G2 for ZG2 {
         G2_NEGATIVE_GENERATOR
     }
 
+    fn is_inf(&self) -> bool {
+        bool::from(self.proj.is_identity())
+    }
+
+    fn is_valid(&self) -> bool {
+        // For zkcrypto, points are always valid after construction
+        true
+    }
+
+    fn dbl(&self) -> Self {
+        Self {
+            proj: self.proj.double(),
+        }
+    }
+
+    fn add_or_dbl(&self, b: &Self) -> Self {
+        Self {
+            proj: self.proj + b.proj,
+        }
+    }
+
+    fn dbl_assign(&mut self) {
+        self.proj = self.proj.double();
+    }
+
+    fn add_or_dbl_assign(&mut self, b: &Self) {
+        self.proj += b.proj;
+    }
+}
+
+impl G2 for ZG2 {
     #[allow(clippy::bind_instead_of_map)]
     fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
         bytes
@@ -953,19 +1022,35 @@ impl G2 for ZG2 {
             proj: self.proj + b.proj,
         }
     }
-
-    fn dbl(&self) -> Self {
-        Self {
-            proj: self.proj.double(),
-        }
-    }
-
-    fn equals(&self, b: &Self) -> bool {
-        self.proj.eq(&b.proj)
-    }
 }
 
 impl G2Mul<ZFr> for ZG2 {}
+
+impl Add for ZG2 {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        Self {
+            proj: self.proj + rhs.proj,
+        }
+    }
+}
+
+impl Add<&ZG2> for ZG2 {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self {
+        Self {
+            proj: self.proj + rhs.proj,
+        }
+    }
+}
+
+impl AddAssign for ZG2 {
+    fn add_assign(&mut self, rhs: Self) {
+        self.proj += rhs.proj;
+    }
+}
 
 impl Sub for ZG2 {
     type Output = Self;

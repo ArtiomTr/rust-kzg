@@ -20,8 +20,8 @@ use crate::{
         blob_to_polynomial, compute_powers, hash, hash_to_bls_field, BYTES_PER_COMMITMENT,
         BYTES_PER_FIELD_ELEMENT, BYTES_PER_PROOF,
     },
-    eth, FFTFr, FFTSettings, Fr, G1Affine, G1Fp, G1LinComb, KZGSettings, PairingVerify, Poly,
-    FFTG1, G1, G2,
+    eth, FFTFr, FFTSettings, FiniteField, Fr, G1Affine, G1Fp, G1LinComb, Group, KZGSettings,
+    PairingVerify, Poly, TorsionSubgroup, FFTG1, G1, G2,
 };
 
 pub const RANDOM_CHALLENGE_KZG_CELL_BATCH_DOMAIN: [u8; 16] = *b"RCKZGCBATCH__V1_";

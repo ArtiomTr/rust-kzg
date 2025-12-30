@@ -5,7 +5,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 use kzg::common_utils::{log2_pow2, log2_u64, next_pow_of_2};
-use kzg::{FFTFr, FFTSettings, FFTSettingsPoly, Fr, Poly};
+use kzg::{FFTFr, FFTSettings, FFTSettingsPoly, FiniteField, Fr, Group, Poly};
 
 use crate::consts::SCALE_FACTOR;
 use crate::types::fft_settings::FsFFTSettings;
@@ -258,7 +258,7 @@ impl Poly<FsFr> for FsPoly {
         let b_degree = multiplier.len() - 1;
 
         let mut ret = FsPoly {
-            coeffs: vec![Fr::zero(); output_len],
+            coeffs: vec![FsFr::zero(); output_len],
         };
 
         // Truncate the output to the length of the output polynomial

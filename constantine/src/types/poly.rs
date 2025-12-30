@@ -5,7 +5,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 use kzg::common_utils::{log2_pow2, log2_u64, next_pow_of_2};
-use kzg::{FFTFr, FFTSettings, FFTSettingsPoly, Fr, Poly};
+use kzg::{FFTFr, FFTSettings, FFTSettingsPoly, FiniteField, Fr, Group, Poly};
 
 use crate::consts::SCALE_FACTOR;
 use crate::types::fft_settings::CtFFTSettings;

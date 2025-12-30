@@ -3,7 +3,7 @@ use crate::kzg_proofs::FFTSettings;
 use crate::kzg_types::ZFr as BlstFr;
 use crate::poly::PolyData;
 
-use kzg::{FFTFr, Fr, Poly, PolyRecover, ZeroPoly};
+use kzg::{FFTFr, FiniteField, Fr, Group, Poly, PolyRecover, ZeroPoly};
 
 #[cfg(feature = "parallel")]
 use kzg::common_utils::next_pow_of_2;

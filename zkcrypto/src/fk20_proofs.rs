@@ -3,7 +3,7 @@ use crate::kzg_proofs::{FFTSettings, KZGSettings};
 use crate::kzg_types::{ZFp, ZFr as BlstFr, ZG1Affine, ZG1ProjAddAffine, ZG1, ZG2};
 use crate::poly::PolyData;
 use kzg::common_utils::reverse_bit_order;
-use kzg::{FFTFr, FK20MultiSettings, FK20SingleSettings, Fr, G1Mul, Poly, FFTG1, G1};
+use kzg::{FFTFr, FK20MultiSettings, FK20SingleSettings, Fr, G1Mul, Group, Poly, TorsionSubgroup, FFTG1, G1};
 
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;

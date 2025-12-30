@@ -15,8 +15,7 @@ use crate::mcl_methods::mcl_fr;
 use crate::mcl_methods::try_init_mcl;
 
 use kzg::eip_4844::BYTES_PER_FIELD_ELEMENT;
-use kzg::Fr;
-use kzg::Scalar256;
+use kzg::{FiniteField, Fr, Group, Scalar256};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Default)]
@@ -30,23 +29,98 @@ impl<'a> Arbitrary<'a> for MclFr {
     }
 }
 
-impl Fr for MclFr {
-    fn null() -> Self {
-        try_init_mcl();
-
-        Self::from_u64_arr(&[u64::MAX, u64::MAX, u64::MAX, u64::MAX])
-    }
-
+impl kzg::Group for MclFr {
     fn zero() -> Self {
         try_init_mcl();
-
         Self::from_u64(0)
     }
 
-    fn one() -> Self {
+    fn is_zero(&self) -> bool {
+        try_init_mcl();
+        self.0.is_zero()
+    }
+
+    fn negate(&self) -> Self {
         try_init_mcl();
 
+        let mut ret = Self::default();
+        mcl_fr::neg(&mut ret.0, &self.0);
+        ret
+    }
+
+    fn equals(&self, b: &Self) -> bool {
+        try_init_mcl();
+        mcl_fr::eq(&self.0, &b.0)
+    }
+}
+
+impl kzg::FiniteField for MclFr {
+    fn one() -> Self {
+        try_init_mcl();
         Self::from_u64(1)
+    }
+
+    fn is_one(&self) -> bool {
+        try_init_mcl();
+        self.0.is_one()
+    }
+
+    fn inverse(&self) -> Self {
+        try_init_mcl();
+
+        let mut ret = Self::default();
+        mcl_fr::inv(&mut ret.0, &self.0);
+        ret
+    }
+
+    fn sqr(&self) -> Self {
+        try_init_mcl();
+
+        let mut ret = Self::default();
+        mcl_fr::sqr(&mut ret.0, &self.0);
+        ret
+    }
+
+    fn pow(&self, n: usize) -> Self {
+        try_init_mcl();
+
+        let mut out = Self::one();
+
+        let mut temp = *self;
+        let mut n = n;
+        loop {
+            if (n & 1) == 1 {
+                out = out * &temp;
+            }
+            n >>= 1;
+            if n == 0 {
+                break;
+            }
+
+            temp = temp.sqr();
+        }
+
+        out
+    }
+
+    fn div(&self, b: &Self) -> Result<Self, String> {
+        try_init_mcl();
+
+        if b.is_zero() {
+            return Ok(*b);
+        }
+
+        let tmp = b.eucl_inverse();
+        let out = self * &tmp;
+
+        Ok(out)
+    }
+}
+
+impl Fr for MclFr {
+    fn null() -> Self {
+        try_init_mcl();
+        Self::from_u64_arr(&[u64::MAX, u64::MAX, u64::MAX, u64::MAX])
     }
 
     #[cfg(feature = "rand")]
@@ -165,18 +239,6 @@ impl Fr for MclFr {
         val
     }
 
-    fn is_one(&self) -> bool {
-        try_init_mcl();
-
-        self.0.is_one()
-    }
-
-    fn is_zero(&self) -> bool {
-        try_init_mcl();
-
-        self.0.is_zero()
-    }
-
     fn is_null(&self) -> bool {
         try_init_mcl();
         try_init_mcl();
@@ -185,77 +247,12 @@ impl Fr for MclFr {
         self.0.eq(&n.0)
     }
 
-    fn sqr(&self) -> Self {
-        try_init_mcl();
-
-        let mut ret = Self::default();
-        mcl_fr::sqr(&mut ret.0, &self.0);
-        ret
-    }
-
     fn eucl_inverse(&self) -> Self {
         try_init_mcl();
 
         let mut ret = Self::default();
         mcl_fr::inv(&mut ret.0, &self.0);
         ret
-    }
-
-    fn negate(&self) -> Self {
-        try_init_mcl();
-
-        let mut ret = Self::default();
-        mcl_fr::neg(&mut ret.0, &self.0);
-        ret
-    }
-
-    fn inverse(&self) -> Self {
-        try_init_mcl();
-
-        let mut ret = Self::default();
-        mcl_fr::inv(&mut ret.0, &self.0);
-        ret
-    }
-
-    fn pow(&self, n: usize) -> Self {
-        try_init_mcl();
-
-        let mut out = Self::one();
-
-        let mut temp = *self;
-        let mut n = n;
-        loop {
-            if (n & 1) == 1 {
-                out = out * &temp;
-            }
-            n >>= 1;
-            if n == 0 {
-                break;
-            }
-
-            temp = temp.sqr();
-        }
-
-        out
-    }
-
-    fn div(&self, b: &Self) -> Result<Self, String> {
-        try_init_mcl();
-
-        if b.is_zero() {
-            return Ok(*b);
-        }
-
-        let tmp = b.eucl_inverse();
-        let out = self * &tmp;
-
-        Ok(out)
-    }
-
-    fn equals(&self, b: &Self) -> bool {
-        try_init_mcl();
-
-        mcl_fr::eq(&self.0, &b.0)
     }
 
     fn to_scalar(&self) -> Scalar256 {

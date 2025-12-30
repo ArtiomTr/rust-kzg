@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use kzg::{FFTFr, Fr, PolyRecover, ZeroPoly};
+use kzg::{FFTFr, FiniteField, Fr, Group, PolyRecover, ZeroPoly};
 
 use crate::types::fft_settings::FsFFTSettings;
 use crate::types::fr::FsFr;

@@ -20,7 +20,7 @@ use kzg::G1Affine;
 use kzg::G1GetFp;
 use kzg::G1LinComb;
 use kzg::G1ProjAddAffine;
-use kzg::{G1Mul, G1};
+use kzg::{G1Mul, Group, TorsionSubgroup, G1};
 
 use crate::consts::{G1_GENERATOR, G1_IDENTITY, G1_NEGATIVE_GENERATOR};
 use crate::kzg_proofs::g1_linear_combination;
@@ -69,7 +69,7 @@ impl MclG1 {
     }
 }
 
-impl G1 for MclG1 {
+impl kzg::Group for MclG1 {
     fn zero() -> Self {
         try_init_mcl();
 
@@ -100,12 +100,26 @@ impl G1 for MclG1 {
         })
     }
 
-    fn identity() -> Self {
-        try_init_mcl();
-
-        G1_IDENTITY
+    fn is_zero(&self) -> bool {
+        self.is_inf()
     }
 
+    fn negate(&self) -> Self {
+        try_init_mcl();
+
+        let mut out = mcl_g1::default();
+        mcl_g1::neg(&mut out, &self.0);
+        Self(out)
+    }
+
+    fn equals(&self, b: &Self) -> bool {
+        try_init_mcl();
+
+        mcl_g1::eq(&self.0, &b.0)
+    }
+}
+
+impl kzg::TorsionSubgroup for MclG1 {
     fn generator() -> Self {
         try_init_mcl();
 
@@ -118,6 +132,52 @@ impl G1 for MclG1 {
         G1_NEGATIVE_GENERATOR
     }
 
+    fn is_inf(&self) -> bool {
+        try_init_mcl();
+
+        self.0.get_str(0).eq("0")
+    }
+
+    fn is_valid(&self) -> bool {
+        try_init_mcl();
+
+        let blst = self.to_blst_p1();
+
+        unsafe { blst_p1_in_g1(&blst) }
+    }
+
+    fn dbl(&self) -> Self {
+        try_init_mcl();
+
+        let mut out = mcl_g1::default();
+        mcl_g1::dbl(&mut out, &self.0);
+        Self(out)
+    }
+
+    fn add_or_dbl(&self, b: &Self) -> Self {
+        try_init_mcl();
+
+        let mut out = mcl_g1::default();
+        mcl_g1::add(&mut out, &self.0, &b.0);
+        Self(out)
+    }
+
+    fn dbl_assign(&mut self) {
+        try_init_mcl();
+
+        let mut r = mcl_g1::default();
+        mcl_g1::dbl(&mut r, &self.0);
+        self.0 = r;
+    }
+
+    fn add_or_dbl_assign(&mut self, b: &Self) {
+        try_init_mcl();
+
+        self.0 = self.0.add(&b.0);
+    }
+}
+
+impl G1 for MclG1 {
     #[cfg(feature = "rand")]
     fn rand() -> Self {
         try_init_mcl();
@@ -167,56 +227,6 @@ impl G1 for MclG1 {
             blst::blst_p1_compress(out.as_mut_ptr(), &self.to_blst_p1());
         }
         out
-    }
-
-    fn add_or_dbl(&self, b: &Self) -> Self {
-        try_init_mcl();
-
-        let mut out = mcl_g1::default();
-        mcl_g1::add(&mut out, &self.0, &b.0);
-        Self(out)
-    }
-
-    fn is_inf(&self) -> bool {
-        try_init_mcl();
-
-        self.0.get_str(0).eq("0")
-    }
-
-    fn is_valid(&self) -> bool {
-        try_init_mcl();
-
-        let blst = self.to_blst_p1();
-
-        unsafe { blst_p1_in_g1(&blst) }
-    }
-
-    fn dbl(&self) -> Self {
-        try_init_mcl();
-
-        let mut out = mcl_g1::default();
-        mcl_g1::dbl(&mut out, &self.0);
-        Self(out)
-    }
-
-    fn equals(&self, b: &Self) -> bool {
-        try_init_mcl();
-
-        mcl_g1::eq(&self.0, &b.0)
-    }
-
-    fn add_or_dbl_assign(&mut self, b: &Self) {
-        try_init_mcl();
-
-        self.0 = self.0.add(&b.0);
-    }
-
-    fn dbl_assign(&mut self) {
-        try_init_mcl();
-
-        let mut r = mcl_g1::default();
-        mcl_g1::dbl(&mut r, &self.0);
-        self.0 = r;
     }
 }
 
