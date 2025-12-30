@@ -2,7 +2,6 @@ use crate::consts::{
     G1_GENERATOR, G1_IDENTITY, G1_NEGATIVE_GENERATOR, G2_GENERATOR, G2_NEGATIVE_GENERATOR,
     SCALE2_ROOT_OF_UNITY,
 };
-use crate::fft_g1::g1_linear_combination;
 use crate::kzg_proofs::{
     expand_root_of_unity, pairings_verify, FFTSettings as ZFFTSettings, KZGSettings as ZKZGSettings,
 };
@@ -21,7 +20,7 @@ use kzg::eth::c_bindings::{blst_fr, blst_p1, blst_p2, CKZGSettings};
 use kzg::msm::precompute::{precompute, PrecomputationTable};
 use kzg::{eth, G1Affine as G1AffineTrait};
 use kzg::{
-    FFTFr, FFTSettings, Fr as KzgFr, G1Fp, G1GetFp, G1LinComb, G1Mul, G1ProjAddAffine, G2Mul,
+    FFTFr, FFTSettings, Fr as KzgFr, G1Fp, G1GetFp, G1Mul, G1ProjAddAffine, G2Mul,
     KZGSettings, PairingVerify, Poly, Scalar256, G1, G2,
 };
 use std::hash::Hash;
@@ -720,19 +719,6 @@ impl G1GetFp<ZFp> for ZG1 {
     }
 }
 
-impl G1LinComb<ZFr, ZFp, ZG1Affine, ZG1ProjAddAffine> for ZG1 {
-    fn g1_lincomb(
-        points: &[Self],
-        scalars: &[ZFr],
-        len: usize,
-        precomputation: Option<&PrecomputationTable<ZFr, Self, ZFp, ZG1Affine, ZG1ProjAddAffine>>,
-    ) -> Self {
-        let mut out = ZG1::default();
-        g1_linear_combination(&mut out, points, scalars, len, precomputation);
-        out
-    }
-}
-
 impl PairingVerify<ZG1, ZG2> for ZG1 {
     fn verify(a1: &ZG1, a2: &ZG2, b1: &ZG1, b2: &ZG2) -> bool {
         pairings_verify(a1, a2, b1, b2)
@@ -1010,16 +996,12 @@ impl KZGSettings<ZFr, ZG1, ZG2, ZFFTSettings, PolyData, ZFp, ZG1Affine, ZG1ProjA
             return Err(String::from("Polynomial is longer than secret g1"));
         }
 
-        let mut out = ZG1::default();
-        g1_linear_combination(
-            &mut out,
+        Ok(kzg::msm::msm::<ZG1, ZFp, ZG1Affine, ZG1ProjAddAffine, ZFr>(
             &self.g1_values_monomial,
             &p.coeffs,
             p.coeffs.len(),
             None,
-        );
-
-        Ok(out)
+        ))
     }
 
     fn compute_proof_single(&self, p: &PolyData, x: &ZFr) -> Result<ZG1, String> {

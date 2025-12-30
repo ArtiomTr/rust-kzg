@@ -9,7 +9,6 @@ use crate::msm::precompute::PrecomputationTable;
 use crate::G1Affine;
 use crate::G1Fp;
 use crate::G1GetFp;
-use crate::G1LinComb;
 use crate::G1ProjAddAffine;
 use crate::{FFTSettings, Fr, G1Mul, KZGSettings, PairingVerify, Poly, G1, G2};
 use alloc::collections::BTreeMap;
@@ -255,7 +254,7 @@ macro_rules! cfg_into_iter {
 
 fn poly_to_kzg_commitment<
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
+    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -267,7 +266,7 @@ fn poly_to_kzg_commitment<
     p: &TPoly,
     s: &TKZGSettings,
 ) -> TG1 {
-    TG1::g1_lincomb(
+    crate::msm::msm::<TG1, TG1Fp, TG1Affine, TG1ProjAddAffine, TFr>(
         s.get_g1_lagrange_brp(),
         p.get_coeffs(),
         FIELD_ELEMENTS_PER_BLOB,
@@ -277,7 +276,7 @@ fn poly_to_kzg_commitment<
 
 pub fn blob_to_kzg_commitment_rust<
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine> + G1GetFp<TG1Fp>,
+    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -296,7 +295,7 @@ pub fn blob_to_kzg_commitment_rust<
 
 pub fn blob_to_kzg_commitment_raw<
     TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine> + G1GetFp<TG1Fp>,
+    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -382,8 +381,7 @@ fn verify_kzg_proof_batch<
     TG1: G1
         + G1Mul<TFr>
         + G1GetFp<TG1Fp>
-        + PairingVerify<TG1, TG2>
-        + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
+        + PairingVerify<TG1, TG2>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -406,7 +404,9 @@ fn verify_kzg_proof_batch<
     let r_powers = compute_r_powers(commitments_g1, zs_fr, ys_fr, proofs_g1)?;
 
     // Compute \sum r^i * Proof_i
-    let proof_lincomb = TG1::g1_lincomb(proofs_g1, &r_powers, n, None);
+    let proof_lincomb = crate::msm::msm::<TG1, TG1Fp, TG1Affine, TG1ProjAddAffine, TFr>(
+        proofs_g1, &r_powers, n, None,
+    );
 
     for i in 0..n {
         // Get [y_i]
@@ -418,9 +418,13 @@ fn verify_kzg_proof_batch<
     }
 
     // Get \sum r^i z_i Proof_i
-    let proof_z_lincomb = TG1::g1_lincomb(proofs_g1, &r_times_z, n, None);
+    let proof_z_lincomb = crate::msm::msm::<TG1, TG1Fp, TG1Affine, TG1ProjAddAffine, TFr>(
+        proofs_g1, &r_times_z, n, None,
+    );
     // Get \sum r^i (C_i - [y_i])
-    let c_minus_y_lincomb = TG1::g1_lincomb(&c_minus_y, &r_powers, n, None);
+    let c_minus_y_lincomb = crate::msm::msm::<TG1, TG1Fp, TG1Affine, TG1ProjAddAffine, TFr>(
+        &c_minus_y, &r_powers, n, None,
+    );
 
     // Get C_minus_y_lincomb + proof_z_lincomb
     let rhs_g1 = c_minus_y_lincomb.add_or_dbl(&proof_z_lincomb);
@@ -436,7 +440,7 @@ fn verify_kzg_proof_batch<
 
 pub fn compute_kzg_proof_rust<
     TFr: Fr + Copy,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
+    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -509,7 +513,7 @@ pub fn compute_kzg_proof_rust<
         }
     }
 
-    let proof = TG1::g1_lincomb(
+    let proof = crate::msm::msm::<TG1, TG1Fp, TG1Affine, TG1ProjAddAffine, TFr>(
         s.get_g1_lagrange_brp(),
         q.get_coeffs(),
         FIELD_ELEMENTS_PER_BLOB,
@@ -520,7 +524,7 @@ pub fn compute_kzg_proof_rust<
 
 pub fn compute_kzg_proof_raw<
     TFr: Fr + Copy,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
+    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -540,7 +544,7 @@ pub fn compute_kzg_proof_raw<
 
 pub fn compute_blob_kzg_proof_rust<
     TFr: Fr + Copy,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
+    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -564,7 +568,7 @@ pub fn compute_blob_kzg_proof_rust<
 
 pub fn compute_blob_kzg_proof_raw<
     TFr: Fr + Copy,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
+    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -738,8 +742,7 @@ pub fn verify_blob_kzg_proof_batch_rust<
     TG1: G1
         + G1Mul<TFr>
         + PairingVerify<TG1, TG2>
-        + G1GetFp<TG1Fp>
-        + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
+        + G1GetFp<TG1Fp>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,
@@ -836,8 +839,7 @@ pub fn verify_blob_kzg_proof_batch_raw<
     TG1: G1
         + G1Mul<TFr>
         + PairingVerify<TG1, TG2>
-        + G1GetFp<TG1Fp>
-        + G1LinComb<TFr, TG1Fp, TG1Affine, TG1ProjAddAffine>,
+        + G1GetFp<TG1Fp>,
     TG2: G2,
     TFFTSettings: FFTSettings<TFr>,
     TPoly: Poly<TFr>,

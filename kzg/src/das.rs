@@ -12,6 +12,8 @@ use alloc::{
     vec::Vec,
 };
 
+use crate::G1GetFp;
+use crate::G1Mul;
 use crate::G1ProjAddAffine;
 use crate::{
     cfg_iter, cfg_iter_mut,
@@ -20,7 +22,7 @@ use crate::{
         blob_to_polynomial, compute_powers, hash, hash_to_bls_field, BYTES_PER_COMMITMENT,
         BYTES_PER_FIELD_ELEMENT, BYTES_PER_PROOF,
     },
-    eth, FFTFr, FFTSettings, Fr, G1Affine, G1Fp, G1LinComb, KZGSettings, PairingVerify, Poly,
+    eth, FFTFr, FFTSettings, Fr, G1Affine, G1Fp, KZGSettings, PairingVerify, Poly,
     FFTG1, G1, G2,
 };
 
@@ -32,7 +34,8 @@ pub trait EcBackend {
     type G1Affine: G1Affine<Self::G1, Self::G1Fp>;
     type G1ProjAddAffine: G1ProjAddAffine<Self::G1, Self::G1Fp, Self::G1Affine>;
     type G1: G1
-        + G1LinComb<Self::Fr, Self::G1Fp, Self::G1Affine, Self::G1ProjAddAffine>
+        + G1Mul<Self::Fr>
+        + G1GetFp<Self::G1Fp>
         + PairingVerify<Self::G1, Self::G2>
         + Eq
         + Hash;
@@ -347,7 +350,9 @@ pub trait DAS<B: EcBackend> {
 
         let r_powers = compute_powers(&r, cell_count);
 
-        let proof_lincomb = B::G1::g1_lincomb(proofs, &r_powers, cell_count, None);
+        let proof_lincomb = crate::msm::msm::<B::G1, B::G1Fp, B::G1Affine, B::G1ProjAddAffine, B::Fr>(
+            proofs, &r_powers, cell_count, None,
+        );
 
         let final_g1_sum = compute_weighted_sum_of_commitments::<B>(
             &unique_commitments,
@@ -679,7 +684,7 @@ fn compute_fk20_proofs<B: EcBackend>(
         }
     }
 
-    let h_ext_fft = B::G1::g1_lincomb_batch(
+    let h_ext_fft = crate::msm::msm_batch::<B::G1, B::G1Fp, B::G1Affine, B::G1ProjAddAffine, B::Fr>(
         kzg_settings.get_x_ext_fft_columns(),
         &coeffs,
         kzg_settings.get_precomputation(),
@@ -734,7 +739,9 @@ fn compute_weighted_sum_of_commitments<B: EcBackend>(
         }
     }
 
-    B::G1::g1_lincomb(commitments, &commitment_weights, commitments.len(), None)
+    crate::msm::msm::<B::G1, B::G1Fp, B::G1Affine, B::G1ProjAddAffine, B::Fr>(
+        commitments, &commitment_weights, commitments.len(), None,
+    )
 }
 
 fn get_inv_coset_shift_for_cell<B: EcBackend>(
@@ -830,7 +837,7 @@ fn compute_commitment_to_aggregated_interpolation_poly<B: EcBackend>(
     }
 
     // TODO: maybe pass precomputation here?
-    Ok(B::G1::g1_lincomb(
+    Ok(crate::msm::msm::<B::G1, B::G1Fp, B::G1Affine, B::G1ProjAddAffine, B::Fr>(
         g1_monomial,
         &aggregated_interpolation_poly,
         cell_size,
@@ -897,7 +904,7 @@ fn computed_weighted_sum_of_proofs<B: EcBackend>(
         weighted_powers_of_r.push(r_powers[i].mul(&h_k_pow));
     }
 
-    Ok(B::G1::g1_lincomb(
+    Ok(crate::msm::msm::<B::G1, B::G1Fp, B::G1Affine, B::G1ProjAddAffine, B::Fr>(
         proofs,
         &weighted_powers_of_r,
         num_cells,

@@ -1,5 +1,5 @@
 use kzg::{
-    eth, EcBackend, FFTSettings, Fr, G1Affine, G1Fp, G1GetFp, G1LinComb, G1Mul, G1ProjAddAffine,
+    eth, EcBackend, FFTSettings, Fr, G1Affine, G1Fp, G1GetFp, G1Mul, G1ProjAddAffine,
     KZGSettings, Poly, G1, G2,
 };
 
@@ -31,8 +31,12 @@ pub fn trusted_setup_in_correct_form<B: EcBackend>(
         .iter()
         .map(|v| poly.eval(v))
         .collect::<Vec<_>>();
-    let left = B::G1::g1_lincomb(ks.get_g1_monomial(), poly.get_coeffs(), 8, None);
-    let right = B::G1::g1_lincomb(ks.get_g1_lagrange_brp(), &evaluations, 8, None);
+    let left = kzg::msm::msm::<B::G1, B::G1Fp, B::G1Affine, B::G1ProjAddAffine, B::Fr>(
+        ks.get_g1_monomial(), poly.get_coeffs(), 8, None
+    ).unwrap();
+    let right = kzg::msm::msm::<B::G1, B::G1Fp, B::G1Affine, B::G1ProjAddAffine, B::Fr>(
+        ks.get_g1_lagrange_brp(), &evaluations, 8, None
+    ).unwrap();
 
     assert_eq!(left, right);
 }

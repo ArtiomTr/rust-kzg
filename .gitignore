@@ -2,3 +2,4 @@
 .directory
 target
 benchmark_script/output
+.claude/settings.local.json

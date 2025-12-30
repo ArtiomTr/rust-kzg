@@ -1,40 +1,45 @@
+//! BGMW (Bos-Coster Multi-Window) MSM Implementation
+//!
+//! This module provides a fixed-base MSM algorithm using precomputed tables.
+//! The algorithm decomposes scalars into q-ary representation and uses
+//! bucket accumulation with Booth encoding.
+
 use core::marker::PhantomData;
 
+use alloc::vec;
+use alloc::vec::Vec;
+
 use crate::{
-    msm::tiling_pippenger_ops::p1_integrate_buckets, Fr, G1Affine, G1Fp, G1GetFp, G1Mul,
-    G1ProjAddAffine, Scalar256, G1,
+    msm::{
+        pippenger::p1_integrate_buckets,
+        utils::{booth_decode, booth_encode, get_wval_limb, is_zero, num_bits, P1XYZZ},
+        FixedBaseMSM,
+    },
+    Fr, G1Affine, G1Fp, G1GetFp, G1Mul, G1ProjAddAffine, Scalar256, G1,
 };
-
-use super::pippenger_utils::{
-    booth_decode, booth_encode, get_wval_limb, is_zero, num_bits, P1XYZZ,
-};
-
-#[derive(Debug, Clone)]
-pub struct BgmwTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
-where
-    TFr: Fr,
-    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
-    TG1Fp: G1Fp,
-    TG1Affine: G1Affine<TG1, TG1Fp>,
-    TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
-{
-    window: BgmwWindow,
-    points: Vec<TG1Affine>,
-    numpoints: usize,
-    h: usize,
-
-    batch_window: BgmwWindow,
-    batch_points: Vec<Vec<TG1Affine>>,
-    batch_numpoints: usize,
-    batch_h: usize,
-
-    g1_marker: PhantomData<TG1>,
-    g1_fp_marker: PhantomData<TG1Fp>,
-    fr_marker: PhantomData<TFr>,
-    g1_affine_add_marker: PhantomData<TG1ProjAddAffine>,
-}
 
 const NBITS: usize = 255;
+
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+
+/// Configuration for BGMW MSM.
+#[derive(Debug, Clone, Copy)]
+pub struct BgmwConfig {
+    /// Override window size. If None, automatically calculated based on point count.
+    pub window_size: Option<usize>,
+}
+
+impl Default for BgmwConfig {
+    fn default() -> Self {
+        Self { window_size: None }
+    }
+}
+
+// ============================================================================
+// WINDOW HANDLING
+// ============================================================================
 
 #[cfg(feature = "parallel")]
 #[derive(Debug, Clone, Copy)]
@@ -86,20 +91,14 @@ const fn get_sequential_window_size(window: BgmwWindow) -> usize {
     }
 }
 
-/// Function, which approximates minimum of this function:
-/// y = ceil(255/w) * (npoints) + 2^w - 2
-/// This function is number of additions and doublings required to compute msm using Pippenger algorithm, with BGMW
-/// precomputation table.
-/// Parts of this function:
-///   ceil(255/w) - how many parts will be in decomposed scalar. Scalar width is 255 bits, so converting it into q-ary
-///                 representation, will produce 255/w parts. q-ary representation, where q = 2^w, for scalar a is:
-///                 a = a_1 + a_2 * q + ... + a_n * q^(ceil(255/w)).
-///   npoints     - each scalar must be assigned to a bucket (bucket accumulation). Assigning point to bucket means
-///                 adding it to existing point in bucket - hence, the addition.
-///   2^w - 2     - computing total bucket sum (bucket aggregation). Total number of buckets (scratch size) is 2^(w-1).
-///                 Adding each point to total bucket sum requires 2 point addition operations, so 2 * 2^(w-1) = 2^w.
-#[allow(unused)]
-fn bgmw_window_size(npoints: usize) -> usize {
+/// Calculate optimal window size for BGMW.
+///
+/// Approximates minimum of: y = ceil(255/w) * npoints + 2^w - 2
+fn bgmw_window_size(npoints: usize, config: &BgmwConfig) -> usize {
+    if let Some(window) = config.window_size {
+        return window;
+    }
+
     option_env!("WINDOW_SIZE")
         .map(|v| {
             v.parse()
@@ -108,7 +107,7 @@ fn bgmw_window_size(npoints: usize) -> usize {
         .unwrap_or({
             let wbits = num_bits(npoints);
 
-            match (wbits) {
+            match wbits {
                 1 => 4,
                 2..=3 => 5,
                 4 => 6,
@@ -136,17 +135,23 @@ fn bgmw_window_size(npoints: usize) -> usize {
 
 #[cfg(feature = "parallel")]
 #[allow(clippy::option_env_unwrap)]
-fn bgmw_parallel_window_size(npoints: usize, ncpus: usize) -> (usize, usize, usize) {
+fn bgmw_parallel_window_size(
+    npoints: usize,
+    ncpus: usize,
+    config: &BgmwConfig,
+) -> (usize, usize, usize) {
     option_env!("WINDOW_NX")
         .and_then(|v| v.parse().ok())
         .map(|nx| {
-            let wnd = option_env!("WINDOW_SIZE")
-                .expect(
-                    "Unable to use BGMW: when specifying WINDOW_NX environment \
-            variable, please also specify WINDOW_SIZE",
-                )
-                .parse()
-                .expect("WINDOW_SIZE environment variable must be valid number");
+            let wnd = config.window_size.unwrap_or_else(|| {
+                option_env!("WINDOW_SIZE")
+                    .expect(
+                        "Unable to use BGMW: when specifying WINDOW_NX environment \
+                        variable, please also specify WINDOW_SIZE",
+                    )
+                    .parse()
+                    .expect("WINDOW_SIZE environment variable must be valid number")
+            });
 
             (
                 nx,
@@ -169,12 +174,11 @@ fn bgmw_parallel_window_size(npoints: usize, ncpus: usize) -> (usize, usize, usi
             }
 
             let mut mult = 1;
-
             let mut opt_x = 1;
 
             while mult <= 8 {
                 let nx = ncpus * mult;
-                let wnd = bgmw_window_size(npoints / nx);
+                let wnd = bgmw_window_size(npoints / nx, config);
 
                 let ops = mult * 255usize.div_ceil(wnd) * npoints.div_ceil(nx) + (1 << wnd) - 2;
 
@@ -195,6 +199,100 @@ fn bgmw_parallel_window_size(npoints: usize, ncpus: usize) -> (usize, usize, usi
         })
 }
 
+// ============================================================================
+// BGMW TABLE
+// ============================================================================
+
+/// BGMW precomputation table for fixed-base MSM.
+#[derive(Debug, Clone)]
+pub struct BgmwTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
+where
+    TFr: Fr,
+    TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+    TG1Fp: G1Fp,
+    TG1Affine: G1Affine<TG1, TG1Fp>,
+    TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
+{
+    window: BgmwWindow,
+    points: Vec<TG1Affine>,
+    numpoints: usize,
+    h: usize,
+
+    // Legacy: batch tables for backward compatibility (will be removed)
+    batch_tables: Option<Vec<(Vec<TG1Affine>, usize, usize, BgmwWindow)>>,
+
+    // Use fn() -> T pattern to avoid requiring Send/Sync bounds on phantom types
+    _phantom: PhantomData<fn() -> (TG1, TG1Fp, TFr, TG1ProjAddAffine)>,
+}
+
+impl<
+        TFr: Fr,
+        TG1Fp: G1Fp,
+        TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+        TG1Affine: G1Affine<TG1, TG1Fp>,
+        TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
+    > FixedBaseMSM<TFr, TG1, TG1Fp, TG1Affine>
+    for BgmwTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
+{
+    type Config = BgmwConfig;
+
+    fn new(config: Self::Config, bases: &[TG1]) -> Result<Self, alloc::string::String> {
+        let window = Self::compute_window(bases.len(), &config);
+        let (window_width, h) = get_table_dimensions(window);
+
+        let mut table: Vec<TG1Affine> = Vec::new();
+        let q = TFr::from_u64(1u64 << window_width);
+
+        table
+            .try_reserve_exact(bases.len() * h)
+            .map_err(|_| "BGMW precomputation table is too large".to_string())?;
+
+        unsafe { table.set_len(bases.len() * h) };
+
+        for i in 0..bases.len() {
+            let mut tmp_point = bases[i].clone();
+            for j in 0..h {
+                let idx = j * bases.len() + i;
+                table[idx] = TG1Affine::into_affine(&tmp_point);
+                tmp_point = tmp_point.mul(&q);
+            }
+        }
+
+        Ok(Self {
+            numpoints: bases.len(),
+            points: table,
+            window,
+            h,
+            batch_tables: None,
+            _phantom: PhantomData,
+        })
+    }
+
+    fn multiply(&self, scalars: &[TFr]) -> TG1 {
+        #[cfg(feature = "parallel")]
+        {
+            if let BgmwWindow::Parallel(_) = self.window {
+                return self.multiply_parallel_impl(scalars);
+            }
+        }
+        self.multiply_sequential(scalars)
+    }
+
+    fn multiply_sequential(&self, scalars: &[TFr]) -> TG1 {
+        let window = get_sequential_window_size(self.window);
+        let mut buckets = vec![P1XYZZ::<TG1Fp>::default(); 1 << (window - 1)];
+
+        Self::multiply_sequential_raw(
+            &self.points,
+            scalars,
+            &mut buckets,
+            window,
+            self.numpoints,
+            self.h,
+        )
+    }
+}
+
 impl<
         TFr: Fr,
         TG1Fp: G1Fp,
@@ -203,179 +301,24 @@ impl<
         TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
     > BgmwTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
 {
-    pub fn new(points: &[TG1], matrix: &[Vec<TG1>]) -> Result<Option<Self>, String> {
-        let window = Self::window(points.len());
-
-        let (window_width, h) = get_table_dimensions(window);
-
-        let mut table: Vec<TG1Affine> = Vec::new();
-        let q = TFr::from_u64(1u64 << window_width);
-
-        table
-            .try_reserve_exact(points.len() * h)
-            .map_err(|_| "BGMW precomputation table is too large".to_string())?;
-
-        unsafe { table.set_len(points.len() * h) };
-
-        for i in 0..points.len() {
-            let mut tmp_point = points[i].clone();
-            for j in 0..h {
-                let idx = j * points.len() + i;
-                table[idx] = TG1Affine::into_affine(&tmp_point);
-                tmp_point = tmp_point.mul(&q);
-            }
-        }
-
-        if matrix.is_empty() {
-            Ok(Some(Self {
-                numpoints: points.len(),
-                points: table,
-                window,
-                h,
-
-                batch_window: {
-                    #[cfg(feature = "parallel")]
-                    let w = BgmwWindow::Sync(0);
-
-                    #[cfg(not(feature = "parallel"))]
-                    let w = 0;
-
-                    w
-                },
-                batch_numpoints: 0,
-                batch_points: Vec::new(),
-                batch_h: 0,
-
-                fr_marker: PhantomData,
-                g1_fp_marker: PhantomData,
-                g1_marker: PhantomData,
-                g1_affine_add_marker: PhantomData,
-            }))
-        } else {
-            let batch_numpoints = matrix[0].len();
-            let batch_window = Self::sequential_window(batch_numpoints);
-            let (batch_window_width, batch_h) = get_table_dimensions(batch_window);
-            let batch_q = TFr::from_u64(1u64 << batch_window_width);
-
-            let mut batch_points = Vec::new();
-            batch_points
-                .try_reserve_exact(matrix.len())
-                .map_err(|_| "BGMW precomputation table is too large".to_owned())?;
-
-            for row in matrix {
-                let mut temp_table = Vec::new();
-                temp_table
-                    .try_reserve_exact(row.len() * batch_h)
-                    .map_err(|_| "BGMW precomputation table is too large".to_owned())?;
-
-                unsafe {
-                    temp_table.set_len(temp_table.capacity());
-                }
-
-                for i in 0..row.len() {
-                    let mut tmp_point = row[i].clone();
-                    for j in 0..batch_h {
-                        let idx = j * row.len() + i;
-                        temp_table[idx] = TG1Affine::into_affine(&tmp_point);
-                        tmp_point = tmp_point.mul(&batch_q);
-                    }
-                }
-
-                batch_points.push(temp_table);
-            }
-
-            Ok(Some(Self {
-                numpoints: points.len(),
-                points: table,
-                window,
-                h,
-
-                batch_window,
-                batch_numpoints,
-                batch_points,
-                batch_h,
-
-                fr_marker: PhantomData,
-                g1_fp_marker: PhantomData,
-                g1_marker: PhantomData,
-                g1_affine_add_marker: PhantomData,
-            }))
-        }
-    }
-
-    pub fn multiply_batch(&self, scalars: &[Vec<TFr>]) -> Vec<TG1> {
-        assert!(scalars.len() == self.batch_points.len());
-
-        #[cfg(not(feature = "parallel"))]
-        {
-            let window = get_sequential_window_size(self.batch_window);
-            let mut buckets = vec![P1XYZZ::<TG1Fp>::default(); 1 << (window - 1)];
-
-            self.batch_points
-                .iter()
-                .zip(scalars)
-                .map(|(points, scalars)| {
-                    Self::multiply_sequential_raw(
-                        points,
-                        scalars,
-                        &mut buckets,
-                        window,
-                        self.batch_numpoints,
-                        self.batch_h,
-                    )
-                })
-                .collect::<Vec<_>>()
-        }
-
+    fn compute_window(npoints: usize, config: &BgmwConfig) -> BgmwWindow {
         #[cfg(feature = "parallel")]
         {
-            use super::{
-                cell::Cell,
-                thread_pool::{da_pool, ThreadPoolExt},
-            };
-            use core::sync::atomic::{AtomicUsize, Ordering};
-            use std::sync::Arc;
-
-            let window = get_sequential_window_size(self.batch_window);
+            use super::thread_pool::da_pool;
 
             let pool = da_pool();
             let ncpus = pool.max_count();
-            let counter = Arc::new(AtomicUsize::new(0));
-            let mut results: Vec<Cell<TG1>> = Vec::with_capacity(scalars.len());
-            #[allow(clippy::uninit_vec)]
-            unsafe {
-                results.set_len(results.capacity())
-            };
-            let results = &results[..];
 
-            for _ in 0..ncpus {
-                let counter = counter.clone();
-                pool.joined_execute(move || {
-                    let mut buckets = vec![P1XYZZ::<TG1Fp>::default(); 1 << (window - 1)];
-
-                    loop {
-                        let work = counter.fetch_add(1, Ordering::Relaxed);
-
-                        if work >= scalars.len() {
-                            break;
-                        }
-
-                        let result = Self::multiply_sequential_raw(
-                            &self.batch_points[work],
-                            &scalars[work],
-                            &mut buckets,
-                            window,
-                            self.batch_numpoints,
-                            self.batch_h,
-                        );
-                        unsafe { *results[work].as_ptr().as_mut().unwrap() = result };
-                    }
-                });
+            if npoints >= 32 && ncpus >= 2 {
+                BgmwWindow::Parallel(bgmw_parallel_window_size(npoints, ncpus, config))
+            } else {
+                BgmwWindow::Sync(bgmw_window_size(npoints, config))
             }
+        }
 
-            pool.join();
-
-            results.iter().map(|it| it.as_mut().clone()).collect()
+        #[cfg(not(feature = "parallel"))]
+        {
+            bgmw_window_size(npoints, config)
         }
     }
 
@@ -423,26 +366,12 @@ impl<
         ret
     }
 
-    pub fn multiply_sequential(&self, scalars: &[TFr]) -> TG1 {
-        let window = get_sequential_window_size(self.window);
-        let mut buckets = vec![P1XYZZ::<TG1Fp>::default(); 1 << (window - 1)];
-
-        Self::multiply_sequential_raw(
-            &self.points,
-            scalars,
-            &mut buckets,
-            window,
-            self.numpoints,
-            self.h,
-        )
-    }
-
     #[cfg(feature = "parallel")]
-    pub fn multiply_parallel(&self, scalars: &[TFr]) -> TG1 {
+    fn multiply_parallel_impl(&self, scalars: &[TFr]) -> TG1 {
         use super::{
             cell::Cell,
+            pippenger::tiling_pippenger,
             thread_pool::{da_pool, ThreadPoolExt},
-            tiling_pippenger_ops::tiling_pippenger,
         };
         use core::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::{mpsc, Arc};
@@ -557,46 +486,233 @@ impl<
         let mut ret = TG1::zero();
         for _ in 0..n_workers {
             let idx = rx.recv().unwrap();
-
             ret.add_or_dbl_assign(results[idx].as_mut());
         }
         ret
     }
+}
 
-    fn window(npoints: usize) -> BgmwWindow {
-        #[cfg(feature = "parallel")]
-        {
-            use super::thread_pool::da_pool;
+// ============================================================================
+// LEGACY COMPATIBILITY
+// These methods maintain backward compatibility during the transition period.
+// They will be removed after all callers are updated to use the new trait API.
+// ============================================================================
 
-            let pool = da_pool();
-            let ncpus = pool.max_count();
+impl<
+        TFr: Fr,
+        TG1Fp: G1Fp,
+        TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+        TG1Affine: G1Affine<TG1, TG1Fp>,
+        TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
+    > BgmwTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
+{
+    /// Legacy constructor for backward compatibility with precompute.rs.
+    ///
+    /// Creates a precomputation table from points (single base) and matrix (batch bases).
+    ///
+    /// # Deprecated
+    /// Use `FixedBaseMSM::new(config, bases)` for single-base MSM.
+    /// For batch operations, BatchFixedBaseMSM will be available in a future update.
+    #[allow(clippy::type_complexity)]
+    pub fn new(
+        points: &[TG1],
+        matrix: &[Vec<TG1>],
+    ) -> Result<Option<Self>, alloc::string::String> {
+        let config = BgmwConfig::default();
 
-            if npoints >= 32 && ncpus >= 2 {
-                BgmwWindow::Parallel(bgmw_parallel_window_size(npoints, ncpus))
-            } else {
-                BgmwWindow::Sync(bgmw_window_size(npoints))
+        // Create main table for single base
+        let window = Self::compute_window(points.len(), &config);
+        let (window_width, h) = get_table_dimensions(window);
+
+        let mut table: Vec<TG1Affine> = Vec::new();
+        let q = TFr::from_u64(1u64 << window_width);
+
+        table
+            .try_reserve_exact(points.len() * h)
+            .map_err(|_| "BGMW precomputation table is too large".to_string())?;
+
+        unsafe { table.set_len(points.len() * h) };
+
+        for i in 0..points.len() {
+            let mut tmp_point = points[i].clone();
+            for j in 0..h {
+                let idx = j * points.len() + i;
+                table[idx] = TG1Affine::into_affine(&tmp_point);
+                tmp_point = tmp_point.mul(&q);
             }
         }
 
+        // Create batch tables if matrix is non-empty
+        let batch_tables = if matrix.is_empty() {
+            None
+        } else {
+            let mut batch = Vec::with_capacity(matrix.len());
+            for row in matrix {
+                let batch_window = Self::compute_window(row.len(), &config);
+                let (batch_window_width, batch_h) = get_table_dimensions(batch_window);
+
+                let mut batch_table: Vec<TG1Affine> = Vec::new();
+                let batch_q = TFr::from_u64(1u64 << batch_window_width);
+
+                batch_table
+                    .try_reserve_exact(row.len() * batch_h)
+                    .map_err(|_| "BGMW batch precomputation table is too large".to_string())?;
+
+                unsafe { batch_table.set_len(row.len() * batch_h) };
+
+                for i in 0..row.len() {
+                    let mut tmp_point = row[i].clone();
+                    for j in 0..batch_h {
+                        let idx = j * row.len() + i;
+                        batch_table[idx] = TG1Affine::into_affine(&tmp_point);
+                        tmp_point = tmp_point.mul(&batch_q);
+                    }
+                }
+
+                batch.push((batch_table, row.len(), batch_h, batch_window));
+            }
+            Some(batch)
+        };
+
+        Ok(Some(Self {
+            numpoints: points.len(),
+            points: table,
+            window,
+            h,
+            batch_tables,
+            _phantom: PhantomData,
+        }))
+    }
+
+    /// Legacy multiply_sequential - delegates to trait method.
+    ///
+    /// Prefer importing `FixedBaseMSM` and using the trait method directly.
+    pub fn multiply_sequential(&self, scalars: &[TFr]) -> TG1 {
+        <Self as FixedBaseMSM<TFr, TG1, TG1Fp, TG1Affine>>::multiply_sequential(self, scalars)
+    }
+
+    /// Legacy multiply_parallel - delegates to multiply method.
+    ///
+    /// Prefer importing `FixedBaseMSM` and using `multiply()` directly.
+    #[cfg(feature = "parallel")]
+    pub fn multiply_parallel(&self, scalars: &[TFr]) -> TG1 {
+        <Self as FixedBaseMSM<TFr, TG1, TG1Fp, TG1Affine>>::multiply(self, scalars)
+    }
+
+    /// Legacy batch multiplication.
+    ///
+    /// For new code, use `BatchFixedBaseMSM` (coming in a future update).
+    pub fn multiply_batch(&self, scalars: &[Vec<TFr>]) -> Vec<TG1> {
+        let batch_tables = self
+            .batch_tables
+            .as_ref()
+            .expect("multiply_batch called but no batch tables were created");
+
+        assert_eq!(
+            batch_tables.len(),
+            scalars.len(),
+            "Batch size mismatch: expected {} rows, got {}",
+            batch_tables.len(),
+            scalars.len()
+        );
+
+        #[cfg(feature = "parallel")]
+        {
+            use super::thread_pool::{da_pool, ThreadPoolExt};
+            use core::sync::atomic::{AtomicUsize, Ordering};
+            use std::sync::{mpsc, Arc};
+
+            use super::cell::Cell;
+
+            let pool = da_pool();
+            let ncpus = pool.max_count();
+            let total = scalars.len();
+
+            if ncpus <= 1 || total < 2 {
+                return self.multiply_batch_sequential(scalars, batch_tables);
+            }
+
+            let counter = Arc::new(AtomicUsize::new(0));
+            let (tx, rx) = mpsc::channel();
+            let n_workers = core::cmp::min(ncpus, total);
+
+            let mut results: Vec<Cell<TG1>> = Vec::with_capacity(total);
+            #[allow(clippy::uninit_vec)]
+            unsafe {
+                results.set_len(results.capacity());
+            }
+
+            let results = &results[..];
+
+            for _ in 0..n_workers {
+                let tx = tx.clone();
+                let counter = counter.clone();
+
+                pool.joined_execute(move || {
+                    loop {
+                        let work = counter.fetch_add(1, Ordering::Relaxed);
+                        if work >= total {
+                            break;
+                        }
+
+                        let (ref batch_points, numpoints, h, batch_window) = batch_tables[work];
+                        let window = get_sequential_window_size(batch_window);
+                        let mut buckets = vec![P1XYZZ::<TG1Fp>::default(); 1 << (window - 1)];
+
+                        let result = Self::multiply_sequential_raw(
+                            batch_points,
+                            &scalars[work],
+                            &mut buckets,
+                            window,
+                            numpoints,
+                            h,
+                        );
+
+                        unsafe {
+                            *results[work].as_ptr().as_mut().unwrap() = result;
+                        }
+                    }
+                    tx.send(()).expect("Failed to send completion signal");
+                });
+            }
+
+            for _ in 0..n_workers {
+                rx.recv().unwrap();
+            }
+
+            results.iter().map(|c| c.as_mut().clone()).collect()
+        }
+
         #[cfg(not(feature = "parallel"))]
         {
-            bgmw_window_size(npoints)
+            self.multiply_batch_sequential(scalars, batch_tables)
         }
     }
 
-    fn sequential_window(npoints: usize) -> BgmwWindow {
-        #[cfg(feature = "parallel")]
-        {
-            BgmwWindow::Sync(bgmw_window_size(npoints))
-        }
-
-        #[cfg(not(feature = "parallel"))]
-        {
-            bgmw_window_size(npoints)
-        }
+    fn multiply_batch_sequential(
+        &self,
+        scalars: &[Vec<TFr>],
+        batch_tables: &[(Vec<TG1Affine>, usize, usize, BgmwWindow)],
+    ) -> Vec<TG1> {
+        batch_tables
+            .iter()
+            .zip(scalars.iter())
+            .map(|((batch_points, numpoints, h, batch_window), scalars)| {
+                let window = get_sequential_window_size(*batch_window);
+                let mut buckets = vec![P1XYZZ::<TG1Fp>::default(); 1 << (window - 1)];
+                Self::multiply_sequential_raw(batch_points, scalars, &mut buckets, window, *numpoints, *h)
+            })
+            .collect()
     }
 }
 
+// ============================================================================
+// TILE PROCESSING
+// ============================================================================
+
+/// Process a tile in the BGMW algorithm.
+///
+/// Moves points to buckets based on their scalar window values using Booth encoding.
 #[allow(clippy::too_many_arguments)]
 pub fn p1_tile_bgmw<TG1: G1 + G1GetFp<TFp>, TFp: G1Fp, TG1Affine: G1Affine<TG1, TFp>>(
     points: &[TG1Affine],
@@ -619,11 +735,7 @@ pub fn p1_tile_bgmw<TG1: G1 + G1GetFp<TFp>, TFp: G1Fp, TG1Affine: G1Affine<TG1, 
     // Create mask, that contains `wbits` ones at the end.
     let wmask = (1u64 << (wbits + 1)) - 1;
 
-    /*
-     * Check if `bit0` is zero. `z` is set to `1` when `bit0 = 0`, and `0` otherwise.
-     *
-     * The `z` flag is used to do a small trick -
-     */
+    // Check if `bit0` is zero. `z` is set to `1` when `bit0 = 0`, and `0` otherwise.
     let z = is_zero(bit0.try_into().unwrap());
 
     // Offset `bit0` by 1, if it is not equal to zero.
@@ -665,15 +777,10 @@ pub fn p1_tile_bgmw<TG1: G1 + G1GetFp<TFp>, TFp: G1Fp, TG1Affine: G1Affine<TG1, 
         wnxt = (get_wval_limb(scalar, bit0, wbits) << z) & wmask;
         wnxt = booth_encode(wnxt, cbits);
 
-        // TODO: add prefetching
-        // POINTonE1_prefetch(buckets, wnxt, cbits);
-        // p1_prefetch(buckets, wnxt, cbits);
-
         // Get current point
         let point = &points[i];
 
         // Move point to corresponding bucket (add or subtract from bucket)
-        // `wval` contains encoded bucket index, as well as sign, which shows if point should be subtracted or added to bucket
         booth_decode(buckets, wval, cbits, point);
     }
     // Get last point

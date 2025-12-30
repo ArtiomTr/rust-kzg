@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-use alloc::{borrow::ToOwned, string::String, vec::Vec};
+use alloc::{string::String, vec::Vec};
 use arbitrary::Arbitrary;
 use core::fmt::Debug;
 use msm::precompute::PrecomputationTable;
@@ -137,47 +137,6 @@ pub trait G1GetFp<TFp: G1Fp>: G1 + Clone {
 
 pub trait G1Mul<TFr: Fr>: G1 + Clone {
     fn mul(&self, b: &TFr) -> Self;
-}
-
-pub trait G1LinComb<
-    TFr: Fr,
-    TG1Fp: G1Fp,
-    TG1Affine: G1Affine<Self, TG1Fp>,
-    TG1ProjAddAffine: G1ProjAddAffine<Self, TG1Fp, TG1Affine>,
->: G1 + G1Mul<TFr> + G1GetFp<TG1Fp> + Clone
-{
-    fn g1_lincomb(
-        points: &[Self],
-        scalars: &[TFr],
-        len: usize,
-        precomputation: Option<&PrecomputationTable<TFr, Self, TG1Fp, TG1Affine, TG1ProjAddAffine>>,
-    ) -> Self;
-
-    fn g1_lincomb_batch(
-        points: &[Vec<Self>],
-        scalars: &[Vec<TFr>],
-        precomputation: Option<&PrecomputationTable<TFr, Self, TG1Fp, TG1Affine, TG1ProjAddAffine>>,
-    ) -> Result<Vec<Self>, String> {
-        if points.len() != scalars.len() {
-            return Err("Invalid batch size".to_owned());
-        }
-
-        if let Some(precomputation) = precomputation {
-            Ok(precomputation.multiply_batch(scalars))
-        } else {
-            let mut result = Vec::new();
-
-            for (points, scalars) in points.iter().zip(scalars.iter()) {
-                if points.len() != scalars.len() {
-                    return Err("Invalid point count length".to_owned());
-                }
-
-                result.push(Self::g1_lincomb(points, scalars, points.len(), None));
-            }
-
-            Ok(result)
-        }
-    }
 }
 
 pub trait G1Fp: Clone + Default + Sync + Copy + PartialEq + Debug + Send {

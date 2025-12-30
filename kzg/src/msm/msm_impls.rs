@@ -1,14 +1,17 @@
-use crate::{Fr, G1Affine, G1Fp, G1GetFp, G1Mul, G1ProjAddAffine, G1};
+use alloc::borrow::ToOwned;
+use alloc::string::String;
 use alloc::vec::Vec;
+
+use crate::{Fr, G1Affine, G1Fp, G1GetFp, G1Mul, G1ProjAddAffine, G1};
 
 #[cfg(all(feature = "arkmsm", not(feature = "parallel")))]
 use super::arkmsm::arkmsm_msm::VariableBaseMSM;
 use super::precompute::PrecomputationTable;
 
-use super::tiling_pippenger_ops::tiling_pippenger;
+use super::pippenger::tiling_pippenger;
 
 #[cfg(feature = "parallel")]
-use super::tiling_parallel_pippenger::{parallel_affine_conv, tiling_parallel_pippenger};
+use super::pippenger::{parallel_affine_conv, tiling_parallel_pippenger};
 
 #[cfg(feature = "parallel")]
 fn msm_parallel<
@@ -145,4 +148,46 @@ pub fn msm<
         &scalars[0..len],
         precomputation,
     );
+}
+
+/// Batch MSM operation - computes multiple MSMs in parallel
+///
+/// If precomputation is provided, uses precomputed tables for efficient batch computation.
+/// Otherwise, falls back to individual MSMs.
+#[allow(clippy::extra_unused_type_parameters)]
+pub fn msm_batch<
+    TG1: G1 + G1GetFp<TG1Fp> + G1Mul<TFr>,
+    TG1Fp: G1Fp,
+    TG1Affine: G1Affine<TG1, TG1Fp>,
+    TProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
+    TFr: Fr,
+>(
+    points: &[Vec<TG1>],
+    scalars: &[Vec<TFr>],
+    precomputation: Option<&PrecomputationTable<TFr, TG1, TG1Fp, TG1Affine, TProjAddAffine>>,
+) -> Result<Vec<TG1>, String> {
+    if points.len() != scalars.len() {
+        return Err("Invalid batch size".to_owned());
+    }
+
+    if let Some(precomputation) = precomputation {
+        Ok(precomputation.multiply_batch(scalars))
+    } else {
+        let mut result = Vec::new();
+
+        for (points, scalars) in points.iter().zip(scalars.iter()) {
+            if points.len() != scalars.len() {
+                return Err("Invalid point count length".to_owned());
+            }
+
+            result.push(msm::<TG1, TG1Fp, TG1Affine, TProjAddAffine, TFr>(
+                points,
+                scalars,
+                points.len(),
+                None,
+            ));
+        }
+
+        Ok(result)
+    }
 }

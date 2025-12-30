@@ -7,15 +7,11 @@ use arbitrary::Arbitrary;
 use constantine::ctt_codec_ecc_status;
 use kzg::eth::c_bindings::blst_fp;
 use kzg::eth::c_bindings::blst_p1;
-use kzg::msm::precompute::PrecomputationTable;
-use kzg::G1LinComb;
 
 use core::{
     fmt::{Debug, Formatter},
     hash::Hash,
 };
-
-use crate::kzg_proofs::g1_linear_combination;
 use crate::types::fp::CtFp;
 use crate::types::fr::CtFr;
 
@@ -269,21 +265,6 @@ impl G1Mul<CtFr> for CtG1 {
             constantine::ctt_bls12_381_g1_jac_scalar_mul_fr_coef(&mut result.0, &b.0);
         }
         result
-    }
-}
-
-impl G1LinComb<CtFr, CtFp, CtG1Affine, CtG1ProjAddAffine> for CtG1 {
-    fn g1_lincomb(
-        points: &[Self],
-        scalars: &[CtFr],
-        len: usize,
-        precomputation: Option<
-            &PrecomputationTable<CtFr, Self, CtFp, CtG1Affine, CtG1ProjAddAffine>,
-        >,
-    ) -> Self {
-        let mut out = CtG1::default();
-        g1_linear_combination(&mut out, points, scalars, len, precomputation);
-        out
     }
 }
 

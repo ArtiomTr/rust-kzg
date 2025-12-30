@@ -32,7 +32,7 @@ use kzg::common_utils::reverse_bit_order;
 use kzg::msm::precompute::{precompute, PrecomputationTable};
 use kzg::{
     eth, FFTFr, FFTSettings, FFTSettingsPoly, Fr as KzgFr, G1Affine as G1AffineTrait, G1Fp,
-    G1GetFp, G1LinComb, G1Mul, G1ProjAddAffine, G2Mul, KZGSettings, PairingVerify, Poly, Scalar256,
+    G1GetFp, G1Mul, G1ProjAddAffine, G2Mul, KZGSettings, PairingVerify, Poly, Scalar256,
     G1, G2,
 };
 use std::ops::{AddAssign, Mul, Neg, Sub};
@@ -406,21 +406,6 @@ impl G1Mul<ArkFr> for ArkG1 {
     }
 }
 
-impl G1LinComb<ArkFr, ArkFp, ArkG1Affine, ArkG1ProjAddAffine> for ArkG1 {
-    fn g1_lincomb(
-        points: &[Self],
-        scalars: &[ArkFr],
-        len: usize,
-        precomputation: Option<
-            &PrecomputationTable<ArkFr, Self, ArkFp, ArkG1Affine, ArkG1ProjAddAffine>,
-        >,
-    ) -> Self {
-        let mut out = Self::default();
-        g1_linear_combination(&mut out, points, scalars, len, precomputation);
-        out
-    }
-}
-
 impl PairingVerify<ArkG1, ArkG2> for ArkG1 {
     fn verify(a1: &ArkG1, a2: &ArkG2, b1: &ArkG1, b2: &ArkG2) -> bool {
         pairings_verify(a1, a2, b1, b2)
@@ -725,16 +710,12 @@ impl
             return Err(String::from("Polynomial is longer than secret g1"));
         }
 
-        let mut out = ArkG1::default();
-        g1_linear_combination(
-            &mut out,
+        Ok(kzg::msm::msm::<ArkG1, ArkFp, ArkG1Affine, ArkG1ProjAddAffine, ArkFr>(
             &self.g1_values_monomial,
             &p.coeffs,
             p.coeffs.len(),
             None,
-        );
-
-        Ok(out)
+        ))
     }
 
     fn compute_proof_single(&self, p: &PolyData, x: &ArkFr) -> Result<ArkG1, String> {

@@ -15,12 +15,11 @@ use blst::{
 };
 use core::{hash::Hash, ptr};
 use kzg::{
-    common_utils::log_2_byte, eip_4844::BYTES_PER_G1, msm::precompute::PrecomputationTable,
-    G1Affine, G1GetFp, G1LinComb, G1Mul, G1ProjAddAffine, G1,
+    common_utils::log_2_byte, eip_4844::BYTES_PER_G1,
+    G1Affine, G1GetFp, G1Mul, G1ProjAddAffine, G1,
 };
 
 use crate::consts::{G1_GENERATOR, G1_IDENTITY, G1_NEGATIVE_GENERATOR};
-use crate::kzg_proofs::g1_linear_combination;
 use crate::types::fr::FsFr;
 
 use super::fp::FsFp;
@@ -269,21 +268,6 @@ impl G1Mul<FsFr> for FsG1 {
             }
         }
         result
-    }
-}
-
-impl G1LinComb<FsFr, FsFp, FsG1Affine, FsG1ProjAddAffine> for FsG1 {
-    fn g1_lincomb(
-        points: &[Self],
-        scalars: &[FsFr],
-        len: usize,
-        precomputation: Option<
-            &PrecomputationTable<FsFr, Self, FsFp, FsG1Affine, FsG1ProjAddAffine>,
-        >,
-    ) -> Self {
-        let mut out = FsG1::default();
-        g1_linear_combination(&mut out, points, scalars, len, precomputation);
-        out
     }
 }
 

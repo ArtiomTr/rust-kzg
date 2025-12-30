@@ -1,10 +1,64 @@
-/// This algorithm is taken from https://github.com/crate-crypto/rust-eth-kzg
+//! Wbits MSM Implementation
+//!
+//! This algorithm is taken from https://github.com/crate-crypto/rust-eth-kzg
+//!
+//! Provides a fixed-base MSM using window-based precomputed tables with Booth encoding.
+
+use alloc::string::String;
+use alloc::vec;
+use alloc::vec::Vec;
 use core::{marker::PhantomData, ops::Neg};
 
-use crate::{Fr, G1Affine, G1Fp, G1GetFp, G1Mul, G1ProjAddAffine, G1};
+use crate::{
+    msm::FixedBaseMSM,
+    Fr, G1Affine, G1Fp, G1GetFp, G1Mul, G1ProjAddAffine, G1,
+};
 
 #[cfg(feature = "diskcache")]
 use crate::msm::diskcache::DiskCache;
+
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+
+/// Configuration for Wbits MSM.
+#[derive(Debug, Clone, Copy)]
+pub struct WbitsConfig {
+    /// Override window size. If None, uses WINDOW_SIZE env var or default (8).
+    pub window_size: Option<usize>,
+}
+
+impl Default for WbitsConfig {
+    fn default() -> Self {
+        Self { window_size: None }
+    }
+}
+
+/// Get the window size from config or environment.
+fn get_window_size_from_config(config: &WbitsConfig) -> usize {
+    if let Some(ws) = config.window_size {
+        return ws;
+    }
+    get_window_size_env()
+}
+
+fn get_window_size_env() -> usize {
+    option_env!("WINDOW_SIZE")
+        .map(|v| {
+            v.parse()
+                .expect("WINDOW_SIZE environment variable must be valid number")
+        })
+        .unwrap_or(8)
+}
+
+/// For backward compatibility with code that calls get_window_size()
+fn get_window_size() -> usize {
+    get_window_size_env()
+}
+
+// ============================================================================
+// WBITS TABLE
+// ============================================================================
 
 #[derive(Debug, Clone)]
 pub struct WbitsTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
@@ -15,25 +69,16 @@ where
     TG1Affine: G1Affine<TG1, TG1Fp>,
     TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
 {
+    window_size: usize,
     numpoints: usize,
     points: Vec<TG1Affine>,
 
+    // Legacy: batch tables for backward compatibility (will be removed)
     batch_numpoints: usize,
     batch_points: Vec<Vec<TG1Affine>>,
 
-    g1_marker: PhantomData<TG1>,
-    g1_fp_marker: PhantomData<TG1Fp>,
-    fr_marker: PhantomData<TFr>,
-    g1_affine_add_marker: PhantomData<TG1ProjAddAffine>,
-}
-
-fn get_window_size() -> usize {
-    option_env!("WINDOW_SIZE")
-        .map(|v| {
-            v.parse()
-                .expect("WINDOW_SIZE environment variable must be valid number")
-        })
-        .unwrap_or(8)
+    // Use fn() -> T pattern to avoid requiring Send/Sync bounds on phantom types
+    _phantom: PhantomData<fn() -> (TG1, TG1Fp, TFr, TG1ProjAddAffine)>,
 }
 
 // Code was taken from: https://github.com/privacy-scaling-explorations/halo2curves/blob/b753a832e92d5c86c5c997327a9cf9de86a18851/src/msm.rs#L13
@@ -292,6 +337,124 @@ pub fn multi_batch_addition_binary_tree_stride<
     sums
 }
 
+// ============================================================================
+// FIXEDBASEMSM TRAIT IMPLEMENTATION
+// ============================================================================
+
+impl<
+        TFr: Fr,
+        TG1Fp: G1Fp,
+        TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+        TG1Affine: G1Affine<TG1, TG1Fp>,
+        TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
+    > FixedBaseMSM<TFr, TG1, TG1Fp, TG1Affine>
+    for WbitsTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
+{
+    type Config = WbitsConfig;
+
+    fn new(config: Self::Config, bases: &[TG1]) -> Result<Self, String> {
+        let window_size = get_window_size_from_config(&config);
+        let mut table = Vec::new();
+
+        table
+            .try_reserve_exact(bases.len() * (1 << (window_size - 1)))
+            .map_err(|_| "WBITS precomputation table is too large".to_string())?;
+
+        for point in bases {
+            let mut current = point.clone();
+
+            for _ in 0..(1 << (window_size - 1)) {
+                table.push(TG1Affine::into_affine(&current));
+                current = current.add_or_dbl(point);
+            }
+        }
+
+        Ok(Self {
+            window_size,
+            numpoints: bases.len(),
+            points: table,
+            batch_numpoints: 0,
+            batch_points: Vec::new(),
+            _phantom: PhantomData,
+        })
+    }
+
+    fn multiply(&self, scalars: &[TFr]) -> TG1 {
+        // Wbits doesn't have a separate parallel implementation
+        self.multiply_sequential(scalars)
+    }
+
+    fn multiply_sequential(&self, scalars: &[TFr]) -> TG1 {
+        Self::multiply_sequential_raw(&self.points, scalars, self.window_size)
+    }
+}
+
+// ============================================================================
+// INTERNAL IMPLEMENTATION
+// ============================================================================
+
+impl<
+        TFr: Fr,
+        TG1Fp: G1Fp,
+        TG1: G1 + G1Mul<TFr> + G1GetFp<TG1Fp>,
+        TG1Affine: G1Affine<TG1, TG1Fp>,
+        TG1ProjAddAffine: G1ProjAddAffine<TG1, TG1Fp, TG1Affine>,
+    > WbitsTable<TFr, TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>
+{
+    fn multiply_sequential_raw(bases: &[TG1Affine], scalars: &[TFr], window_size: usize) -> TG1 {
+        let scalars = scalars.iter().map(TFr::to_scalar).collect::<Vec<_>>();
+
+        let number_of_windows = 255 / window_size + 1;
+        let mut windows_of_points = vec![Vec::with_capacity(scalars.len()); number_of_windows];
+
+        for window_idx in 0..windows_of_points.len() {
+            for (scalar_idx, scalar_bytes) in scalars.iter().enumerate() {
+                let sub_table = &bases[scalar_idx * (1 << (window_size - 1))
+                    ..(scalar_idx + 1) * (1 << (window_size - 1))];
+
+                let point_idx = get_booth_index(window_idx, window_size, scalar_bytes.as_u8());
+
+                if point_idx == 0 {
+                    continue;
+                }
+                let is_scalar_positive = point_idx.is_positive();
+                let point_idx = point_idx.unsigned_abs() as usize - 1;
+                let mut point = sub_table[point_idx];
+
+                if !is_scalar_positive {
+                    point = point.neg();
+                }
+
+                windows_of_points[window_idx].push(point);
+            }
+        }
+
+        let accumulated_points =
+            multi_batch_addition_binary_tree_stride::<TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>(
+                windows_of_points,
+            );
+
+        // Now accumulate the windows by doubling wbits times
+        let mut result: TG1 = accumulated_points.last().unwrap().clone();
+        for point in accumulated_points.into_iter().rev().skip(1) {
+            // Double the result 'wbits' times
+            for _ in 0..window_size {
+                result = result.dbl();
+            }
+            // Add the accumulated point for this window
+            result.add_or_dbl_assign(&point);
+        }
+
+        result
+    }
+}
+
+// ============================================================================
+// LEGACY COMPATIBILITY
+// These methods maintain backward compatibility during the transition period.
+// They will be removed after all callers are updated to use the new trait API.
+// ============================================================================
+
 impl<
         TFr: Fr,
         TG1Fp: G1Fp,
@@ -303,21 +466,19 @@ impl<
     fn try_read_cache(points: &[TG1], matrix: &[Vec<TG1>]) -> Result<Self, Option<[u8; 32]>> {
         #[cfg(feature = "diskcache")]
         {
-            DiskCache::<TG1, TG1Fp, TG1Affine>::load("wbits", get_window_size(), points, matrix)
+            let window_size = get_window_size();
+            DiskCache::<TG1, TG1Fp, TG1Affine>::load("wbits", window_size, points, matrix)
                 .map_err(|(err, contenthash)| {
                     println!("Failed to load cache: {err}");
                     contenthash
                 })
                 .map(|cache| Self {
+                    window_size,
                     numpoints: cache.numpoints,
                     points: cache.table,
                     batch_numpoints: cache.batch_numpoints,
                     batch_points: cache.batch_table,
-
-                    g1_marker: PhantomData,
-                    g1_fp_marker: PhantomData,
-                    fr_marker: PhantomData,
-                    g1_affine_add_marker: PhantomData,
+                    _phantom: PhantomData,
                 })
         }
 
@@ -354,7 +515,13 @@ impl<
         Ok(())
     }
 
+    /// Legacy constructor for backward compatibility with precompute.rs.
+    ///
+    /// # Deprecated
+    /// Use `FixedBaseMSM::new(config, bases)` for single-base MSM.
+    #[allow(clippy::type_complexity)]
     pub fn new(points: &[TG1], matrix: &[Vec<TG1>]) -> Result<Option<Self>, String> {
+        let window_size = get_window_size();
         let contenthash = match Self::try_read_cache(points, matrix) {
             Ok(v) => return Ok(Some(v)),
             Err(e) => e,
@@ -363,13 +530,13 @@ impl<
         let mut table = Vec::new();
 
         table
-            .try_reserve_exact(points.len() * (1 << (get_window_size() - 1)))
+            .try_reserve_exact(points.len() * (1 << (window_size - 1)))
             .map_err(|_| "WBITS precomputation table is too large".to_string())?;
 
         for point in points {
             let mut current = point.clone();
 
-            for _ in 0..(1 << (get_window_size() - 1)) {
+            for _ in 0..(1 << (window_size - 1)) {
                 table.push(TG1Affine::into_affine(&current));
                 current = current.add_or_dbl(point);
             }
@@ -378,15 +545,12 @@ impl<
         if matrix.is_empty() {
             Self::try_write_cache(points, matrix, &table, points.len(), &[], 0, contenthash)?;
             Ok(Some(Self {
+                window_size,
                 numpoints: points.len(),
                 points: table,
                 batch_numpoints: 0,
                 batch_points: Vec::new(),
-
-                g1_marker: PhantomData,
-                g1_fp_marker: PhantomData,
-                fr_marker: PhantomData,
-                g1_affine_add_marker: PhantomData,
+                _phantom: PhantomData,
             }))
         } else {
             let batch_numpoints = matrix[0].len();
@@ -399,13 +563,13 @@ impl<
             for row in matrix {
                 let mut temp_table = Vec::new();
                 temp_table
-                    .try_reserve_exact(row.len() * (1 << (get_window_size() - 1)))
+                    .try_reserve_exact(row.len() * (1 << (window_size - 1)))
                     .map_err(|_| "WBITS precomputation table is too large".to_owned())?;
 
                 for point in row {
                     let mut current = point.clone();
 
-                    for _ in 0..(1 << (get_window_size() - 1)) {
+                    for _ in 0..(1 << (window_size - 1)) {
                         temp_table.push(TG1Affine::into_affine(&current));
                         current = current.add_or_dbl(point);
                     }
@@ -425,81 +589,36 @@ impl<
             )?;
 
             Ok(Some(Self {
+                window_size,
                 numpoints: points.len(),
                 points: table,
-
                 batch_numpoints,
                 batch_points,
-
-                fr_marker: PhantomData,
-                g1_fp_marker: PhantomData,
-                g1_marker: PhantomData,
-                g1_affine_add_marker: PhantomData,
+                _phantom: PhantomData,
             }))
         }
     }
 
-    fn multiply_sequential_raw(bases: &[TG1Affine], scalars: &[TFr]) -> TG1 {
-        let scalars = scalars.iter().map(TFr::to_scalar).collect::<Vec<_>>();
-
-        let number_of_windows = 255 / get_window_size() + 1;
-        let mut windows_of_points = vec![Vec::with_capacity(scalars.len()); number_of_windows];
-
-        for window_idx in 0..windows_of_points.len() {
-            for (scalar_idx, scalar_bytes) in scalars.iter().enumerate() {
-                let sub_table = &bases[scalar_idx * (1 << (get_window_size() - 1))
-                    ..(scalar_idx + 1) * (1 << (get_window_size() - 1))];
-
-                let point_idx =
-                    get_booth_index(window_idx, get_window_size(), scalar_bytes.as_u8());
-
-                if point_idx == 0 {
-                    continue;
-                }
-                let is_scalar_positive = point_idx.is_positive();
-                let point_idx = point_idx.unsigned_abs() as usize - 1;
-                let mut point = sub_table[point_idx];
-
-                if !is_scalar_positive {
-                    point = point.neg();
-                }
-
-                windows_of_points[window_idx].push(point);
-            }
-        }
-
-        let accumulated_points =
-            multi_batch_addition_binary_tree_stride::<TG1, TG1Fp, TG1Affine, TG1ProjAddAffine>(
-                windows_of_points,
-            );
-
-        // Now accumulate the windows by doubling wbits times
-        let mut result: TG1 = accumulated_points.last().unwrap().clone();
-        for point in accumulated_points.into_iter().rev().skip(1) {
-            // Double the result 'wbits' times
-            for _ in 0..get_window_size() {
-                result = result.dbl();
-            }
-            // Add the accumulated point for this window
-            result.add_or_dbl_assign(&point);
-        }
-
-        result
-    }
-
+    /// Legacy multiply_sequential - delegates to the trait method.
+    ///
+    /// Prefer importing `FixedBaseMSM` and using the trait method directly.
     pub fn multiply_sequential(&self, scalars: &[TFr]) -> TG1 {
-        Self::multiply_sequential_raw(&self.points, scalars)
+        Self::multiply_sequential_raw(&self.points, scalars, self.window_size)
     }
 
+    /// Legacy batch multiplication.
+    ///
+    /// For new code, use `BatchFixedBaseMSM` (coming in a future update).
     pub fn multiply_batch(&self, scalars: &[Vec<TFr>]) -> Vec<TG1> {
         assert!(scalars.len() == self.batch_points.len());
+        let window_size = self.window_size;
 
         #[cfg(not(feature = "parallel"))]
         {
             self.batch_points
                 .iter()
                 .zip(scalars)
-                .map(|(points, scalars)| Self::multiply_sequential_raw(points, scalars))
+                .map(|(points, scalars)| Self::multiply_sequential_raw(points, scalars, window_size))
                 .collect::<Vec<_>>()
         }
 
@@ -532,7 +651,7 @@ impl<
                     }
 
                     let result =
-                        Self::multiply_sequential_raw(&self.batch_points[work], &scalars[work]);
+                        Self::multiply_sequential_raw(&self.batch_points[work], &scalars[work], window_size);
                     unsafe { *results[work].as_ptr().as_mut().unwrap() = result };
                 });
             }

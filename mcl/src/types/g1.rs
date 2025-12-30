@@ -16,15 +16,12 @@ use blst::blst_p1_affine;
 use blst::blst_p1_in_g1;
 use blst::BLST_ERROR;
 use kzg::eip_4844::BYTES_PER_G1;
-use kzg::msm::precompute::PrecomputationTable;
 use kzg::G1Affine;
 use kzg::G1GetFp;
-use kzg::G1LinComb;
 use kzg::G1ProjAddAffine;
 use kzg::{G1Mul, G1};
 
 use crate::consts::{G1_GENERATOR, G1_IDENTITY, G1_NEGATIVE_GENERATOR};
-use crate::kzg_proofs::g1_linear_combination;
 use crate::mcl_methods::mclBnFp_neg;
 use crate::mcl_methods::mcl_fp;
 use crate::mcl_methods::mcl_g1;
@@ -301,23 +298,6 @@ impl G1Mul<MclFr> for MclG1 {
 
         let mut out = MclG1::default();
         mcl_g1::mul(&mut out.0, &self.0, &b.0);
-        out
-    }
-}
-
-impl G1LinComb<MclFr, MclFp, MclG1Affine, MclG1ProjAddAffine> for MclG1 {
-    fn g1_lincomb(
-        points: &[Self],
-        scalars: &[MclFr],
-        len: usize,
-        precomputation: Option<
-            &PrecomputationTable<MclFr, Self, MclFp, MclG1Affine, MclG1ProjAddAffine>,
-        >,
-    ) -> Self {
-        try_init_mcl();
-
-        let mut out = MclG1::default();
-        g1_linear_combination(&mut out, points, scalars, len, precomputation);
         out
     }
 }
