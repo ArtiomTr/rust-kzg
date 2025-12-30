@@ -1,7 +1,22 @@
 .PHONY: help build test bench lint format clean
 
-# Color output (disable with NOCOLOR=1)
-ifdef NOCOLOR
+# Auto-detect color support unless user explicitly sets NOCOLOR
+# Respects NO_COLOR standard (https://no-color.org) and detects CI/TTY environments
+ifeq ($(origin NOCOLOR), undefined)
+  NOCOLOR := $(shell \
+    if [ -n "$$NO_COLOR" ] || [ -n "$$CI" ] || [ -n "$$CONTINUOUS_INTEGRATION" ] || \
+       [ -n "$$GITHUB_ACTIONS" ] || [ -n "$$GITLAB_CI" ] || [ -n "$$CIRCLECI" ] || \
+       [ -n "$$TRAVIS" ] || [ "$$TERM" = "dumb" ]; then \
+      echo "1"; \
+    elif ! [ -t 1 ] 2>/dev/null; then \
+      echo "1"; \
+    else \
+      echo "0"; \
+    fi)
+endif
+
+# Color output (set NOCOLOR=1 to disable)
+ifeq ($(NOCOLOR), 1)
   RED :=
   GREEN :=
   YELLOW :=
