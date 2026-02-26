@@ -51,7 +51,12 @@ pub fn fft_g1_fast(
 }
 
 impl FFTG1<MclG1> for MclFFTSettings {
-    fn fft_g1(&self, data: &[MclG1], inverse: bool) -> Result<Vec<MclG1>, String> {
+    fn fft_g1_raw(
+        &self,
+        data: &[MclG1],
+        inverse: bool,
+        unscaled: bool,
+    ) -> Result<Vec<MclG1>, String> {
         if data.len() > self.max_width {
             return Err(String::from(
                 "Supplied list is longer than the available max width",
@@ -71,7 +76,7 @@ impl FFTG1<MclG1> for MclFFTSettings {
 
         fft_g1_fast(&mut ret, data, 1, roots, stride);
 
-        if inverse {
+        if inverse && !unscaled {
             let inv_fr_len = MclFr::from_u64(data.len() as u64).inverse();
             ret[..data.len()]
                 .iter_mut()

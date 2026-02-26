@@ -426,7 +426,24 @@ pub trait FFTFr<Coeff: Fr> {
 }
 
 pub trait FFTG1<Coeff: G1> {
-    fn fft_g1(&self, data: &[Coeff], inverse: bool) -> Result<Vec<Coeff>, String>;
+    /// The low-level FFT implementation, that additionally allows emitting
+    /// unscaled results, for inverse FFT. This function probably shouldn't be
+    /// used directly, unless you know what you do.
+    ///
+    /// NOTE: when unscaled set to true, as well as inverse, then the result
+    /// won't be scaled by 1/n. The caller must account for the missing factor.
+    ///
+    /// In other cases, unscaled does nothing, and the result is the same as expected.
+    fn fft_g1_raw(
+        &self,
+        data: &[Coeff],
+        inverse: bool,
+        unscaled: bool,
+    ) -> Result<Vec<Coeff>, String>;
+
+    fn fft_g1(&self, data: &[Coeff], inverse: bool) -> Result<Vec<Coeff>, String> {
+        self.fft_g1_raw(data, inverse, false)
+    }
 }
 
 pub trait DASExtension<Coeff: Fr> {

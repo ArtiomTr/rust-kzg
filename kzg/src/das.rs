@@ -671,11 +671,16 @@ fn compute_fk20_proofs<B: EcBackend>(
     let mut toeplitz_coeffs = vec![B::Fr::default(); k2];
     let mut toeplitz_coeffs_fft = vec![B::Fr::default(); k2];
 
+    let inv_domain_size = B::Fr::from_u64(k2 as u64).inverse();
     for i in 0..cell_size {
         toeplitz_coeffs_stride::<B>(&mut toeplitz_coeffs, poly, n, i, cell_size)?;
         toeplitz_coeffs_fft.clone_from_slice(&fft_settings.fft_fr(&toeplitz_coeffs, false)?);
         for j in 0..k2 {
-            coeffs[j][i] = toeplitz_coeffs_fft[j].clone();
+            // small optimization, taken from c-kzg - we can avoid post-scaling
+            // of resulting values (128 g1 scalar multiplications) by scaling
+            // factors instead, essentially replacing expensive point
+            // multiplication with cheap field multiplication operation.
+            coeffs[j][i] = toeplitz_coeffs_fft[j].mul(&inv_domain_size);
         }
     }
 
@@ -685,7 +690,7 @@ fn compute_fk20_proofs<B: EcBackend>(
         kzg_settings.get_precomputation(),
     )?;
 
-    let mut h = fft_settings.fft_g1(&h_ext_fft, true)?;
+    let mut h = fft_settings.fft_g1_raw(&h_ext_fft, true, true)?;
 
     cfg_iter_mut!(h)
         .take(k2)
