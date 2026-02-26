@@ -127,9 +127,4 @@ mod tests {
     pub fn pairings_work_() {
         pairings_work::<ZFr, ZG1, ZG2>(&pairings_verify);
     }
-
-    #[test]
-    pub fn fr_is_null_works_() {
-        fr_is_null_works::<ZFr>();
-    }
 }

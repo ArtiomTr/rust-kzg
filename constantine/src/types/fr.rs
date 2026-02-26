@@ -64,10 +64,6 @@ impl CtFr {
 }
 
 impl Fr for CtFr {
-    fn null() -> Self {
-        Self::from_u64_arr(&[u64::MAX, u64::MAX, u64::MAX, u64::MAX])
-    }
-
     fn zero() -> Self {
         Self::from_u64(0)
     }
@@ -189,10 +185,6 @@ impl Fr for CtFr {
 
     fn is_zero(&self) -> bool {
         unsafe { constantine::ctt_bls12_381_fr_is_zero(&self.0) != 0 }
-    }
-
-    fn is_null(&self) -> bool {
-        self.equals(&Self::null())
     }
 
     fn sqr(&self) -> Self {

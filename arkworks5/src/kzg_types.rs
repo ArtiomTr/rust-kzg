@@ -87,12 +87,6 @@ fn bigint_check_mod_256(a: &[u64; 4]) -> bool {
 }
 
 impl KzgFr for ArkFr {
-    fn null() -> Self {
-        Self {
-            fr: Fr::new_unchecked(BigInteger256::new([u64::MAX; 4])),
-        }
-    }
-
     fn zero() -> Self {
         // Self::from_u64(0)
         Self { fr: Fr::zero() }
@@ -195,10 +189,6 @@ impl KzgFr for ArkFr {
 
     fn is_zero(&self) -> bool {
         self.fr.is_zero()
-    }
-
-    fn is_null(&self) -> bool {
-        self.equals(&ArkFr::null())
     }
 
     fn sqr(&self) -> Self {

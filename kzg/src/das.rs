@@ -136,7 +136,7 @@ pub trait DAS<B: EcBackend> {
         }
 
         for fr in recovered_cells.iter_mut() {
-            *fr = B::Fr::null();
+            *fr = B::Fr::zero();
         }
 
         // Trick to use HashSet, to check for duplicate commitments, is taken from rust-eth-kzg:
@@ -226,7 +226,7 @@ pub trait DAS<B: EcBackend> {
         cfg_iter!(cells)
             .zip(cfg_iter!(cell_indices))
             .map(|(cells, cell_indices)| {
-                let mut recovered_cells = vec![B::Fr::null(); 2 * ts_len];
+                let mut recovered_cells = vec![B::Fr::zero(); 2 * ts_len];
                 let mut recovered_proofs = vec![B::G1::default(); (2 * ts_len) / cell_size];
 
                 self.recover_cells_and_kzg_proofs(
@@ -585,11 +585,7 @@ fn recover_cells<B: EcBackend>(
     let mut extended_evaluation_times_zero = Vec::with_capacity(field_elements_per_ext_blob);
 
     for i in 0..field_elements_per_ext_blob {
-        if cells_brp[i].is_null() {
-            extended_evaluation_times_zero.push(B::Fr::zero());
-        } else {
-            extended_evaluation_times_zero.push(cells_brp[i].mul(&vanishing_poly_eval[i]));
-        }
+        extended_evaluation_times_zero.push(cells_brp[i].mul(&vanishing_poly_eval[i]));
     }
 
     let extended_evaluation_times_zero_coeffs =

@@ -33,10 +33,6 @@ impl<'a> Arbitrary<'a> for FsFr {
 }
 
 impl Fr for FsFr {
-    fn null() -> Self {
-        Self::from_u64_arr(&[u64::MAX, u64::MAX, u64::MAX, u64::MAX])
-    }
-
     fn zero() -> Self {
         Self::from_u64(0)
     }
@@ -160,10 +156,6 @@ impl Fr for FsFr {
         }
 
         val[0] == 0 && val[1] == 0 && val[2] == 0 && val[3] == 0
-    }
-
-    fn is_null(&self) -> bool {
-        self.equals(&Self::null())
     }
 
     fn sqr(&self) -> Self {
