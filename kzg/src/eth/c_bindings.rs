@@ -1,6 +1,7 @@
 use crate::{
     eth::{CELLS_PER_EXT_BLOB, FIELD_ELEMENTS_PER_CELL},
-    EcBackend, Fr, DAS, G1,
+    msm::msm_impls::batch_convert,
+    EcBackend, Fr, G1Affine, DAS, G1,
 };
 
 use super::{
@@ -183,9 +184,12 @@ pub unsafe fn compute_cells_and_kzg_proofs<
         }
 
         if let Some(proofs_rs) = proofs_rs {
+            let proofs_rs = batch_convert::<B::G1, B::G1Fp, B::G1Affine>(&proofs_rs);
             let proofs = core::slice::from_raw_parts_mut(proofs, CELLS_PER_EXT_BLOB);
             for (proof_index, proof) in proofs_rs.iter().enumerate() {
-                proofs[proof_index].bytes.copy_from_slice(&proof.to_bytes());
+                proofs[proof_index]
+                    .bytes
+                    .copy_from_slice(&proof.to_bytes_compressed());
             }
         }
 
@@ -262,11 +266,13 @@ pub unsafe fn recover_cells_and_kzg_proofs<
         }
 
         if let Some(recovered_proofs_rs) = recovered_proofs_rs {
+            let recovered_proofs_rs =
+                batch_convert::<B::G1, B::G1Fp, B::G1Affine>(&recovered_proofs_rs);
             let recovered_proofs =
                 core::slice::from_raw_parts_mut(recovered_proofs, CELLS_PER_EXT_BLOB);
 
             for (proof_c, proof_rs) in recovered_proofs.iter_mut().zip(recovered_proofs_rs.iter()) {
-                proof_c.bytes = proof_rs.to_bytes();
+                proof_c.bytes = proof_rs.to_bytes_compressed();
             }
         }
 

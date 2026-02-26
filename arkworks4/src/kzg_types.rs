@@ -1160,11 +1160,19 @@ impl G1AffineTrait<ArkG1, ArkFp> for ArkG1Affine {
         }
     }
 
+    fn to_bytes_compressed(&self) -> [u8; 48] {
+        let mut buff = [0u8; 48];
+        self.aff
+            .serialize_compressed(&mut buff[..])
+            .expect("affine to be serializable into 48 bytes");
+        buff
+    }
+
     fn to_bytes_uncompressed(&self) -> [u8; 96] {
         let mut buffer = [0u8; 96];
         self.aff
             .serialize_uncompressed(&mut buffer[..])
-            .expect("impossible to happen");
+            .expect("affine to be serializable into 96 bytes in uncompressed form");
         buffer
     }
 

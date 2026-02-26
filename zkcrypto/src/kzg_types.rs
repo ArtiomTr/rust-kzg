@@ -665,6 +665,10 @@ impl G1AffineTrait<ZG1, ZFp> for ZG1Affine {
         })
     }
 
+    fn to_bytes_compressed(&self) -> [u8; 48] {
+        self.0.to_compressed()
+    }
+
     fn to_bytes_uncompressed(&self) -> [u8; 96] {
         self.0.to_uncompressed()
     }

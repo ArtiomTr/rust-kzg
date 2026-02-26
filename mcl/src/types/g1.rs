@@ -453,10 +453,25 @@ impl G1Affine<MclG1, MclFp> for MclG1Affine {
     }
 
     fn from_xy(x: MclFp, y: MclFp) -> Self {
+        try_init_mcl();
+
         Self { x: x.0, y: y.0 }
     }
 
+    fn to_bytes_compressed(&self) -> [u8; 48] {
+        try_init_mcl();
+
+        let mut out = [0u8; 48];
+        unsafe {
+            blst::blst_p1_affine_compress(out.as_mut_ptr(), &self.to_blst_p1_affine());
+        }
+
+        out
+    }
+
     fn to_bytes_uncompressed(&self) -> [u8; 96] {
+        try_init_mcl();
+
         let mut buffer = [0u8; 96];
 
         unsafe {
@@ -467,6 +482,8 @@ impl G1Affine<MclG1, MclFp> for MclG1Affine {
     }
 
     fn from_bytes_uncompressed(bytes: [u8; 96]) -> Result<Self, String> {
+        try_init_mcl();
+
         let mut aff = blst::blst_p1_affine::default();
 
         let res = unsafe { blst::blst_p1_deserialize(&mut aff, bytes.as_ptr()) };

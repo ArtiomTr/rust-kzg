@@ -11,7 +11,8 @@ use crate::{
         BYTES_PER_BLOB, BYTES_PER_CELL, BYTES_PER_COMMITMENT, BYTES_PER_FIELD_ELEMENT,
         BYTES_PER_PROOF, CELLS_PER_EXT_BLOB, FIELD_ELEMENTS_PER_CELL, FIELD_ELEMENTS_PER_EXT_BLOB,
     },
-    Fr, G1,
+    msm::msm_impls::batch_convert,
+    Fr, G1Affine, G1,
 };
 
 pub type CellsKzgProofs = (Vec<[u8; BYTES_PER_CELL]>, Vec<[u8; BYTES_PER_PROOF]>);
@@ -49,9 +50,10 @@ where
     .map_err(|err| format!("Cell and proof recovery failed with error: {err}"))?;
 
     let converted_cells = cells_elements_to_cells_bytes::<B>(&recovered_cells)?;
+    let recovered_proofs = batch_convert::<B::G1, B::G1Fp, B::G1Affine>(&recovered_proofs);
     let converted_proofs = recovered_proofs
         .into_iter()
-        .map(|proof| proof.to_bytes())
+        .map(|proof| proof.to_bytes_compressed())
         .collect::<Vec<_>>();
 
     Ok((converted_cells, converted_proofs))
@@ -77,9 +79,10 @@ where
     )?;
 
     let converted_cells = cells_elements_to_cells_bytes::<B>(&recovered_cells)?;
+    let recovered_proofs = batch_convert::<B::G1, B::G1Fp, B::G1Affine>(&recovered_proofs);
     let converted_proofs = recovered_proofs
         .into_iter()
-        .map(|proof| proof.to_bytes())
+        .map(|proof| proof.to_bytes_compressed())
         .collect::<Vec<_>>();
 
     Ok((converted_cells, converted_proofs))

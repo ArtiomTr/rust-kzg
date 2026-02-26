@@ -5,7 +5,8 @@ use crate::test_vectors::{
 };
 use kzg::{
     eth::{self, FIELD_ELEMENTS_PER_CELL},
-    EcBackend, Fr, DAS, G1,
+    msm::msm_impls::batch_convert,
+    EcBackend, Fr, G1Affine, DAS, G1,
 };
 use std::{fs, path::PathBuf};
 
@@ -65,9 +66,10 @@ pub fn test_vectors_compute_cells_and_kzg_proofs<B: EcBackend>(
                     .chunks(FIELD_ELEMENTS_PER_CELL)
                     .map(|it| it.iter().flat_map(|it| it.to_bytes()).collect::<Vec<_>>())
                     .collect::<Vec<Vec<u8>>>();
+                let recv_proofs = batch_convert::<B::G1, B::G1Fp, B::G1Affine>(&recv_proofs);
                 let recv_proofs = recv_proofs
                     .into_iter()
-                    .map(|it| it.to_bytes().to_vec())
+                    .map(|it| it.to_bytes_compressed().to_vec())
                     .collect::<Vec<Vec<u8>>>();
 
                 assert!(
@@ -75,6 +77,7 @@ pub fn test_vectors_compute_cells_and_kzg_proofs<B: EcBackend>(
                     "Cells do not match, for test vector {:?}",
                     test_file
                 );
+                assert!(recv_proofs[0].len() == exp_proofs[0].len());
                 assert!(
                     recv_proofs == exp_proofs,
                     "Proofs do not match, for test vector {:?}",

@@ -9,9 +9,9 @@ use alloc::{
 use arbitrary::Arbitrary;
 use blst::{
     blst_fp, blst_fp_cneg, blst_p1, blst_p1_add, blst_p1_add_or_double, blst_p1_affine,
-    blst_p1_affine_serialize, blst_p1_cneg, blst_p1_compress, blst_p1_double, blst_p1_from_affine,
-    blst_p1_in_g1, blst_p1_is_equal, blst_p1_is_inf, blst_p1_mult, blst_p1_uncompress, blst_scalar,
-    blst_scalar_from_fr, p1_affines, BLST_ERROR,
+    blst_p1_affine_compress, blst_p1_affine_serialize, blst_p1_cneg, blst_p1_compress,
+    blst_p1_double, blst_p1_from_affine, blst_p1_in_g1, blst_p1_is_equal, blst_p1_is_inf,
+    blst_p1_mult, blst_p1_uncompress, blst_scalar, blst_scalar_from_fr, p1_affines, BLST_ERROR,
 };
 use core::{hash::Hash, ptr};
 use kzg::{
@@ -406,6 +406,16 @@ impl G1Affine<FsG1, FsFp> for FsG1Affine {
 
     fn from_xy(x: FsFp, y: FsFp) -> Self {
         Self(blst_p1_affine { x: x.0, y: y.0 })
+    }
+
+    fn to_bytes_compressed(&self) -> [u8; 48] {
+        let mut output = [0u8; 48];
+
+        unsafe {
+            blst_p1_affine_compress(output.as_mut_ptr(), &self.0);
+        }
+
+        output
     }
 
     fn to_bytes_uncompressed(&self) -> [u8; 96] {
