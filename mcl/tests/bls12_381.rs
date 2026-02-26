@@ -2,8 +2,8 @@
 mod tests {
     use kzg::common_utils::log_2_byte;
     use kzg_bench::tests::bls12_381::{
-        fr_div_by_zero, fr_div_works, fr_equal_works, fr_from_uint64_works, fr_is_null_works,
-        fr_is_one_works, fr_is_zero_works, fr_negate_works, fr_pow_works, fr_uint64s_roundtrip,
+        fr_div_by_zero, fr_div_works, fr_equal_works, fr_from_uint64_works, fr_is_one_works,
+        fr_is_zero_works, fr_negate_works, fr_pow_works, fr_uint64s_roundtrip,
         g1_identity_is_identity, g1_identity_is_infinity, g1_linear_combination_infinity_points,
         g1_make_linear_combination, g1_random_linear_combination, g1_small_linear_combination,
         log_2_byte_works, p1_mul_works, p1_sub_works, p2_add_or_dbl_works, p2_mul_works,
@@ -19,11 +19,6 @@ mod tests {
     #[test]
     fn log_2_byte_works_() {
         log_2_byte_works(&log_2_byte)
-    }
-
-    #[test]
-    fn fr_is_null_works_() {
-        fr_is_null_works::<MclFr>()
     }
 
     #[test]

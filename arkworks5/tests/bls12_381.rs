@@ -136,9 +136,4 @@ mod tests {
     pub fn pairings_work_() {
         pairings_work::<ArkFr, ArkG1, ArkG2>(&pairings_verify);
     }
-
-    #[test]
-    pub fn fr_is_null_works_() {
-        fr_is_null_works::<ArkFr>();
-    }
 }

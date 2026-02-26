@@ -16,8 +16,6 @@ pub mod msm;
 pub use das::{EcBackend, DAS};
 
 pub trait Fr: Default + Clone + PartialEq + Sync + for<'a> Arbitrary<'a> {
-    fn null() -> Self;
-
     fn zero() -> Self;
 
     fn one() -> Self;
@@ -44,8 +42,6 @@ pub trait Fr: Default + Clone + PartialEq + Sync + for<'a> Arbitrary<'a> {
     fn is_one(&self) -> bool;
 
     fn is_zero(&self) -> bool;
-
-    fn is_null(&self) -> bool;
 
     fn sqr(&self) -> Self;
 

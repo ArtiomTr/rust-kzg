@@ -30,12 +30,6 @@ impl<'a> Arbitrary<'a> for MclFr {
 }
 
 impl Fr for MclFr {
-    fn null() -> Self {
-        try_init_mcl();
-
-        Self::from_u64_arr(&[u64::MAX, u64::MAX, u64::MAX, u64::MAX])
-    }
-
     fn zero() -> Self {
         try_init_mcl();
 
@@ -174,14 +168,6 @@ impl Fr for MclFr {
         try_init_mcl();
 
         self.0.is_zero()
-    }
-
-    fn is_null(&self) -> bool {
-        try_init_mcl();
-        try_init_mcl();
-
-        let n = Self::null();
-        self.0.eq(&n.0)
     }
 
     fn sqr(&self) -> Self {

@@ -77,11 +77,6 @@ impl<'a> Arbitrary<'a> for ZFr {
 }
 
 impl KzgFr for ZFr {
-    fn null() -> Self {
-        Self {
-            fr: Scalar([u64::MAX, u64::MAX, u64::MAX, u64::MAX]),
-        }
-    }
     fn zero() -> Self {
         Self::from_u64(0)
     }
@@ -225,10 +220,6 @@ impl KzgFr for ZFr {
 
     fn is_zero(&self) -> bool {
         self.fr.is_zero().unwrap_u8() == 1
-    }
-
-    fn is_null(&self) -> bool {
-        self.fr.ct_eq(&ZFr::null().fr).unwrap_u8() == 1
     }
 
     fn sqr(&self) -> Self {
