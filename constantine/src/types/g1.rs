@@ -457,6 +457,15 @@ impl G1Affine<CtG1, CtFp> for CtG1Affine {
         Self(bls12_381_g1_aff { x: x.0, y: y.0 })
     }
 
+    fn to_bytes_compressed(&self) -> [u8; 48] {
+        let mut out = [0u8; 48];
+        unsafe {
+            let _ = constantine::ctt_bls12_381_serialize_g1_compressed(out.as_mut_ptr(), &self.0);
+        }
+
+        out
+    }
+
     fn to_bytes_uncompressed(&self) -> [u8; 96] {
         todo!()
     }

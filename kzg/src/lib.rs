@@ -295,6 +295,8 @@ pub trait G1Affine<TG1: G1, TG1Fp: G1Fp>:
         *self = Self::zero();
     }
 
+    fn to_bytes_compressed(&self) -> [u8; 48];
+
     fn to_bytes_uncompressed(&self) -> [u8; 96];
 
     fn from_bytes_uncompressed(bytes: [u8; 96]) -> Result<Self, String>;
