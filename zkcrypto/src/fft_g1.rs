@@ -30,7 +30,7 @@ pub fn make_data(data: usize) -> Vec<ZG1> {
 }
 
 impl FFTG1<ZG1> for FFTSettings {
-    fn fft_g1(&self, data: &[ZG1], inverse: bool) -> Result<Vec<ZG1>, String> {
+    fn fft_g1_raw(&self, data: &[ZG1], inverse: bool, unscaled: bool) -> Result<Vec<ZG1>, String> {
         if data.len() > self.max_width {
             return Err(String::from("data length is longer than allowed max width"));
         }
@@ -49,7 +49,7 @@ impl FFTG1<ZG1> for FFTSettings {
 
         fft_g1_fast(&mut ret, data, 1, roots, stride);
 
-        if inverse {
+        if inverse && !unscaled {
             let inv_fr_len = ZFr::from_u64(data.len() as u64).inverse();
             ret[..data.len()]
                 .iter_mut()
