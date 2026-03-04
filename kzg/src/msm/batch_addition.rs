@@ -64,6 +64,10 @@ fn point_add_double<TG1: G1, TG1Fp: G1Fp, TG1Affine: G1Affine<TG1, TG1Fp>>(
 ///
 /// Panics if any of the elements are zero
 pub fn batch_inverse_scratch_pad<F: G1Fp>(v: &mut [F], scratchpad: &mut Vec<F>) {
+    if v.is_empty() {
+        return;
+    }
+
     // Montgomery's Trick and Fast Implementation of Masked AES
     // Genelle, Prouff and Quisquater
     // Section 3.2
@@ -77,7 +81,7 @@ pub fn batch_inverse_scratch_pad<F: G1Fp>(v: &mut [F], scratchpad: &mut Vec<F>) 
     let mut tmp = F::one();
     for f in v.iter() {
         tmp = tmp.mul_fp(f);
-        scratchpad.push(tmp.clone());
+        scratchpad.push(tmp);
     }
 
     // Invert `tmp`.
@@ -86,18 +90,14 @@ pub fn batch_inverse_scratch_pad<F: G1Fp>(v: &mut [F], scratchpad: &mut Vec<F>) 
         .expect("guaranteed to be non-zero since we filtered out zero field elements");
 
     // Second pass: iterate backwards to compute inverses
-    for (f, s) in v
-        .iter_mut()
-        // Backwards
-        .rev()
-        // Backwards, skip last element, fill in one for last term.
-        .zip(scratchpad.iter().rev().skip(1).chain(Some(&F::one())))
-    {
-        // tmp := tmp * f; f := tmp * s = 1/f
-        let new_tmp = tmp.mul_fp(f);
-        *f = tmp.mul_fp(s);
+    for i in (1..v.len()).rev() {
+        // tmp := tmp * v[i]; v[i] := tmp * scratchpad[i - 1] = 1 / v[i]
+        let new_tmp = tmp.mul_fp(&v[i]);
+        v[i] = tmp.mul_fp(&scratchpad[i - 1]);
         tmp = new_tmp;
     }
+
+    v[0] = tmp;
 }
 
 /// Performs multi-batch addition of multiple sets of elliptic curve points.
