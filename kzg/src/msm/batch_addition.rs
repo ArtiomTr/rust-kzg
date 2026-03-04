@@ -8,26 +8,38 @@ const BATCH_INVERSE_THRESHOLD: usize = 16;
 #[inline(always)]
 fn choose_add_or_double<TG1: G1, TG1Fp: G1Fp, TG1Affine: G1Affine<TG1, TG1Fp>>(
     pair: &mut [TG1Affine],
-) -> TG1Fp {
-    let fp = if pair[0].is_infinity() || pair[1].is_infinity() {
-        return TG1Fp::one();
-    } else if pair[0].x() == pair[1].x() {
-        if pair[0].y() != pair[1].y() {
-            // pair[0] == -pair[1]: we mark the pair as neutral so point_add_double is a no-op.
-            pair[1] = TG1Affine::zero();
-            pair[0] = TG1Affine::zero();
-            return TG1Fp::one();
+    tmp: &mut [TG1Fp],
+    mul_acc: Option<TG1Fp>,
+) {
+    let mut inf = pair[0].is_infinity() || pair[1].is_infinity();
+
+    tmp[1] = pair[1].x().sub_fp(&pair[0].x());
+    *pair[1].x_mut() = pair[1].x().add_fp(pair[0].x());
+    tmp[0] = pair[1].y().add_fp(&pair[0].y());
+    *pair[1].y_mut() = pair[1].y().sub_fp(pair[0].y());
+
+    if tmp[1].is_zero() {
+        inf = pair[0].is_zero();
+        if inf {
+            *pair[1].x_mut() = tmp[0];
         }
+        *pair[1].y_mut() = pair[0].x().square();
+        *pair[1].y_mut() = pair[1].y().mul3();
+        tmp[1] = tmp[0];
+    }
 
-        let f = pair[1].y().double();
-        *pair[1].y_mut() = pair[0].x().square().mul3();
-        f
+    if inf {
+        *pair[0].x_mut() = *pair[1].x();
+        *pair[0].y_mut() = tmp[0];
+        tmp[0] = TG1Fp::one();
+        tmp[1] = TG1Fp::zero();
     } else {
-        *pair[1].y_mut() = pair[1].y().sub_fp(pair[0].y());
-        pair[1].x().sub_fp(pair[0].x())
-    };
+        tmp[0] = tmp[1];
+    }
 
-    fp
+    if let Some(mul_acc) = mul_acc {
+        tmp[0].mul_assign_fp(&mul_acc);
+    }
 }
 
 /// Adds two elliptic curve points using the point addition/doubling formula.
@@ -39,22 +51,26 @@ fn choose_add_or_double<TG1: G1, TG1Fp: G1Fp, TG1Affine: G1Affine<TG1, TG1Fp>>(
 fn point_add_double<TG1: G1, TG1Fp: G1Fp, TG1Affine: G1Affine<TG1, TG1Fp>>(
     p1: TG1Affine,
     p2: TG1Affine,
-    inv: &TG1Fp,
+    tmp2: &mut TG1Fp,
+    lambda: TG1Fp,
 ) -> TG1Affine {
-    if p1.is_zero() {
-        return p2;
+    let inf = tmp2.is_zero();
+
+    let lambda = lambda.mul_fp(p2.x());
+    let llambda = lambda.square();
+    let res_x = llambda.sub_fp(p2.x());
+
+    let res_y = p1.x().sub_fp(&res_x);
+    let res_y = res_y.mul_fp(&lambda);
+    let res_y = res_y.sub_fp(p1.y());
+
+    if inf {
+        *tmp2 = TG1Fp::one();
+
+        p1
+    } else {
+        TG1Affine::from_xy(res_x, res_y)
     }
-
-    if p2.is_zero() {
-        return p1;
-    }
-
-    let lambda = p2.y().mul_fp(inv);
-
-    let x = lambda.square().sub_fp(p1.x()).sub_fp(p2.x());
-    let y = lambda.mul_fp(&p1.x().sub_fp(&x)).sub_fp(p1.y());
-
-    TG1Affine::from_xy(x, y)
 }
 
 /// Given a vector of field elements {v_i}, compute the vector {v_i^(-1)}
@@ -119,12 +135,6 @@ pub fn multi_batch_addition_binary_tree_stride<
     let total_num_points: usize = multi_points.iter().map(|p| p.len()).sum();
     let mut scratchpad = Vec::with_capacity(total_num_points);
 
-    // Find the largest buckets, this will be the bottleneck for the number of iterations
-    let mut max_bucket_length = 0;
-    for points in multi_points.iter() {
-        max_bucket_length = std::cmp::max(max_bucket_length, points.len());
-    }
-
     // Compute the total number of "unit of work"
     // In the single batch addition case this is analogous to
     // the batch inversion threshold
@@ -144,7 +154,7 @@ pub fn multi_batch_addition_binary_tree_stride<
             .sum()
     }
 
-    let mut denominators = Vec::with_capacity(max_bucket_length);
+    let mut denominators = vec![TG1Fp::zero(); total_num_points / 2];
     let mut total_amount_of_work = compute_threshold(&multi_points);
 
     let mut sums = vec![TG1::identity(); multi_points.len()];
@@ -155,31 +165,36 @@ pub fn multi_batch_addition_binary_tree_stride<
     );
     // TODO: total_amount_of_work does not seem to be changing performance that much
     while total_amount_of_work > BATCH_INVERSE_THRESHOLD {
-        // For each point, we check if they are odd and pop off
-        // one of the points
+        let mut denom_offset = 0;
+        let mut mul_acc = None;
         for (points, sum) in multi_points.iter_mut().zip(sums.iter_mut()) {
             // Make the number of points even
             if points.len() % 2 != 0 {
                 TG1ProjAddAffine::add_or_double_assign_affine(sum, &points.pop().unwrap());
             }
-        }
-
-        denominators.clear();
-
-        // For each pair of points over all
-        // vectors, we collect them and put them in the
-        // inverse array
-        for points in multi_points.iter_mut() {
-            if points.len() < 2 {
-                continue;
-            }
 
             for pair in points.chunks_exact_mut(2) {
-                denominators.push(choose_add_or_double(pair));
+                choose_add_or_double(
+                    pair,
+                    &mut denominators[denom_offset..denom_offset + 2],
+                    mul_acc,
+                );
+                mul_acc = Some(denominators[denom_offset]);
+                denom_offset += 2;
             }
         }
 
-        batch_inverse_scratch_pad(&mut denominators, &mut scratchpad);
+        denominators[denom_offset - 2] = denominators[denom_offset - 2].inverse().unwrap();
+
+        for points in multi_points.iter_mut() {
+            let mut dst = points.len();
+            for (i, pair) in points.chunks_exact_mut(2).enumerate().rev() {
+                dst -= 1;
+                denom_offset -= 2;
+
+                // points[i / 2] = point_add_double(pair[0], pair[1], tmp2, lambda);
+            }
+        }
 
         let mut denominators_offset = 0;
 
