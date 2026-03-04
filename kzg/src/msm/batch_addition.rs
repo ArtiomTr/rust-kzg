@@ -12,14 +12,24 @@ const BATCH_INVERSE_THRESHOLD: usize = 16;
 /// to handle.
 #[inline(always)]
 fn choose_add_or_double<TG1: G1, TG1Fp: G1Fp, TG1Affine: G1Affine<TG1, TG1Fp>>(
-    p1: TG1Affine,
-    p2: TG1Affine,
+    pair: &mut [TG1Affine],
 ) -> TG1Fp {
-    if p1 == p2 {
-        p2.y().double()
+    let fp = if pair[0].is_infinity() || pair[1].is_infinity() {
+        return TG1Fp::one();
+    } else if pair[0] == pair[1] {
+        let f = pair[1].y().double();
+        *pair[1].y_mut() = pair[0].x().square().mul3();
+        f
+    } else if pair[0] == pair[1].neg() {
+        pair[0] = TG1Affine::zero();
+        pair[1] = TG1Affine::zero();
+        TG1Fp::one()
     } else {
-        p2.x().sub_fp(p1.x())
-    }
+        *pair[1].y_mut() = pair[1].y().sub_fp(pair[0].y());
+        pair[1].x().sub_fp(pair[0].x())
+    };
+
+    fp
 }
 
 /// Adds two elliptic curve points using the point addition/doubling formula.
@@ -33,11 +43,19 @@ fn point_add_double<TG1: G1, TG1Fp: G1Fp, TG1Affine: G1Affine<TG1, TG1Fp>>(
     p2: TG1Affine,
     inv: &TG1Fp,
 ) -> TG1Affine {
-    let lambda = if p1 == p2 {
-        p1.x().square().mul3().mul_fp(inv)
-    } else {
-        p2.y().sub_fp(p1.y()).mul_fp(inv)
-    };
+    if p1.is_zero() {
+        return p2;
+    }
+
+    if p2.is_zero() {
+        return p1;
+    }
+
+    // if p1.neg() == p2 {
+    //     return TG1Affine::zero();
+    // }
+
+    let lambda = p2.y().mul_fp(inv);
 
     let x = lambda.square().sub_fp(p1.x()).sub_fp(p2.x());
     let y = lambda.mul_fp(&p1.x().sub_fp(&x)).sub_fp(p1.y());
@@ -162,8 +180,8 @@ pub fn multi_batch_addition_binary_tree_stride<
                 continue;
             }
 
-            for i in (0..=points.len() - 2).step_by(2) {
-                denominators.push(choose_add_or_double(points[i], points[i + 1]));
+            for pair in points.chunks_exact_mut(2) {
+                denominators.push(choose_add_or_double(pair));
             }
         }
 
@@ -172,13 +190,6 @@ pub fn multi_batch_addition_binary_tree_stride<
         let mut denominators_offset = 0;
 
         for points in multi_points.iter_mut() {
-            *points = points
-                .chunks_exact(2)
-                .filter(|v| v[0] != v[1].neg())
-                .flat_map(|v| v)
-                .cloned()
-                .collect::<Vec<_>>();
-
             if points.len() < 2 {
                 continue;
             }
