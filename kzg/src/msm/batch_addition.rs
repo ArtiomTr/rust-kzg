@@ -5,25 +5,23 @@ use crate::{G1Affine, G1Fp, G1ProjAddAffine, G1};
 const BATCH_INVERSE_THRESHOLD: usize = 16;
 
 /// Chooses between point addition and point doubling based on the input points.
-///
-/// Note: This does not handle the case where p1 == -p2.
-///
-/// This case is unlikely for our usecase, and is not trivial
-/// to handle.
 #[inline(always)]
 fn choose_add_or_double<TG1: G1, TG1Fp: G1Fp, TG1Affine: G1Affine<TG1, TG1Fp>>(
     pair: &mut [TG1Affine],
 ) -> TG1Fp {
     let fp = if pair[0].is_infinity() || pair[1].is_infinity() {
         return TG1Fp::one();
-    } else if pair[0] == pair[1] {
+    } else if pair[0].x() == pair[1].x() {
+        if pair[0].y() != pair[1].y() {
+            // pair[0] == -pair[1]: we mark the pair as neutral so point_add_double is a no-op.
+            pair[1] = TG1Affine::zero();
+            pair[0] = TG1Affine::zero();
+            return TG1Fp::one();
+        }
+
         let f = pair[1].y().double();
         *pair[1].y_mut() = pair[0].x().square().mul3();
         f
-    } else if pair[0] == pair[1].neg() {
-        pair[0] = TG1Affine::zero();
-        pair[1] = TG1Affine::zero();
-        TG1Fp::one()
     } else {
         *pair[1].y_mut() = pair[1].y().sub_fp(pair[0].y());
         pair[1].x().sub_fp(pair[0].x())
@@ -50,10 +48,6 @@ fn point_add_double<TG1: G1, TG1Fp: G1Fp, TG1Affine: G1Affine<TG1, TG1Fp>>(
     if p2.is_zero() {
         return p1;
     }
-
-    // if p1.neg() == p2 {
-    //     return TG1Affine::zero();
-    // }
 
     let lambda = p2.y().mul_fp(inv);
 
@@ -198,9 +192,7 @@ pub fn multi_batch_addition_binary_tree_stride<
                 .step_by(2)
                 .zip(&denominators[denominators_offset..])
             {
-                let p1 = points[i];
-                let p2 = points[i + 1];
-                points[i / 2] = point_add_double(p1, p2, inv);
+                points[i / 2] = point_add_double(points[i], points[i + 1], inv);
             }
 
             let num_points = points.len() / 2;
