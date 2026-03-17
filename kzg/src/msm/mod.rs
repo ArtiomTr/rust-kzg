@@ -1,4 +1,5 @@
 pub mod arkmsm;
+pub mod batch_addition;
 pub mod cell;
 pub mod msm_impls;
 pub mod precompute;

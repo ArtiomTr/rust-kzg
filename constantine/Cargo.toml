@@ -55,6 +55,10 @@ wbits = [
 c_bindings = []
 
 [[bench]]
+name = "batch_addition"
+harness = false
+
+[[bench]]
 name = "das"
 harness = false
 

@@ -1,3 +1,4 @@
+pub mod batch_addition;
 pub mod das;
 pub mod eip_4844;
 pub mod eip_7594;

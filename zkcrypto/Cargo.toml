@@ -47,6 +47,10 @@ diskcache = [
 ]
 
 [[bench]]
+name = "batch_addition"
+harness = false
+
+[[bench]]
 name = "fft"
 harness = false
 
